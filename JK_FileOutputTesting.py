@@ -1,6 +1,6 @@
 import time
 
-path = r"C:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\JumpKingRL\gamestate.txt"
+path = r"C:\Program Files (x86)\Steam\steamapps\workshop\content\1061090\3699885336\gamestate.txt"
 
 while True:
 

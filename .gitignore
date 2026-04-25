@@ -4,3 +4,7 @@ obj/
 *.user
 .vs/
 dnSpy/
+cartpole_env.py
+cartpole_ppo.zip
+cartpole_test.py
+__pycache__/
