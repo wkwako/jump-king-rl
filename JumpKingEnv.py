@@ -38,20 +38,25 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 )
 
     def step(self, action):
+        #set reward to 0 for this step
         reward = 0
 
         #duplicate gamedata so we have previous info after action
         self.gamedata_prev = list(self.gamedata)
 
-        #executes action
+        #executes action. pauses here until the action is complete (we finish walking or release the jump button)
         self.execute_action(action)
 
-        #reads gamedata
+        #reads gamedata. pauses here until the character lands
         self.gamedata = self.read_gamedata()
+
+        #release spacebar if it's beind held before we choose another action
+        self.reset_keys()
+
         x, y, vel_x, vel_y, is_on_ground, current_screen, total_screens, jump_frames, jump_percentage, max_height_this_jump = self.gamedata   
         x_prev, y_prev, vel_x_prev, vel_y_prev, is_on_ground_prev, current_screen_prev, total_screens_prev, jump_frames_prev, jump_percentage_prev, max_height_this_jump_prev = self.gamedata_prev
 
-        #define rewards
+        #reward calculation
         #must land for current_screen to be registered as above previous screen
         if current_screen > current_screen_prev:
             reward += self.new_screen_reward
@@ -110,6 +115,13 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         return result
     
+
+    def reset_keys(self):
+        #stops pressing all keys
+        pydirectinput.keyUp("space")
+        pydirectinput.keyUp("right")
+        pydirectinput.keyUp("left")
+
     def terminate_height_episode(self, y, y_prev):
         if y > y_prev:
             return True
