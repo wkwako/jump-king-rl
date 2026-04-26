@@ -72,7 +72,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             reward += self.jump_penalty
             self.jump_counter_metadata += 1
 
-        terminated = self.set_terminated(current_screen, current_screen_prev)
+        terminated = self.set_terminated(current_screen, current_screen_prev, y, y_prev)
 
         #reset jumped boolean
         self.jumped = False
@@ -80,22 +80,35 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #state, reward, if the episode is terminated, truncation, and info dict
         return np.array(self.state, dtype=np.float32), reward, terminated, False, {}
     
-    def set_terminated(self, current_screen, current_screen_prev):
+    def set_terminated(self, current_screen, current_screen_prev, y, y_prev):
         #check for termination based on episode type
+
+        #terminate after a certain number of actions
         if self.episode_mode == "action":
             result = self.terminate_action_episode()
         
+        #terminate after reaching a new screen and landing there
         elif self.episode_mode == "screen":
             result = self.terminate_screen_episode(current_screen, current_screen_prev)
         
+        #terminate after landing with a positive height gain
+        elif self.episode_mode == "height":
+            result = self.terminate_height_episode(y, y_prev)
+
+        #combines multiple episode types. type1 for first n/2 screens, type2 for second n/2 screens
         elif self.episode_mode == "curriculum":
             #uses jump episodes beneath n screens, and screen episodes above n screens
             if current_screen < self.curriculum_screens:
-                result = self.terminate_action_episode()
+                result = self.terminate_height_episode()
             else:
                 result = self.terminate_screen_episode(current_screen, current_screen_prev)
 
         return result
+    
+    def terminate_height_episode(self, y, y_prev):
+        if y > y_prev:
+            return True
+        return False
 
     def terminate_action_episode(self):
         #returns True if we should terminate the episode (based on jumps). False otherwise
@@ -103,15 +116,15 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         if self.action_counter >= self.max_episode_actions:
             self.action_counter = 0
             return True
-        else:
-            return False
+    
+        return False
 
     def terminate_screen_episode(self, current_screen, current_screen_prev):
         #returns True if we should terminate the episode (based on screens). False otherwise
         if current_screen > current_screen_prev:
             return True
-        else:
-            return False
+
+        return False
 
     def reset(self, seed=None, options=None):
         self.gamedata = self.read_gamedata()
