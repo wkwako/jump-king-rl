@@ -29,6 +29,9 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.max_episode_actions = max_episode_actions
         self.action_counter = 0
         self.curriculum_screens = curriculum_screens
+        self.visited_cells = set()
+        self.grid_size = 10
+        self.exploration_reward = 1.5
 
         self.observation_space = spaces.Box(low=np.array([-np.inf, -np.inf, -np.inf, -np.inf]),
             high=np.array([np.inf, np.inf, np.inf, np.inf]), dtype=np.float32
@@ -57,14 +60,15 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         if y > y_prev or y < y_prev:
             reward += self.new_height_reward(y, y_prev, jump_percentage)
 
-        #if we jumped and stayed at the same y level, small reward
-        # if self.jumped and y == y_prev:
-        #     reward += 5
-        
-        #reward jumps that land at the same height but in a different location?
         #reward moving right after a big fall so the player stands up?
 
-        #define state
+        #reward exploring unexplored grid cells this episode
+        cell = self.get_grid_cell(x, y)
+        if cell not in self.visited_cells:
+            self.visited_cells.add(cell)
+            reward += self.exploration_reward
+
+        #create state tuple. this is what the agent uses to determine actions
         self.state = (x, y, vel_x, vel_y)
 
         #increment jump count metadata
@@ -72,10 +76,11 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             reward += self.jump_penalty
             self.jump_counter_metadata += 1
 
-        terminated = self.set_terminated(current_screen, current_screen_prev, y, y_prev)
+            #reset jump boolean after every action if it was true
+            self.jumped = False
 
-        #reset jumped boolean
-        self.jumped = False
+        #set terminated bool based on episode_mode
+        terminated = self.set_terminated(current_screen, current_screen_prev, y, y_prev)
 
         #state, reward, if the episode is terminated, truncation, and info dict
         return np.array(self.state, dtype=np.float32), reward, terminated, False, {}
@@ -125,10 +130,14 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             return True
 
         return False
+    
+    def get_grid_cell(self, x, y):
+        return (int(x // self.grid_size), int(y // self.grid_size))
 
     def reset(self, seed=None, options=None):
         self.gamedata = self.read_gamedata()
         self.gamedata_prev = list(self.gamedata)
+        self.visited_cells.clear()
 
         x, y, vel_x, vel_y = self.gamedata[:4]
         self.state = (x, y, vel_x, vel_y)

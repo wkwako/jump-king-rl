@@ -20,7 +20,48 @@ MODEL_PATH = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/J
 class EpisodeMode:
     ACTION = "action"
     SCREEN = "screen"
+    HEIGHT = "height"
     CURRICULUM = "curriculum"
+
+class JumpKingRL:
+
+    def __init__(self):
+        self.init_metadata()
+        self.model_direc = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/models/"
+
+    def init_metadata(self):
+    #turn this into a class variable
+        self.metadata = {
+            "total_jumps": 0,
+            "total_timesteps": model.num_timesteps,
+            "episode_mode": EpisodeMode.JUMP,
+            "max_jumps": max_jumps,
+            "hyperparameters": {
+                "n_steps": n_steps,
+                "new_screen_reward": env.new_screen_reward,
+                "jump_penalty": env.jump_penalty,
+                "max_jump_bonus": env.max_jump_bonus,
+            }
+    }
+
+    def load_metadata(self):
+        pass
+
+    def save_metadata(self):
+        with open(MODEL_PATH + "_metadata.json", "w") as f:
+            json.dump(self.metadata, f)
+
+    def create_model(self, model_name):
+        #creates a new model. will throw an error if model_name already exists
+        pass
+
+    def overwrite_model(self, model_name):
+        #deletes a model with model_name, then creates a new one in its place
+        pass
+
+    def delete_model(self, model_name):
+        #deletes a model with model_name
+        pass
 
 max_jumps = 10
 env = JumpKingEnv(episode_mode=EpisodeMode.ACTION, max_jumps=max_jumps)
@@ -49,27 +90,7 @@ except KeyboardInterrupt:
     print ("Interrupted. Saving...")
     model.save(MODEL_PATH)
 
-def init_metadata():
-    #turn this into a class variable
-    metadata = {
-        "total_jumps": 0,
-        "total_timesteps": model.num_timesteps,
-        "episode_mode": EpisodeMode.JUMP,
-        "max_jumps": max_jumps,
-        "hyperparameters": {
-            "n_steps": n_steps,
-            "new_screen_reward": env.new_screen_reward,
-            "jump_penalty": env.jump_penalty,
-            "max_jump_bonus": env.max_jump_bonus,
-        }
-    }
 
-def load_metadata():
-    pass
-
-def save_metadata(metadata):
-    with open(MODEL_PATH + "_metadata.json", "w") as f:
-        json.dump(metadata, f)
 
 env.close()
 
