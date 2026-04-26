@@ -12,7 +12,7 @@ from gymnasium.error import DependencyNotInstalled
 
 class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
-    def __init__(self, episode_mode, max_jumps=10):
+    def __init__(self, episode_mode, max_episode_actions=10, curriculum_screens=5):
         self.action_map = self.init_action_map()
         self.action_space = spaces.Discrete(len(self.action_map))
         self.state = None
@@ -25,6 +25,10 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.jump_counter_metadata = 0
         self.jump_penalty = -1
         self.max_jump_bonus = 1.40
+        self.episode_mode = episode_mode
+        self.max_episode_actions = max_episode_actions
+        self.action_counter = 0
+        self.curriculum_screens = curriculum_screens
 
         self.observation_space = spaces.Box(low=np.array([-np.inf, -np.inf, -np.inf, -np.inf]),
             high=np.array([np.inf, np.inf, np.inf, np.inf]), dtype=np.float32
@@ -45,7 +49,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         x_prev, y_prev, vel_x_prev, vel_y_prev, is_on_ground_prev, current_screen_prev, total_screens_prev, jump_frames_prev, jump_percentage_prev, max_height_this_jump_prev = self.gamedata_prev
 
         #define rewards
-        #if we go up to a new screen, very large reward
+        #must land for current_screen to be registered as above previous screen
         if current_screen > current_screen_prev:
             reward += self.new_screen_reward
 
@@ -60,23 +64,15 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #reward jumps that land at the same height but in a different location?
         #reward moving right after a big fall so the player stands up?
 
-        
-
         #define state
         self.state = (x, y, vel_x, vel_y)
 
-        #if we jumped, terminate episode
+        #increment jump count metadata
         if self.jumped:
-            self.jump_counter_metadata += 1
-            #print ("jumped")
-            #small negative reward to encourage walking sometimes
             reward += self.jump_penalty
-            terminated = True
-        
-        #if we walked, continue episode
-        else:
-            #print ("walked")
-            terminated = False
+            self.jump_counter_metadata += 1
+
+        terminated = self.set_terminated(current_screen, current_screen_prev)
 
         #reset jumped boolean
         self.jumped = False
@@ -84,6 +80,39 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #state, reward, if the episode is terminated, truncation, and info dict
         return np.array(self.state, dtype=np.float32), reward, terminated, False, {}
     
+    def set_terminated(self, current_screen, current_screen_prev):
+        #check for termination based on episode type
+        if self.episode_mode == "action":
+            result = self.terminate_action_episode()
+        
+        elif self.episode_mode == "screen":
+            result = self.terminate_screen_episode(current_screen, current_screen_prev)
+        
+        elif self.episode_mode == "curriculum":
+            #uses jump episodes beneath n screens, and screen episodes above n screens
+            if current_screen < self.curriculum_screens:
+                result = self.terminate_action_episode()
+            else:
+                result = self.terminate_screen_episode(current_screen, current_screen_prev)
+
+        return result
+
+    def terminate_action_episode(self):
+        #returns True if we should terminate the episode (based on jumps). False otherwise
+        self.action_counter += 1
+        if self.action_counter >= self.max_episode_actions:
+            self.action_counter = 0
+            return True
+        else:
+            return False
+
+    def terminate_screen_episode(self, current_screen, current_screen_prev):
+        #returns True if we should terminate the episode (based on screens). False otherwise
+        if current_screen > current_screen_prev:
+            return True
+        else:
+            return False
+
     def reset(self, seed=None, options=None):
         self.gamedata = self.read_gamedata()
         self.gamedata_prev = list(self.gamedata)

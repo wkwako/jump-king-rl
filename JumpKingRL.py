@@ -18,12 +18,12 @@ from JumpKingEnv import JumpKingEnv
 MODEL_PATH = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/models/jumpking_ppo"
 
 class EpisodeMode:
-    JUMP = "jump"
+    ACTION = "action"
     SCREEN = "screen"
     CURRICULUM = "curriculum"
 
 max_jumps = 10
-env = JumpKingEnv(episode_mode=EpisodeMode.JUMP, max_jumps=max_jumps)
+env = JumpKingEnv(episode_mode=EpisodeMode.ACTION, max_jumps=max_jumps)
 OVERWRITE_MODEL = True
 n_steps = 512
 
