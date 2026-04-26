@@ -21,6 +21,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.new_screen_reward = 300
         self.same_level_reward = 5
         self.jumped = False
+        self.sleep_time = 0.1
 
         self.observation_space = spaces.Box(low=np.array([-np.inf, -np.inf, -np.inf, -np.inf]),
             high=np.array([np.inf, np.inf, np.inf, np.inf]), dtype=np.float32
@@ -56,15 +57,19 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #reward jumps that land at the same height but in a different location?
         #reward moving right after a big fall so the player stands up?
 
+        reward += -1
+
         #define state
         self.state = (x, y, vel_x, vel_y)
 
         #if we jumped, terminate episode
         if self.jumped:
+            #print ("jumped")
             terminated = True
         
         #if we walked, continue episode
         else:
+            #print ("walked")
             terminated = False
 
         #reset jumped boolean
@@ -73,7 +78,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #state, reward, if the episode is terminated, truncation, and info dict
         return np.array(self.state, dtype=np.float32), reward, terminated, False, {}
     
-    def reset(self):
+    def reset(self, seed=None, options=None):
         self.gamedata = self.read_gamedata()
         self.gamedata_prev = list(self.gamedata)
 
@@ -82,7 +87,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         return np.array(self.state, dtype=np.float32), {}
 
-    def new_height_reward(self, y, y_prev, jump_percentage, max_jump_bonus=1.20):
+    def new_height_reward(self, y, y_prev, jump_percentage, max_jump_bonus=1.40):
         #if jump was max height, increase reward by 20%
 
         reward = y - y_prev
@@ -104,6 +109,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
                     return [float(parts[0]), float(parts[1]), float(parts[2]), float(parts[3]), parts[4].strip().lower() == "true", int(parts[5]), int(parts[6]), int(parts[7]), float(parts[8]), float(parts[9])]
             except:
                 pass
+            time.sleep(self.sleep_time)
                 
     def execute_action(self, action):
         #map action index to keypresses
@@ -119,16 +125,18 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #jumping
         else:
             self.jumped = True
-            #jumping straight up
-            if not left and not right:
-                self.key_press("space", jump)
+            #jumping straight up - removed for now
+            #if not left and not right:
+                #self.key_press("space", jump)
 
             #jumping left
-            elif left:
+            if left:
                 self.key_press("space", jump, "left")
 
             #jumping right
             else:
+                #very small sleep timer to ensure space is released first
+                time.sleep(0.05)
                 self.key_press("space", jump, "right")
 
     
@@ -161,9 +169,6 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         #walk small right
         action_map.append([0, 0.1, 0])
-
-        #jump up
-        action_map.append([0, 0, 0.6])
 
         #jump right, 0.1s
         action_map.append([0, 0.1, 0.1])
