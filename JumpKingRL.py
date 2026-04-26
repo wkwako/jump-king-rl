@@ -8,6 +8,9 @@ import signal
 import os
 import json
 
+import sys
+sys.path.append("C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL")
+
 import gymnasium as gym
 from stable_baselines3 import PPO
 
@@ -26,45 +29,130 @@ class EpisodeMode:
 class JumpKingRL:
 
     def __init__(self):
-        self.init_metadata()
         self.model_direc = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/models/"
 
-    def init_metadata(self):
-    #turn this into a class variable
-        self.metadata = {
+    def init_metadata(self, model):
+        env = model.env.envs[0].env        
+        metadata = {
             "total_jumps": 0,
-            "total_timesteps": model.num_timesteps,
-            "episode_mode": EpisodeMode.JUMP,
-            "max_jumps": max_jumps,
+            "total_timesteps": 0,
+            "episode_mode": env.episode_mode,
             "hyperparameters": {
-                "n_steps": n_steps,
+                "max_episode_actions": env.max_episode_actions,
+                "n_steps": model.n_steps,
                 "new_screen_reward": env.new_screen_reward,
                 "jump_penalty": env.jump_penalty,
                 "max_jump_bonus": env.max_jump_bonus,
+                "grid_size": env.grid_size,
+                "exploration_reward": env.exploration_reward,
+            },
+            "architectural": {
+                "observation_space": env.observation_space.shape[0],
+                "action_space": env.action_space.n
             }
-    }
+        }
+        return metadata
 
-    def load_metadata(self):
-        pass
+    def load_model(self, name):
+        # load metadata
+        with open(self.model_direc + name + "_metadata.json") as f:
+            self.metadata = json.load(f)
+        
+        # recreate env from metadata
+        env = JumpKingEnv(
+            episode_mode=self.metadata["episode_mode"],
+            max_episode_actions=self.metadata["hyperparameters"]["max_episode_actions"]
+        )
+        
+        # load model
+        print ("Loading existing model...")
+        model = PPO.load(self.model_direc + name, env=env)
+        
+        return model
 
-    def save_metadata(self):
-        with open(MODEL_PATH + "_metadata.json", "w") as f:
-            json.dump(self.metadata, f)
+    def save_metadata(self, name, model, metadata, new=False):
+        #if no metadata exists, create it
 
-    def create_model(self, model_name):
+        env = model.env.envs[0].env
+
+        if new:
+            metadata = self.init_metadata(model)
+        
+        #if it does exist, update it
+        else:
+            metadata["total_jumps"] += env.jump_counter_metadata
+            metadata["total_timesteps"] += model.num_timesteps
+
+        with open(self.model_direc + name + "_metadata.json", "w") as f:
+            json.dump(metadata, f)
+
+    def load_metadata(self, name):
+        #loads and returns metadata
+        metadata_path = self.model_direc + name + "_metadata.json"
+        if not os.path.exists(metadata_path):
+            raise FileNotFoundError(f"Metadata file \"{metadata_path}\" does not exist.")
+        
+        with open(self.model_direc + name + "_metadata.json", "r") as f:
+            metadata = json.load(f)
+
+        return metadata
+
+    def create_model(self, name, env, n_steps, verbose=1, model_name="MlpPolicy"):
         #creates a new model. will throw an error if model_name already exists
-        pass
+        model_path = self.model_direc + name
+        if os.path.exists(model_path + ".zip"):
+            raise FileExistsError("This model already exists. Please use a different name, delete it, or use the overwrite_model() function.")
+        
+        print ("Creating new model...")
+        model = PPO(model_name, env, verbose=verbose, n_steps=n_steps)
+        model.save(model_path)
 
-    def overwrite_model(self, model_name):
-        #deletes a model with model_name, then creates a new one in its place
-        pass
+        print ("Creating new metadata file...")
+        self.save_metadata(name, model, None, True)
 
-    def delete_model(self, model_name):
-        #deletes a model with model_name
-        pass
+        return model
 
-max_jumps = 10
-env = JumpKingEnv(episode_mode=EpisodeMode.ACTION, max_jumps=max_jumps)
+    def overwrite_model(self, name, model):
+        metadata = self.load_metadata(name)
+        self.delete_model(name)
+        model.save(self.model_direc + name)
+        self.save_metadata(name, model, metadata)
+        return model
+
+    def delete_model(self, name):
+        #deletes a model with name
+
+        if not os.path.exists(self.model_direc + name + ".zip"):
+            raise FileNotFoundError(f"Model \"{name}\" does not exist.")
+
+        print (f"Deleting model \"{name}\"...")
+        os.remove(self.model_direc + name + ".zip")
+        print ("Deleting metadata...")
+        os.remove(self.model_direc + name + "_metadata.json")
+
+    def train_model(self, name, model, total_timesteps):
+        print ("Starting training...")
+        try:
+            #train the model until complete or interrupted
+            model.learn(total_timesteps=total_timesteps)
+            print ("Training complete. Saving...")
+        
+        except KeyboardInterrupt:
+            print ("Interrupted. Saving model and metadata...")
+
+        finally:
+            #overwrite what we have and reset variables
+            self.overwrite_model(name, model)
+            env = model.env.envs[0].env
+            env.jump_counter_metadata = 0
+            
+        
+#create model first
+#then train it
+
+
+max_episode_actions = 10
+env = JumpKingEnv(episode_mode=EpisodeMode.ACTION, max_episode_actions=max_episode_actions)
 OVERWRITE_MODEL = True
 n_steps = 512
 
