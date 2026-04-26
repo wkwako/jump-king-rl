@@ -12,7 +12,7 @@ from gymnasium.error import DependencyNotInstalled
 
 class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
-    def __init__(self):
+    def __init__(self, episode_mode, max_jumps=10):
         self.action_map = self.init_action_map()
         self.action_space = spaces.Discrete(len(self.action_map))
         self.state = None
@@ -22,6 +22,9 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.same_level_reward = 5
         self.jumped = False
         self.sleep_time = 0.1
+        self.jump_counter_metadata = 0
+        self.jump_penalty = -1
+        self.max_jump_bonus = 1.40
 
         self.observation_space = spaces.Box(low=np.array([-np.inf, -np.inf, -np.inf, -np.inf]),
             high=np.array([np.inf, np.inf, np.inf, np.inf]), dtype=np.float32
@@ -57,14 +60,17 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #reward jumps that land at the same height but in a different location?
         #reward moving right after a big fall so the player stands up?
 
-        reward += -1
+        
 
         #define state
         self.state = (x, y, vel_x, vel_y)
 
         #if we jumped, terminate episode
         if self.jumped:
+            self.jump_counter_metadata += 1
             #print ("jumped")
+            #small negative reward to encourage walking sometimes
+            reward += self.jump_penalty
             terminated = True
         
         #if we walked, continue episode
@@ -87,13 +93,13 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         return np.array(self.state, dtype=np.float32), {}
 
-    def new_height_reward(self, y, y_prev, jump_percentage, max_jump_bonus=1.40):
+    def new_height_reward(self, y, y_prev, jump_percentage):
         #if jump was max height, increase reward by 20%
 
         reward = y - y_prev
 
         if jump_percentage == 1 and y > y_prev:
-            reward *= max_jump_bonus
+            reward *= self.max_jump_bonus
 
         return reward
 
