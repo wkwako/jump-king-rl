@@ -17,7 +17,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #pass into function that activates it via pydirectinput
         self.action_space = self.init_action_space()
         self.state = None #TODO: set this
-        pass
+        self.action_map = {}
 
     def step(self, action):
         reward = None #TODO: remove this and set it elsewhere
@@ -40,10 +40,59 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #state, reward, if the episode is terminated, truncation, and info dict
         return np.array(self.state, dtype=np.float32), reward, terminated, False, {}
     
-    def read_from_file():
-        pass
+    def read_game_state():
+        """Reads the game state and outputs a list with 9 parts.
+           [x, y, velX, velY, isOnGround, currentScreen, totalScreens, chargeTimer, maxHeightThisJump]"""
+        while True:
+            try:
+                with open("C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/gamestate.txt") as f:
+                    content = f.read()
+                parts = content.split(",")
+                if len(parts) == 9:
+                    return parts
+            except:
+                pass
+                
+    def execute_action(self, action):
+        left, right, jump = action
 
-    def init_action_space():
+        #walking
+        if not jump:
+            if left:
+                self.key_press("left", left)
+            else:
+                self.key_press("right", right)
+
+        #jumping
+        else:
+            #jumping straight up
+            if not left and not right:
+                self.key_press("space", jump)
+
+            #jumping left
+            elif left:
+                self.key_press("space", jump, "left")
+
+            #jumping right
+            else:
+                self.key_press("space", jump, "right")
+
+    
+    def key_press(self, key, duration, key2=None):
+        #key2 is released first so directional jumps occur
+        pydirectinput.keyDown(key)
+
+        if key2:
+            pydirectinput.keyDown(key2)
+
+        time.sleep(duration)
+
+        if key2:
+            pydirectinput.keyUp(key2)
+
+        pydirectinput.keyUp(key)
+
+    def init_action_space(self):
         #left, right, spacebar
         action_space = []
 
