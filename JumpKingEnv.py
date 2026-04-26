@@ -18,14 +18,38 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.action_space = self.init_action_space()
         self.state = None #TODO: set this
         self.action_map = {}
+        self.gamedata = None
+        self.gamadata_prev
+        self.new_screen_reward = 300
+        self.jumped = False
 
     def step(self, action):
-        reward = None #TODO: remove this and set it elsewhere
-        terminated = None #TODO: remove this and set it elsewhere
+        reward = 0
 
-        #map action to pydirectinput here        
+        #duplicate gamedata so we have previous info after action
+        self.gamedata_prev = list(self.gamedata)
+
+        #executes action
+        self.execute_action(action)
+
+        #reads gamedata
+        self.gamedata = None
+        self.gamedata = self.read_gamedata()
+        x, y, vel_x, vel_y, is_on_ground, current_screen, total_screens, jump_frames, jump_percentage, max_height_this_jump = self.gamedata   
+        x_prev, y_prev, vel_x_prev, vel_y_prev, is_on_ground_prev, current_screen_prev, total_screens_prev, jump_frames_prev, jump_percentage_prev, max_height_this_jump_prev = self.gamedata_prev
 
         #define rewards
+        #if we go up to a new screen, very large reward
+        if current_screen > current_screen_prev:
+            reward += self.new_screen_reward
+
+        #if we landed higher, moderate reward. if it was a max jump, bonus reward
+        if y > y_prev:
+            reward += self.new_height_reward(y, y_prev, jump_percentage)
+
+        if y == y_prev:
+            pass
+        
         #reward screen transitions the most
         #reward full jumps that land higher more
         #reward jumps that land higher more
@@ -37,10 +61,32 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         #define state with location, etc.
 
+        #terminated is always True since an episode is one jump?
+        #not necessarily. action could just be walking
+
+        if self.jumped:
+            terminated = True
+        
+        else:
+            terminated = False
+
+        #reset jumped boolean
+        self.jumped = False
+
         #state, reward, if the episode is terminated, truncation, and info dict
         return np.array(self.state, dtype=np.float32), reward, terminated, False, {}
     
-    def read_game_state():
+    def new_height_reward(self, y, y_prev, jump_percentage, max_jump_bonus=1.20):
+        #if jump was max height, increase reward by 20%
+
+        reward = y - y_prev
+
+        if jump_percentage == 1:
+            reward *= max_jump_bonus
+
+        return reward
+
+    def read_gamedata(self):
         """Reads the game state and outputs a list with 9 parts.
            [x, y, velX, velY, isOnGround, currentScreen, totalScreens, chargeTimer, maxHeightThisJump]"""
         while True:
@@ -48,13 +94,14 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
                 with open("C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/gamestate.txt") as f:
                     content = f.read()
                 parts = content.split(",")
-                if len(parts) == 9:
+                if len(parts) == 10:
                     return parts
             except:
                 pass
                 
     def execute_action(self, action):
-        left, right, jump = action
+        #map action index to keypresses
+        left, right, jump = self.action_space[action]
 
         #walking
         if not jump:
@@ -65,6 +112,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         #jumping
         else:
+            self.jumped = True
             #jumping straight up
             if not left and not right:
                 self.key_press("space", jump)
@@ -148,3 +196,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         action_space.append([0.6, 0, 0.6])
 
         return action_space
+    
+    def init_states(self):
+        #self.x, self.y, self.
+        pass

@@ -44,23 +44,36 @@ namespace JumpKingDataMod
 
     public class GameStateWriterBehaviour : IBodyCompBehaviour
     {
-        private JumpState _jumpState;
-        private FieldInfo _timerField;
         private bool _wasOnGround = false;
         private float? _maxHeightThisJump = null;
         private bool _isActive = true;
+        private bool _reflectionInitialized = false;
+
+        private Type _jumpChargeCalcType;
+        private PropertyInfo _jumpFramesProp;
+        private PropertyInfo _jumpPercentageProp;
 
         private static readonly int[] WindScreens = { 25, 26, 27, 28, 29, 30, 31 };
         private static readonly int[] IceScreens = { 36, 37, 38 };
 
-        public GameStateWriterBehaviour(PlayerEntity player)
-        {
-            FieldInfo jumpStateField = typeof(PlayerEntity).GetField("m_jump_state",
-                BindingFlags.NonPublic | BindingFlags.Instance);
-            _jumpState = (JumpState)jumpStateField.GetValue(player);
+        public GameStateWriterBehaviour(PlayerEntity player) { }
 
-            _timerField = typeof(JumpState).GetField("m_timer",
-                BindingFlags.NonPublic | BindingFlags.Instance);
+        private void InitializeReflection()
+        {
+            foreach (Assembly asm in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (asm.GetName().Name == "JumpKingLastJumpValue")
+                {
+                    _jumpChargeCalcType = asm.GetType("JumpKingLastJumpValue.Models.JumpChargeCalc");
+                    if (_jumpChargeCalcType != null)
+                    {
+                        _jumpFramesProp = _jumpChargeCalcType.GetProperty("JumpFrames", BindingFlags.Public | BindingFlags.Static);
+                        _jumpPercentageProp = _jumpChargeCalcType.GetProperty("JumpPercentage", BindingFlags.Public | BindingFlags.Static);
+                    }
+                    break;
+                }
+            }
+            _reflectionInitialized = true;
         }
 
         public void Deactivate()
@@ -95,7 +108,6 @@ namespace JumpKingDataMod
                 }
                 catch (UnauthorizedAccessException)
                 {
-                    // access denied, stop trying
                     return;
                 }
                 catch (IOException)
@@ -110,6 +122,9 @@ namespace JumpKingDataMod
         {
             if (!_isActive) return true;
 
+            if (!_reflectionInitialized)
+                InitializeReflection();
+
             try
             {
                 BodyComp body = context.BodyComp;
@@ -122,9 +137,19 @@ namespace JumpKingDataMod
                 float velX = body.Velocity.X;
                 float velY = body.Velocity.Y;
                 int totalScreens = LevelManager.TotalScreens;
-                float chargeTimer = _jumpState != null && _timerField != null
-                    ? (float)_timerField.GetValue(_jumpState)
+
+                int jumpFrames = _jumpFramesProp != null
+                    ? (int)_jumpFramesProp.GetValue(null)
+                    : 0;
+                float jumpPercentage = _jumpPercentageProp != null
+                    ? (float)_jumpPercentageProp.GetValue(null)
                     : 0f;
+
+                // reset on first airborne frame
+                if (!isOnGround && _wasOnGround)
+                {
+                    _maxHeightThisJump = null;
+                }
 
                 // track max height (min Y) while airborne
                 if (!isOnGround)
@@ -137,7 +162,7 @@ namespace JumpKingDataMod
                 float maxHeight = _maxHeightThisJump ?? y;
 
                 // invert Y values so higher = larger number in Python
-                string state = $"{x},{-y},{velX},{-velY},{isOnGround},{currentScreen},{totalScreens},{chargeTimer},{-maxHeight}";
+                string state = $"{x},{-y},{velX},{-velY},{isOnGround},{currentScreen},{totalScreens},{jumpFrames},{jumpPercentage},{-maxHeight}";
 
                 if (IsSpecialScreen(currentScreen))
                 {
@@ -148,7 +173,11 @@ namespace JumpKingDataMod
                 {
                     // normal ground: write only on first frame of landing
                     WriteStateSafe(state);
-                    _maxHeightThisJump = y; // reset to landing Y for next jump
+                }
+                else if (isOnGround && velX != 0f)
+                {
+                    // walking: write state so Python sees movement
+                    WriteStateSafe(state);
                 }
 
                 _wasOnGround = isOnGround;
