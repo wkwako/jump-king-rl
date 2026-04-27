@@ -1,0 +1,1 @@
+{"total_jumps": 1135, "total_timesteps": 1536, "episode_mode": "height", "hyperparameters": {"max_episode_actions": 10, "n_steps": 64, "new_screen_reward": 10, "jump_penalty": -0.25, "max_jump_bonus": 1.5, "grid_size": 8, "exploration_reward": 0.5}, "architectural": {"observation_space": 5, "action_space": 16}}

@@ -13,6 +13,7 @@ sys.path.append("C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPytho
 
 import gymnasium as gym
 from stable_baselines3 import PPO
+from stable_baselines3.common.logger import configure
 
 from JumpKingEnv import JumpKingEnv
 
@@ -20,6 +21,7 @@ class EpisodeMode:
     ACTION = "action"
     SCREEN = "screen"
     HEIGHT = "height"
+    ACTION_HEIGHT = "action_height"
     CURRICULUM = "curriculum"
 
 class JumpKingRL:
@@ -63,6 +65,9 @@ class JumpKingRL:
         # load model
         print ("Loading existing model...")
         model = PPO.load(self.model_direc + name, env=env)
+
+        logger = configure(self.model_direc + name + "_log/", ["stdout", "csv"])
+        model.set_logger(logger)
         
         return model
 
@@ -101,6 +106,10 @@ class JumpKingRL:
         
         print ("Creating new model...")
         model = PPO(model_name, env, verbose=verbose, n_steps=n_steps)
+
+        logger = configure(model_path + "_log/", ["stdout", "csv"])
+        model.set_logger(logger)
+
         model.save(model_path)
 
         print ("Creating new metadata file...")
@@ -145,13 +154,18 @@ class JumpKingRL:
         
 #create model first
 JK = JumpKingRL()
-max_episode_actions = 10
-env = JumpKingEnv(episode_mode=EpisodeMode.HEIGHT, max_episode_actions=max_episode_actions)
-n_steps=64
+max_episode_actions = 5
+env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=max_episode_actions)
+n_steps=128
+ 
+ #JK.delete_model("jk_ppo_action_height1")
 
-model = JK.load_model("jk_ppo_height1")
+model = JK.create_model("jk_ppo_action4", env, n_steps)
+model = JK.load_model("jk_ppo_action4")
 
-JK.train_model("jk_ppo_height1", model, total_timesteps=1000)
+JK.train_model("jk_ppo_action4", model, total_timesteps=30000)
+
+env.close()
 
 
 #then train it

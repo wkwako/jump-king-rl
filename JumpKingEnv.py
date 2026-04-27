@@ -22,7 +22,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.jumped = False
         self.sleep_time = 0.1
         self.jump_counter_metadata = 0
-        self.jump_penalty = -0.5
+        self.jump_penalty = -0.25
         self.max_jump_bonus = 1.50
         self.episode_mode = episode_mode
         self.max_episode_actions = max_episode_actions
@@ -33,10 +33,10 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.exploration_reward = 0.5
 
         self.observation_space = spaces.Box(
-            low=np.array([-np.inf, -np.inf, -np.inf, -np.inf], dtype=np.float32),
-            high=np.array([np.inf, np.inf, np.inf, np.inf], dtype=np.float32),
+            low=np.array([-np.inf, -np.inf, -np.inf, -np.inf, -np.inf], dtype=np.float32),
+            high=np.array([np.inf, np.inf, np.inf, np.inf, np.inf], dtype=np.float32),
             dtype=np.float32
-)
+        )
 
     def step(self, action):
         #set reward to 0 for this step
@@ -107,6 +107,9 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         elif self.episode_mode == "height":
             result = self.terminate_height_episode(y, y_prev)
 
+        elif self.episode_mode == "action_height":
+            result = self.terminate_action_episode() or self.terminate_height_episode(y, y_prev)
+
         #combines multiple episode types. type1 for first n/2 screens, type2 for second n/2 screens
         elif self.episode_mode == "curriculum":
             #uses jump episodes beneath n screens, and screen episodes above n screens
@@ -154,7 +157,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.visited_cells.clear()
         self.action_counter = 0
 
-        x, y, vel_x, vel_y, is_on_ground, current_screen = self.gamedata[:4]
+        x, y, vel_x, vel_y, is_on_ground, current_screen = self.gamedata[:6]
         self.state = (x, y, vel_x, vel_y, current_screen)
 
         return np.array(self.state, dtype=np.float32), {}
