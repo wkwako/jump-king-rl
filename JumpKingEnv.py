@@ -18,23 +18,24 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.state = None
         self.gamedata = None
         self.gamedata_prev = None
-        self.new_screen_reward = 300
-        self.same_level_reward = 5
+        self.new_screen_reward = 10
         self.jumped = False
         self.sleep_time = 0.1
         self.jump_counter_metadata = 0
-        self.jump_penalty = -1
-        self.max_jump_bonus = 1.40
+        self.jump_penalty = -0.5
+        self.max_jump_bonus = 1.50
         self.episode_mode = episode_mode
         self.max_episode_actions = max_episode_actions
         self.action_counter = 0
         self.curriculum_screens = curriculum_screens
         self.visited_cells = set()
-        self.grid_size = 10
-        self.exploration_reward = 1.5
+        self.grid_size = 8
+        self.exploration_reward = 0.5
 
-        self.observation_space = spaces.Box(low=np.array([-np.inf, -np.inf, -np.inf, -np.inf]),
-            high=np.array([np.inf, np.inf, np.inf, np.inf]), dtype=np.float32
+        self.observation_space = spaces.Box(
+            low=np.array([-np.inf, -np.inf, -np.inf, -np.inf], dtype=np.float32),
+            high=np.array([np.inf, np.inf, np.inf, np.inf], dtype=np.float32),
+            dtype=np.float32
 )
 
     def step(self, action):
@@ -53,6 +54,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #release spacebar if it's beind held before we choose another action
         self.reset_keys()
 
+        #set game data into individual variables
         x, y, vel_x, vel_y, is_on_ground, current_screen, total_screens, jump_frames, jump_percentage, max_height_this_jump = self.gamedata   
         x_prev, y_prev, vel_x_prev, vel_y_prev, is_on_ground_prev, current_screen_prev, total_screens_prev, jump_frames_prev, jump_percentage_prev, max_height_this_jump_prev = self.gamedata_prev
 
@@ -74,7 +76,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             reward += self.exploration_reward
 
         #create state tuple. this is what the agent uses to determine actions
-        self.state = (x, y, vel_x, vel_y)
+        self.state = (x, y, vel_x, vel_y, current_screen)
 
         #increment jump count metadata
         if self.jumped:
@@ -109,7 +111,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         elif self.episode_mode == "curriculum":
             #uses jump episodes beneath n screens, and screen episodes above n screens
             if current_screen < self.curriculum_screens:
-                result = self.terminate_height_episode()
+                result = self.terminate_height_episode(y, y_prev)
             else:
                 result = self.terminate_screen_episode(current_screen, current_screen_prev)
 
@@ -150,16 +152,17 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.gamedata = self.read_gamedata()
         self.gamedata_prev = list(self.gamedata)
         self.visited_cells.clear()
+        self.action_counter = 0
 
-        x, y, vel_x, vel_y = self.gamedata[:4]
-        self.state = (x, y, vel_x, vel_y)
+        x, y, vel_x, vel_y, is_on_ground, current_screen = self.gamedata[:4]
+        self.state = (x, y, vel_x, vel_y, current_screen)
 
         return np.array(self.state, dtype=np.float32), {}
 
     def new_height_reward(self, y, y_prev, jump_percentage):
         #if jump was max height, increase reward by 20%
 
-        reward = y - y_prev
+        reward = (y - y_prev) / 5
 
         if jump_percentage == 1 and y > y_prev:
             reward *= self.max_jump_bonus
@@ -231,13 +234,13 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         action_map.append([0.2, 0, 0])
 
         #walk small left
-        action_map.append([0.1, 0, 0])
+        action_map.append([0.05, 0, 0])
 
         #walk right
         action_map.append([0, 0.2, 0])
 
         #walk small right
-        action_map.append([0, 0.1, 0])
+        action_map.append([0, 0.05, 0])
 
         #jump right, 0.1s
         action_map.append([0, 0.1, 0.1])

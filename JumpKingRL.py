@@ -16,10 +16,6 @@ from stable_baselines3 import PPO
 
 from JumpKingEnv import JumpKingEnv
 
-#TODO: turn this into a class
-
-MODEL_PATH = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/models/jumpking_ppo"
-
 class EpisodeMode:
     ACTION = "action"
     SCREEN = "screen"
@@ -47,8 +43,8 @@ class JumpKingRL:
                 "exploration_reward": env.exploration_reward,
             },
             "architectural": {
-                "observation_space": env.observation_space.shape[0],
-                "action_space": env.action_space.n
+                "observation_space": int(env.observation_space.shape[0]),
+                "action_space": int(env.action_space.n)
             }
         }
         return metadata
@@ -148,38 +144,49 @@ class JumpKingRL:
             
         
 #create model first
+JK = JumpKingRL()
+max_episode_actions = 10
+env = JumpKingEnv(episode_mode=EpisodeMode.HEIGHT, max_episode_actions=max_episode_actions)
+n_steps=64
+
+model = JK.load_model("jk_ppo_height1")
+
+JK.train_model("jk_ppo_height1", model, total_timesteps=1000)
+
+
 #then train it
 
+#MODEL_PATH = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/models/jumpking_ppo"
 
-max_episode_actions = 10
-env = JumpKingEnv(episode_mode=EpisodeMode.ACTION, max_episode_actions=max_episode_actions)
-OVERWRITE_MODEL = True
-n_steps = 512
+# max_episode_actions = 10
+# env = JumpKingEnv(episode_mode=EpisodeMode.ACTION, max_episode_actions=max_episode_actions)
+# OVERWRITE_MODEL = True
+# n_steps = 512
 
-#if model exists, load it
-if os.path.exists(MODEL_PATH + ".zip") and OVERWRITE_MODEL is False:
-    print ("Loading existing model...")
-    model = PPO.load(MODEL_PATH, env=env)
+# #if model exists, load it
+# if os.path.exists(MODEL_PATH + ".zip") and OVERWRITE_MODEL is False:
+#     print ("Loading existing model...")
+#     model = PPO.load(MODEL_PATH, env=env)
 
-#if it doesn't, create a new model
-else:
-    print ("Creating new model...")
-    model = PPO("MlpPolicy", env, verbose=1, n_steps=n_steps)
+# #if it doesn't, create a new model
+# else:
+#     print ("Creating new model...")
+#     model = PPO("MlpPolicy", env, verbose=1, n_steps=n_steps)
 
-#save and quit if q is pressed
-#keyboard.add_hotkey("ctrl+q", save_and_quit)
+# #save and quit if q is pressed
+# #keyboard.add_hotkey("ctrl+q", save_and_quit)
 
-try:
-    model.learn(total_timesteps=10000)
-    print ("Training complete. Saving...")
-    model.save(MODEL_PATH)
+# try:
+#     model.learn(total_timesteps=1000)
+#     print ("Training complete. Saving...")
+#     model.save(MODEL_PATH)
 
-except KeyboardInterrupt:
-    print ("Interrupted. Saving...")
-    model.save(MODEL_PATH)
+# except KeyboardInterrupt:
+#     print ("Interrupted. Saving...")
+#     model.save(MODEL_PATH)
 
 
 
-env.close()
+#env.close()
 
 
