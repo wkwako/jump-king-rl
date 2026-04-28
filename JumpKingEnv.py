@@ -23,18 +23,19 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.sleep_time = 0.1
         self.jump_counter_metadata = 0
         self.jump_penalty = -0.25
-        self.max_jump_bonus = 1.50
+        self.max_jump_bonus = 1.0
         self.episode_mode = episode_mode
         self.max_episode_actions = max_episode_actions
         self.action_counter = 0
         self.curriculum_screens = curriculum_screens
         self.visited_cells = set()
-        self.grid_size = 8
-        self.exploration_reward = 0.5
+        self.grid_size = 20
+        self.exploration_reward = 0.1
+        self.gamedata_start_of_episode = None
 
         self.observation_space = spaces.Box(
-            low=np.array([-np.inf, -np.inf, -np.inf, -np.inf, -np.inf], dtype=np.float32),
-            high=np.array([np.inf, np.inf, np.inf, np.inf, np.inf], dtype=np.float32),
+            low=np.array([-np.inf, -np.inf, -np.inf], dtype=np.float32),
+            high=np.array([np.inf, np.inf, np.inf], dtype=np.float32),
             dtype=np.float32
         )
 
@@ -63,7 +64,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         if current_screen > current_screen_prev:
             reward += self.new_screen_reward
 
-        #if we landed higher, moderate reward. if it was a max jump, bonus reward. or punishes falling
+        #if we landed higher, reward. if we landed lower, punish
         if y > y_prev or y < y_prev:
             reward += self.new_height_reward(y, y_prev, jump_percentage)
 
@@ -76,7 +77,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             reward += self.exploration_reward
 
         #create state tuple. this is what the agent uses to determine actions
-        self.state = (x, y, vel_x, vel_y, current_screen)
+        #self.state = (x, y, vel_x, vel_y, current_screen)
+        self.state = (x, y, current_screen)
 
         #increment jump count metadata
         if self.jumped:
@@ -88,6 +90,10 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         #set terminated bool based on episode_mode
         terminated = self.set_terminated(current_screen, current_screen_prev, y, y_prev)
+
+        # if terminated:
+        #     y_start = self.gamedata_start_of_episode[1]
+        #     reward += (y - y_start) / 5
 
         #state, reward, if the episode is terminated, truncation, and info dict
         return np.array(self.state, dtype=np.float32), reward, terminated, False, {}
@@ -156,9 +162,12 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.gamedata_prev = list(self.gamedata)
         self.visited_cells.clear()
         self.action_counter = 0
+        
+        self.gamedata_start_of_episode = list(self.gamedata)
 
         x, y, vel_x, vel_y, is_on_ground, current_screen = self.gamedata[:6]
-        self.state = (x, y, vel_x, vel_y, current_screen)
+        #self.state = (x, y, vel_x, vel_y, current_screen)
+        self.state = (x, y, current_screen)
 
         return np.array(self.state, dtype=np.float32), {}
 
@@ -185,6 +194,66 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             except:
                 pass
             time.sleep(self.sleep_time)
+
+    def parse_platforms(self, platform_str):
+        if not platform_str:
+            return []
+        
+        tiles = []
+        for line in platform_str.strip().split("\n"):
+            line = line.strip()
+            if not line or line.startswith("player") or line.startswith("DEBUG") or line.startswith("screen"):
+                continue
+            vals = line.split(",")
+            if len(vals) == 4:
+                try:
+                    tiles.append((float(vals[0]), float(vals[1]),
+                                float(vals[2]), float(vals[3])))
+                except ValueError:
+                    continue
+
+        # filter to reachable range
+        max_jump_height = 160
+        max_jump_width = 320
+        tiles = [t for t in tiles
+                if abs(t[0]) < max_jump_width
+                and -max_jump_height < t[1] < 100]
+
+        # group by Y value
+        by_y = {}
+        for x, y, w, h in tiles:
+            key = round(y)
+            if key not in by_y:
+                by_y[key] = []
+            by_y[key].append(x)
+
+        # keep only top edges — filter out y values where y-8 also exists
+        y_values = set(by_y.keys())
+        top_edges = {y: xs for y, xs in by_y.items() if (y - 8) not in y_values}
+
+        # merge horizontally adjacent tiles at each top edge Y
+        platforms = []
+        tile_spacing = 8
+
+        for y, x_values in top_edges.items():
+            x_values.sort()
+            start = x_values[0]
+            end = x_values[0]
+
+            for x in x_values[1:]:
+                if x - end <= tile_spacing:
+                    end = x
+                else:
+                    platforms.append((-y, start, end + 64))
+                    start = x
+                    end = x
+
+            platforms.append((-y, start, end + 64))
+
+        # sort by absolute y, closest first
+        platforms.sort(key=lambda p: abs(p[0]))
+
+        return platforms
                 
     def execute_action(self, action):
         #map action index to keypresses

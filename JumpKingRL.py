@@ -12,10 +12,26 @@ import sys
 sys.path.append("C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL")
 
 import gymnasium as gym
-from stable_baselines3 import PPO
+from stable_baselines3 import PPO, DQN
 from stable_baselines3.common.logger import configure
 
 from JumpKingEnv import JumpKingEnv
+from stable_baselines3.common.callbacks import BaseCallback
+
+class JumpKingCallback(BaseCallback):
+    def __init__(self, verbose=0):
+        super().__init__(verbose)
+        self.episode_screens = []
+
+    def _on_step(self) -> bool:
+        # SB3 puts episode info in the info dict when an episode ends
+        for info in self.locals["infos"]:
+            if "episode" in info:
+                # log current screen at episode end
+                env = self.training_env.envs[0].env
+                self.logger.record("custom/current_screen", env.gamedata[5])
+                self.logger.record("custom/max_height", env.gamedata[1])
+        return True
 
 class EpisodeMode:
     ACTION = "action"
@@ -29,21 +45,62 @@ class JumpKingRL:
     def __init__(self):
         self.model_direc = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/models/"
 
+        self.MODEL_CONFIGS = {
+            "PPO": {
+                "class": PPO,
+                "defaults": {"n_steps": 64}
+            },
+            "DQN": {
+                "class": DQN,
+                "defaults": {"learning_starts": 1000, "batch_size": 64}
+            }
+        }
+
+        PPO_PARAMS = ["n_steps", "learning_rate", "batch_size", "n_epochs", "gamma", 
+              "gae_lambda", "clip_range", "ent_coef", "vf_coef", "max_grad_norm"]
+
+        DQN_PARAMS = ["learning_rate", "batch_size", "learning_starts", "gamma", 
+                    "target_update_interval", "exploration_fraction", 
+                    "exploration_initial_eps", "exploration_final_eps"]
+
+        self.MODEL_PARAMS = {
+            "PPO": PPO_PARAMS,
+            "DQN": DQN_PARAMS
+        }
+
+    def to_json_safe(self, value):
+        if isinstance(value, (int, float, str, bool)) or value is None:
+            return value
+        # handles SB3 schedule objects and other callables
+        if callable(value):
+            return str(value)
+        return str(value)  # fallback for anything else unexpected
+
     def init_metadata(self, model):
-        env = model.env.envs[0].env        
+        env = model.env.envs[0].env      
+        model_type = type(model).__name__
+
+        model_hyperparameters = {
+            param: self.to_json_safe(getattr(model, param, None))
+            for param in self.MODEL_PARAMS.get(model_type, [])
+            if getattr(model, param, None) is not None
+        }
+
         metadata = {
             "total_jumps": 0,
             "total_timesteps": 0,
             "episode_mode": env.episode_mode,
             "hyperparameters": {
                 "max_episode_actions": env.max_episode_actions,
-                "n_steps": model.n_steps,
                 "new_screen_reward": env.new_screen_reward,
                 "jump_penalty": env.jump_penalty,
                 "max_jump_bonus": env.max_jump_bonus,
                 "grid_size": env.grid_size,
                 "exploration_reward": env.exploration_reward,
             },
+            "model_type": model_type,
+            "model_hyperparameters" : model_hyperparameters,
+
             "architectural": {
                 "observation_space": int(env.observation_space.shape[0]),
                 "action_space": int(env.action_space.n)
@@ -62,9 +119,12 @@ class JumpKingRL:
             max_episode_actions=self.metadata["hyperparameters"]["max_episode_actions"]
         )
         
+        model_type = self.metadata["model_type"]
+        model_class = self.MODEL_CONFIGS[model_type]["class"]
+
         # load model
         print ("Loading existing model...")
-        model = PPO.load(self.model_direc + name, env=env)
+        model = model_class.load(self.model_direc + name, env=env)
 
         logger = configure(self.model_direc + name + "_log/", ["stdout", "csv"])
         model.set_logger(logger)
@@ -98,14 +158,17 @@ class JumpKingRL:
 
         return metadata
 
-    def create_model(self, name, env, n_steps, verbose=1, model_name="MlpPolicy"):
+    def create_model(self, name, env, model_type, verbose=1, **kwargs):
         #creates a new model. will throw an error if model_name already exists
         model_path = self.model_direc + name
         if os.path.exists(model_path + ".zip"):
             raise FileExistsError("This model already exists. Please use a different name, delete it, or use the overwrite_model() function.")
         
+        config = self.MODEL_CONFIGS[model_type]
+        params = {**config["defaults"], **kwargs}
+
         print ("Creating new model...")
-        model = PPO(model_name, env, verbose=verbose, n_steps=n_steps)
+        model = config["class"]("MlpPolicy", env, verbose=verbose, **params)
 
         logger = configure(model_path + "_log/", ["stdout", "csv"])
         model.set_logger(logger)
@@ -135,11 +198,11 @@ class JumpKingRL:
         print ("Deleting metadata...")
         os.remove(self.model_direc + name + "_metadata.json")
 
-    def train_model(self, name, model, total_timesteps):
+    def train_model(self, name, model, total_timesteps, callback):
         print ("Starting training...")
         try:
             #train the model until complete or interrupted
-            model.learn(total_timesteps=total_timesteps)
+            model.learn(total_timesteps=total_timesteps, callback=callback)
             print ("Training complete. Saving...")
         
         except KeyboardInterrupt:
@@ -150,23 +213,33 @@ class JumpKingRL:
             self.overwrite_model(name, model)
             env = model.env.envs[0].env
             env.jump_counter_metadata = 0
+            env.reset_keys()
             
         
 #create model first
 JK = JumpKingRL()
-max_episode_actions = 5
+max_episode_actions = 4
 env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=max_episode_actions)
-n_steps=128
- 
- #JK.delete_model("jk_ppo_action_height1")
+n_steps=64
+callback = JumpKingCallback()
 
-model = JK.create_model("jk_ppo_action4", env, n_steps)
-model = JK.load_model("jk_ppo_action4")
+#model = JK.create_model("jk_ppo_temp", env, "PPO", 1, n_steps=64)
+#model = JK.load_model("jk_ppo_temp")
 
-JK.train_model("jk_ppo_action4", model, total_timesteps=30000)
+#model = JK.create_model("jk_dqn_test1", env, "DQN", learning_starts=1000, batch_size=64)
+#model = JK.load_model("jk_dqn_test1")
+
+#JK.train_model("jk_ppo_temp", model, total_timesteps=2000, callback=callback) #default is 2k
+
+#env.close()
+
+
+with open("C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/platformdata.txt") as f:
+    platform_str = f.read()
+platforms = env.parse_platforms(platform_str)
+print (platforms)
 
 env.close()
-
 
 #then train it
 

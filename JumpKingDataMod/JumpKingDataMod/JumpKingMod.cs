@@ -161,6 +161,9 @@ namespace JumpKingDataMod
                 // fall back to current Y if no airborne frames recorded yet
                 float maxHeight = _maxHeightThisJump ?? y;
 
+                //get platform data
+                PlatformScanner.ScanAndWrite(body.Position.X, body.Position.Y, currentScreen, totalScreens);
+
                 // invert Y values so higher = larger number in Python
                 string state = $"{x},{-y},{velX},{-velY},{isOnGround},{currentScreen},{totalScreens},{jumpFrames},{jumpPercentage},{-maxHeight}";
 
