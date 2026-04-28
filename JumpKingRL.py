@@ -216,18 +216,22 @@ class JumpKingRL:
 JK = JumpKingRL()
 max_episode_actions = 4
 env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=max_episode_actions)
-n_steps=512
+n_steps=128
 callback = JumpKingCallback()  
   
-#model = JK.create_model("jk_ppo_bigstatespace_overnight", env, "PPO", 1, n_steps=512)
-model = JK.load_model("jk_ppo_bigstatespace_overnight")
+#model = JK.create_model("jk_ppo_goodplatformdata1", env, "PPO", 1, n_steps=n_steps)
+#model = JK.load_model("jk_ppo_goodplatformdata1")
 
-#model = JK.create_model("jk_dqn_test1", env, "DQN", learning_starts=1000, batch_size=64)
-#model = JK.load_model("jk_dqn_test1") 
+model = JK.create_model("jk_dqn_test2", env, "DQN", learning_starts=1000, 
+                        exploration_fraction=0.8,
+                        exploration_initial_eps=1.0,
+                        exploration_final_eps=0.05,
+                        batch_size=64)
+model = JK.load_model("jk_dqn_test2") 
 
-JK.train_model("jk_ppo_bigstatespace_overnight", model, total_timesteps=30000, callback=callback) #default is 2k
+JK.train_model("jk_dqn_test2", model, total_timesteps=2000, callback=callback) #default is 2k
 
-#env.close()
+env.close()
 
 
 with open("C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/platformdata.txt") as f:
