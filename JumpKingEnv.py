@@ -205,13 +205,17 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             time.sleep(self.sleep_time)
 
     def read_platform_data(self):
-        try:
-            with open(self.platform_path) as f:
-                content = f.read()
-            if content:
-                return self.parse_platforms(content)
-        except:
-            pass
+        for _ in range(3):
+            try:
+                with open(self.platform_path) as f:
+                    content = f.read()
+                if content:
+                    result = self.parse_platforms(content)
+                    if result is not None:
+                        return result
+            except:
+                pass
+            time.sleep(self.sleep_time)
         return None
     
     def flatten_platform_state(self, platform_data):
@@ -229,7 +233,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     def parse_platforms(self, platform_str):
         if not platform_str:
             return None
-        
+
         current_screen_tiles = []
         next_screen_tiles = []
         parsing_next = False
@@ -256,9 +260,9 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         # compute wall distances
         wall_y_offset = -15
         wall_tolerance = 32
-        near_player_tiles = [t for t in current_screen_tiles 
+        near_player_tiles = [t for t in current_screen_tiles
                     if abs(t[1] - wall_y_offset) < wall_tolerance]
-        
+
         if near_player_tiles:
             left_tiles = [t[0] for t in near_player_tiles if t[0] < 0]
             right_tiles = [t[0] for t in near_player_tiles if t[0] > 0]
@@ -270,7 +274,11 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         # merge tiles into platforms
         current_platforms = self.merge_tiles(current_screen_tiles)
-        next_platforms = self.merge_tiles(next_screen_tiles)
+
+        # offset next screen tiles by +360 before merging so they fall within
+        # the Y filter range and produce valid next_left/next_right sectors
+        next_screen_tiles_offset = [(x, y + 360, w, h) for x, y, w, h in next_screen_tiles]
+        next_platforms = self.merge_tiles(next_screen_tiles_offset)
 
         # assign to sectors
         sectors = self.assign_sectors(current_platforms, next_platforms)
@@ -278,12 +286,14 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         return (left_wall_dist, right_wall_dist), sectors
 
     def merge_tiles(self, tiles):
-        # filter out below-range tiles
-        max_jump_height = 360
-        max_jump_width = 480
+        tile_w = 8
+        tile_spacing = 8
+        min_platform_width = 64
+        max_jump_height = 180
+        max_jump_width = 300
+
         tiles = [t for t in tiles if abs(t[0]) < max_jump_width and -max_jump_height < t[1] < 100]
 
-        # group by y
         by_y = {}
         for x, y, w, h in tiles:
             key = round(y)
@@ -291,11 +301,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
                 by_y[key] = []
             by_y[key].append(x)
 
-        # merge horizontally at each y level into segments
-        tile_spacing = 8
-        min_platform_width = 80
-        segments_by_y = {}  # y -> list of (start, end) tuples
-
+        segments_by_y = {}
         for y, x_values in by_y.items():
             x_values.sort()
             start = x_values[0]
@@ -303,27 +309,27 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             segments = []
 
             for x in x_values[1:]:
-                if x - end <= tile_spacing:
+                if x - end - tile_w <= tile_spacing:  # actual pixel gap between tiles
                     end = x
                 else:
-                    width = (end + 64) - start
+                    seg_end = end + tile_w
+                    width = seg_end - start
                     if width >= min_platform_width:
-                        segments.append((start, end + 64))
+                        segments.append((start, seg_end))
                     start = x
                     end = x
 
-            width = (end + 64) - start
+            seg_end = end + tile_w
+            width = seg_end - start
             if width >= min_platform_width:
-                segments.append((start, end + 64))
+                segments.append((start, seg_end))
 
             if segments:
                 segments_by_y[y] = segments
 
-        # now apply top-edge filter on merged segments
         platforms = []
         for y, segments in segments_by_y.items():
             for x_start, x_end in segments:
-                # use top-edge logic for everything
                 if y - 8 not in segments_by_y:
                     is_top_edge = True
                 else:
@@ -359,14 +365,13 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         ]
 
         for rel_y, center_x, x_start, x_end in current_platforms:
-            # skip platforms too far below
             if rel_y < -50:
                 continue
-            
+
             dist = (rel_y**2 + center_x**2) ** 0.5
 
-            # determine sector by angle
-            if abs(rel_y) >= abs(center_x) * 0.3:
+            # only assign to upper sectors if platform is actually above player
+            if rel_y > 0 and abs(rel_y) >= abs(center_x) * 0.3:
                 sector = 'upper_left' if center_x <= 0 else 'upper_right'
             else:
                 sector = 'left' if center_x <= 0 else 'right'

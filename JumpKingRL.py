@@ -216,16 +216,16 @@ class JumpKingRL:
 JK = JumpKingRL()
 max_episode_actions = 4
 env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=max_episode_actions)
-n_steps=64
+n_steps=512
 callback = JumpKingCallback()  
   
-#model = JK.create_model("jk_ppo_temp", env, "PPO", 1, n_steps=64)
-model = JK.load_model("jk_ppo_temp")
+#model = JK.create_model("jk_ppo_bigstatespace_overnight", env, "PPO", 1, n_steps=512)
+model = JK.load_model("jk_ppo_bigstatespace_overnight")
 
 #model = JK.create_model("jk_dqn_test1", env, "DQN", learning_starts=1000, batch_size=64)
 #model = JK.load_model("jk_dqn_test1") 
 
-JK.train_model("jk_ppo_temp", model, total_timesteps=2000, callback=callback) #default is 2k
+JK.train_model("jk_ppo_bigstatespace_overnight", model, total_timesteps=30000, callback=callback) #default is 2k
 
 #env.close()
 
