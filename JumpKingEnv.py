@@ -101,7 +101,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #     reward += (y - y_start) / 5
 
         #state, reward, if the episode is terminated, truncation, and info dict
-        return np.array(self.state, dtype=np.float32), reward, terminated, False, {}
+        return self.state, reward, terminated, False, {}
     
     def set_terminated(self, current_screen, current_screen_prev, y, y_prev):
         #check for termination based on episode type
@@ -175,9 +175,10 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         x, y, vel_x, vel_y, is_on_ground, current_screen = self.gamedata[:6]
         pos_state = (x, y, current_screen)
-        self.state = (x, y, current_screen)
+        self.state = np.concatenate([np.array(pos_state, dtype=np.float32), platform_state])
 
-        return np.array(self.state, dtype=np.float32), {}
+
+        return self.state, {}
 
     def new_height_reward(self, y, y_prev, jump_percentage):
         #if jump was max height, increase reward by 20%

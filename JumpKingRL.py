@@ -7,6 +7,7 @@ import numpy as np
 import signal
 import os
 import json
+from datetime import datetime
 
 import sys
 sys.path.append("C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL")
@@ -21,16 +22,12 @@ from stable_baselines3.common.callbacks import BaseCallback
 class JumpKingCallback(BaseCallback):
     def __init__(self, verbose=0):
         super().__init__(verbose)
-        self.episode_screens = []
 
     def _on_step(self) -> bool:
-        # SB3 puts episode info in the info dict when an episode ends
-        for info in self.locals["infos"]:
-            if "episode" in info:
-                # log current screen at episode end
-                env = self.training_env.envs[0].env
-                self.logger.record("custom/current_screen", env.gamedata[5])
-                self.logger.record("custom/max_height", env.gamedata[1])
+        env = self.training_env.envs[0].env
+        if env.gamedata is not None:
+            self.logger.record("custom/current_screen", env.gamedata[5])
+            self.logger.record("custom/max_height", env.gamedata[1])
         return True
 
 class EpisodeMode:
@@ -125,9 +122,6 @@ class JumpKingRL:
         # load model
         print ("Loading existing model...")
         model = model_class.load(self.model_direc + name, env=env)
-
-        logger = configure(self.model_direc + name + "_log/", ["stdout", "csv"])
-        model.set_logger(logger)
         
         return model
 
@@ -199,17 +193,19 @@ class JumpKingRL:
         os.remove(self.model_direc + name + "_metadata.json")
 
     def train_model(self, name, model, total_timesteps, callback):
-        print ("Starting training...")
-        try:
-            #train the model until complete or interrupted
-            model.learn(total_timesteps=total_timesteps, callback=callback)
-            print ("Training complete. Saving...")
+        print("Starting training...")
         
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_path = self.model_direc + name + "_log/" + timestamp + "/"
+        logger = configure(log_path, ["stdout", "csv"])
+        model.set_logger(logger)
+        
+        try:
+            model.learn(total_timesteps=total_timesteps, callback=callback)
+            print("Training complete. Saving...")
         except KeyboardInterrupt:
-            print ("Interrupted. Saving model and metadata...")
-
+            print("Interrupted. Saving model and metadata...")
         finally:
-            #overwrite what we have and reset variables
             self.overwrite_model(name, model)
             env = model.env.envs[0].env
             env.jump_counter_metadata = 0
@@ -221,15 +217,15 @@ JK = JumpKingRL()
 max_episode_actions = 4
 env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=max_episode_actions)
 n_steps=64
-callback = JumpKingCallback()
-
+callback = JumpKingCallback()  
+  
 #model = JK.create_model("jk_ppo_temp", env, "PPO", 1, n_steps=64)
-#model = JK.load_model("jk_ppo_temp")
+model = JK.load_model("jk_ppo_temp")
 
 #model = JK.create_model("jk_dqn_test1", env, "DQN", learning_starts=1000, batch_size=64)
-#model = JK.load_model("jk_dqn_test1")
+#model = JK.load_model("jk_dqn_test1") 
 
-#JK.train_model("jk_ppo_temp", model, total_timesteps=2000, callback=callback) #default is 2k
+JK.train_model("jk_ppo_temp", model, total_timesteps=2000, callback=callback) #default is 2k
 
 #env.close()
 
