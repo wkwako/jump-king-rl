@@ -10,10 +10,11 @@ from gymnasium import logger, spaces
 from gymnasium.envs.classic_control import utils
 from gymnasium.error import DependencyNotInstalled
 
+import PlatformParser
+
 class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
     def __init__(self, episode_mode, max_episode_actions=10, curriculum_screens=5):
-        self.platform_path = "C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/platformdata.txt"
         self.teleport_path = "C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/teleport.txt"
         self.action_map = self.init_action_map()
         self.action_space = spaces.Discrete(len(self.action_map))
@@ -34,10 +35,11 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.grid_size = 20
         self.exploration_reward = 0.1
         self.gamedata_start_of_episode = None
+        self.platform_parser = PlatformParser()
 
         self.observation_space = spaces.Box(
-            low=np.array([-np.inf] * 23, dtype=np.float32),
-            high=np.array([np.inf] * 23, dtype=np.float32),
+            low=np.array([-np.inf] * 20, dtype=np.float32),
+            high=np.array([np.inf] * 20, dtype=np.float32),
             dtype=np.float32
         )
 
@@ -54,8 +56,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #reads gamedata. pauses here until the character lands
         self.gamedata = self.read_gamedata()
 
-        platform_data = self.read_platform_data()
-        platform_state = self.flatten_platform_state(platform_data)
+        platform_data = self.platform_parser.read_platform_data()
+        platform_state = self.platform_parser.flatten_platform_state(platform_data)
 
         #release spacebar if it's beind held before we choose another action
         self.reset_keys()
@@ -167,8 +169,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
     def reset(self, seed=None, options=None):
         self.gamedata = self.read_gamedata()
-        platform_data = self.read_platform_data()
-        platform_state = self.flatten_platform_state(platform_data)
+        platform_data = self.platform_parser.read_platform_data()
+        platform_state = self.platform_parser.flatten_platform_state(platform_data)
 
         self.gamedata_prev = list(self.gamedata)
         self.visited_cells.clear()
@@ -206,240 +208,6 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             except:
                 pass
             time.sleep(self.sleep_time)
-
-    def read_platform_data(self):
-        for _ in range(3):
-            try:
-                with open(self.platform_path) as f:
-                    content = f.read()
-                if content:
-                    result = self.parse_platforms(content)
-                    if result is not None:
-                        return result
-            except:
-                pass
-            time.sleep(self.sleep_time)
-        return None
-    
-    def flatten_platform_state(self, platform_data):
-        if platform_data is None:
-            return np.full(20, -9999, dtype=np.float32)
-        
-        (left_wall, right_wall, ceiling), sectors = platform_data
-        
-        flat = [left_wall, right_wall, ceiling]
-        for sector in sectors:
-            flat.extend(sector)
-        
-        return np.array(flat, dtype=np.float32)
-
-    def parse_platforms(self, platform_str):
-        if not platform_str:
-            return None
-
-        current_screen_tiles = []
-        next_screen_tiles = []
-        parsing_next = False
-
-        for line in platform_str.strip().split("\n"):
-            line = line.strip()
-            if not line or line.startswith("player") or line.startswith("DEBUG"):
-                continue
-            if line.startswith("screen:"):
-                if current_screen_tiles:
-                    parsing_next = True
-                continue
-            vals = line.split(",")
-            if len(vals) == 4:
-                try:
-                    tile = (float(vals[0]), float(vals[1]), float(vals[2]), float(vals[3]))
-                    if not parsing_next:
-                        current_screen_tiles.append(tile)
-                    else:
-                        next_screen_tiles.append(tile)
-                except ValueError:
-                    continue
-
-        # compute wall distances using merge_walls
-        walls = self.merge_walls(current_screen_tiles)
-
-        # exclude walls that contain the player's x position (standing platform edges)
-        #walls must extend player's vertical position to be considered a wall
-        left_walls = [w[0] for w in walls if w[0] < 0 and w[1] < 0 and w[2] > 0]
-        right_walls = [w[0] for w in walls if w[0] > 0 and w[1] < 0 and w[2] > 0]
-
-        left_wall_dist = max(left_walls) if left_walls else -9999
-        right_wall_dist = min(right_walls) if right_walls else 9999
-
-        #print (f"current walls: {walls}")
-        #print (f"left walls: {left_walls}")
-        #print (f"right walls: {right_walls}")
-
-        player_width = 8
-
-        ceiling_candidates = [t for t in current_screen_tiles
-                      if t[1] < 0 and abs(t[0]) < player_width]
-
-        next_ceiling = [(t[0], t[1] + 360, t[2], t[3]) for t in next_screen_tiles]
-        next_ceiling_candidates = [t for t in next_ceiling
-                                if t[1] < 0 and abs(t[0]) < player_width]
-
-        all_ceiling = ceiling_candidates + next_ceiling_candidates
-        ceiling_dist = -max([t[1] for t in all_ceiling]) if all_ceiling else 9999
-
-        # merge tiles into platforms
-        current_platforms = self.merge_tiles(current_screen_tiles)
-
-        # offset next screen tiles by +360 before merging so they fall within
-        # the Y filter range and produce valid next_left/next_right sectors
-        next_screen_tiles_offset = [(x, y + 360, w, h) for x, y, w, h in next_screen_tiles]
-        next_platforms = self.merge_tiles(next_screen_tiles_offset)
-
-        # assign to sectors
-        sectors = self.assign_sectors(current_platforms, next_platforms)
-
-        return (left_wall_dist, right_wall_dist, ceiling_dist), sectors
-
-    def merge_tiles(self, tiles):
-        tile_w = 8
-        tile_spacing = 8
-        min_platform_width = 64
-        max_jump_height = 180
-        max_jump_width = 300
-
-        tiles = [t for t in tiles if abs(t[0]) < max_jump_width and -max_jump_height < t[1] < 100]
-
-        by_y = {}
-        for x, y, w, h in tiles:
-            key = round(y)
-            if key not in by_y:
-                by_y[key] = []
-            by_y[key].append(x)
-
-        segments_by_y = {}
-        for y, x_values in by_y.items():
-            x_values.sort()
-            start = x_values[0]
-            end = x_values[0]
-            segments = []
-
-            for x in x_values[1:]:
-                if x - end - tile_w <= tile_spacing:  # actual pixel gap between tiles
-                    end = x
-                else:
-                    seg_end = end + tile_w
-                    width = seg_end - start
-                    if width >= min_platform_width:
-                        segments.append((start, seg_end))
-                    start = x
-                    end = x
-
-            seg_end = end + tile_w
-            width = seg_end - start
-            if width >= min_platform_width:
-                segments.append((start, seg_end))
-
-            if segments:
-                segments_by_y[y] = segments
-
-        platforms = []
-        for y, segments in segments_by_y.items():
-            for x_start, x_end in segments:
-                if y - 8 not in segments_by_y:
-                    is_top_edge = True
-                else:
-                    above_segs = segments_by_y[y - 8]
-                    overlaps = any(
-                        not (ax_end <= x_start or ax_start >= x_end)
-                        for ax_start, ax_end in above_segs
-                    )
-                    is_top_edge = not overlaps
-
-                if is_top_edge:
-                    center_x = (x_start + x_end) / 2
-                    platforms.append((-y, center_x, x_start, x_end))
-
-        return platforms
-    
-    def merge_walls(self, tiles):
-        tile_h = 8
-        tile_spacing = 8
-        min_wall_height = 80  # must span at least 10 tiles vertically to count as a wall
-
-        # group by x
-        by_x = {}
-        for x, y, w, h in tiles:
-            by_x.setdefault(round(x), []).append(y)
-
-        walls = []
-        for x, y_values in by_x.items():
-            y_values.sort()
-            # merge vertically, same logic as horizontal merge
-            start = y_values[0]; end = y_values[0]
-            for y in y_values[1:]:
-                if y - end - tile_h <= tile_spacing:
-                    end = y
-                else:
-                    wall_height = (end + tile_h) - start
-                    if wall_height >= min_wall_height:
-                        walls.append((x, start, end + tile_h, wall_height))
-                    start = y; end = y
-            wall_height = (end + tile_h) - start
-            if wall_height >= min_wall_height:
-                walls.append((x, start, end + tile_h, wall_height))
-
-        return walls  # list of (x, y_start, y_end, height)
-
-    def assign_sectors(self, current_platforms, next_platforms):
-        sectors = {
-            'upper_left': None,
-            'upper_right': None,
-            'left': None,
-            'right': None,
-            'next_left': None,
-            'next_right': None
-        }
-        best_dist = {k: float('inf') for k in sectors}
-
-        # filter out standing platform segments (contain x=0 and below player)
-        # but keep disconnected same-level platforms
-        current_platforms = [
-            p for p in current_platforms
-            if not (p[2] <= 0 <= p[3] and -50 < p[0] < 0)
-        ]
-
-        for rel_y, center_x, x_start, x_end in current_platforms:
-            if rel_y < -50:
-                continue
-
-            dist = (rel_y**2 + center_x**2) ** 0.5
-
-            # only assign to upper sectors if platform is actually above player
-            if rel_y > 0 and abs(rel_y) >= abs(center_x) * 0.3:
-                sector = 'upper_left' if center_x <= 0 else 'upper_right'
-            else:
-                sector = 'left' if center_x <= 0 else 'right'
-
-            if dist < best_dist[sector]:
-                best_dist[sector] = dist
-                sectors[sector] = (rel_y, x_start, x_end)
-
-        for rel_y, center_x, x_start, x_end in next_platforms:
-            sector = 'next_left' if center_x <= 0 else 'next_right'
-            dist = (rel_y**2 + center_x**2) ** 0.5
-            if dist < best_dist[sector]:
-                best_dist[sector] = dist
-                sectors[sector] = (rel_y, x_start, x_end)
-
-        sentinel = -9999
-        result = []
-        for key in ['upper_left', 'upper_right', 'left', 'right', 'next_left', 'next_right']:
-            if sectors[key] is not None:
-                result.append(sectors[key])
-            else:
-                result.append((sentinel, sentinel, sentinel))
-
-        return result
                 
     def execute_action(self, action):
         #map action index to keypresses

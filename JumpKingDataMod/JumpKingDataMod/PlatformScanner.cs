@@ -15,7 +15,6 @@ namespace JumpKingDataMod
         private static bool _initialized = false;
         public static string _outputPath;
         private static FieldInfo _screensField;
-        private static FieldInfo _canBlockPlayerField;
 
         private static void Initialize()
         {
@@ -29,9 +28,6 @@ namespace JumpKingDataMod
                 Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location),
                 "platformdata.txt"
             );
-
-            FieldInfo _canBlockPlayerField = typeof(BoxBlock).GetField("canBlockPlayer",
-                BindingFlags.NonPublic | BindingFlags.Instance);
 
             _initialized = true;
         }
@@ -90,7 +86,6 @@ namespace JumpKingDataMod
 
         private static void ScanScreen(float playerX, float playerY, int screenIndex, float yOffset, StringBuilder sb)
         {
-
             if (_screensField == null) return;
 
             LevelScreen[] screens = (LevelScreen[])_screensField.GetValue(null);
@@ -105,17 +100,11 @@ namespace JumpKingDataMod
             foreach (IBlock block in hitboxes)
             {
                 if (block == null) continue;
-
-                BoxBlock boxBlock = block as BoxBlock;
-                if (boxBlock != null && _canBlockPlayerField != null)
-                {
-                    bool canBlock = (bool)_canBlockPlayerField.GetValue(boxBlock);
-                    if (!canBlock) continue;
-                }
-
                 Rectangle rect = block.GetRect();
+
                 float relX = rect.X - playerX;
                 float relY = (rect.Y - playerY) + yOffset;
+
                 sb.AppendLine($"{relX:F0},{relY:F0},{rect.Width},{rect.Height}");
             }
         }

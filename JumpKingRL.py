@@ -212,7 +212,20 @@ class JumpKingRL:
             env.jump_counter_metadata = 0
             env.reset_keys()
             
-        
+def human_readable_platforms(platforms):
+    print (f"left wall: {platforms[0][0]}")
+    print (f"right wall: {platforms[0][1]}")
+    print (f"ceiling: {platforms[0][2]}")
+    print (f"left edge of current platform: {platforms[0][3]}")
+    print (f"right edge of current platform: {platforms[0][4]}")
+    print ("Sector info (relative y, length)")
+    print (f"up left: {platforms[1][0]}")
+    print (f"up right: {platforms[1][1]}")
+    print (f"left: {platforms[1][2]}")
+    print (f"right: {platforms[1][3]}")
+    print (f"next screen, up left: {platforms[1][4]}")
+    print (f"next screen, up right: {platforms[1][5]}")
+
 #create model first
 JK = JumpKingRL()
 max_episode_actions = 4
@@ -235,7 +248,9 @@ callback = JumpKingCallback()
 with open("C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/platformdata.txt") as f:
     platform_str = f.read()
 platforms = env.parse_platforms(platform_str)
+#print (human_readable_platforms(platforms))
 print (f"state space: {platforms}")
+
 
 env.close()
 
