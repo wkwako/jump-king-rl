@@ -66,19 +66,21 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #reward calculation
         #must land for current_screen to be registered as above previous screen
         if current_screen > current_screen_prev:
+            print (f"Reward for new screen: {self.new_screen_reward()}")
             reward += self.new_screen_reward
 
         #if we landed higher, reward. if we landed lower, punish
         if y > y_prev or y < y_prev:
+            print (f"Reward for landing at new altitude: {self.new_height_reward(y, y_prev, jump_percentage)}")
             reward += self.new_height_reward(y, y_prev, jump_percentage)
 
         #reward moving right after a big fall so the player stands up?
 
         #reward exploring unexplored grid cells this episode
-        cell = self.get_grid_cell(x, y)
-        if cell not in self.visited_cells:
-            self.visited_cells.add(cell)
-            reward += self.exploration_reward
+        # cell = self.get_grid_cell(x, y)
+        # if cell not in self.visited_cells:
+        #     self.visited_cells.add(cell)
+        #     reward += self.exploration_reward
 
         #create state tuple. this is what the agent uses to determine actions
         #self.state = (x, y, vel_x, vel_y, current_screen)

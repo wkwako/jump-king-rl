@@ -222,17 +222,14 @@ callback = JumpKingCallback()
 #model = JK.create_model("jk_ppo_goodplatformdata1", env, "PPO", 1, n_steps=n_steps)
 #model = JK.load_model("jk_ppo_goodplatformdata1")
 
-model = JK.create_model("jk_dqn_test2", env, "DQN", learning_starts=1000, 
-                        exploration_fraction=0.8,
-                        exploration_initial_eps=1.0,
-                        exploration_final_eps=0.05,
-                        batch_size=64)
-model = JK.load_model("jk_dqn_test2") 
+# model = JK.create_model("jk_dqn_test2", env, "DQN", learning_starts=1000, 
+#                         exploration_fraction=0.8,
+#                         exploration_initial_eps=1.0,
+#                         exploration_final_eps=0.05,
+#                         batch_size=64)
+# model = JK.load_model("jk_dqn_test2") 
 
-JK.train_model("jk_dqn_test2", model, total_timesteps=2000, callback=callback) #default is 2k
-
-env.close()
-
+# JK.train_model("jk_dqn_test2", model, total_timesteps=2000, callback=callback) #default is 2k
 
 with open("C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/platformdata.txt") as f:
     platform_str = f.read()
