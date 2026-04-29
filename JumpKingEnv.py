@@ -66,7 +66,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #reward calculation
         #must land for current_screen to be registered as above previous screen
         if current_screen > current_screen_prev:
-            print (f"Reward for new screen: {self.new_screen_reward()}")
+            print (f"Reward for new screen: {self.new_screen_reward}")
             reward += self.new_screen_reward
 
         #if we landed higher, reward. if we landed lower, punish
@@ -222,13 +222,13 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     
     def flatten_platform_state(self, platform_data):
         if platform_data is None:
-            return np.zeros(20, dtype=np.float32)
+            return np.full(20, -9999, dtype=np.float32)
         
         (left_wall, right_wall), sectors = platform_data
         
         flat = [left_wall, right_wall]
         for sector in sectors:
-            flat.extend(sector)  # each sector is (rel_y, x_start, x_end)
+            flat.extend(sector)
         
         return np.array(flat, dtype=np.float32)
 
@@ -389,7 +389,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
                 best_dist[sector] = dist
                 sectors[sector] = (rel_y, x_start, x_end)
 
-        sentinel = 0
+        sentinel = -9999
         result = []
         for key in ['upper_left', 'upper_right', 'left', 'right', 'next_left', 'next_right']:
             if sectors[key] is not None:
