@@ -225,9 +225,9 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         if platform_data is None:
             return np.full(20, -9999, dtype=np.float32)
         
-        (left_wall, right_wall), sectors = platform_data
+        (left_wall, right_wall, ceiling), sectors = platform_data
         
-        flat = [left_wall, right_wall]
+        flat = [left_wall, right_wall, ceiling]
         for sector in sectors:
             flat.extend(sector)
         
@@ -264,15 +264,28 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         walls = self.merge_walls(current_screen_tiles)
 
         # exclude walls that contain the player's x position (standing platform edges)
+        #walls must extend player's vertical position to be considered a wall
         left_walls = [w[0] for w in walls if w[0] < 0 and w[1] < 0 and w[2] > 0]
         right_walls = [w[0] for w in walls if w[0] > 0 and w[1] < 0 and w[2] > 0]
 
         left_wall_dist = max(left_walls) if left_walls else -9999
         right_wall_dist = min(right_walls) if right_walls else 9999
 
-        print (f"current walls: {walls}")
-        print (f"left walls: {left_walls}")
-        print (f"right walls: {right_walls}")
+        #print (f"current walls: {walls}")
+        #print (f"left walls: {left_walls}")
+        #print (f"right walls: {right_walls}")
+
+        player_width = 8
+
+        ceiling_candidates = [t for t in current_screen_tiles
+                      if t[1] < 0 and abs(t[0]) < player_width]
+
+        next_ceiling = [(t[0], t[1] + 360, t[2], t[3]) for t in next_screen_tiles]
+        next_ceiling_candidates = [t for t in next_ceiling
+                                if t[1] < 0 and abs(t[0]) < player_width]
+
+        all_ceiling = ceiling_candidates + next_ceiling_candidates
+        ceiling_dist = -max([t[1] for t in all_ceiling]) if all_ceiling else 9999
 
         # merge tiles into platforms
         current_platforms = self.merge_tiles(current_screen_tiles)
@@ -285,7 +298,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         # assign to sectors
         sectors = self.assign_sectors(current_platforms, next_platforms)
 
-        return (left_wall_dist, right_wall_dist), sectors
+        return (left_wall_dist, right_wall_dist, ceiling_dist), sectors
 
     def merge_tiles(self, tiles):
         tile_w = 8
