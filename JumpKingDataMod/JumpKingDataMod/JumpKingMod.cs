@@ -52,11 +52,15 @@ namespace JumpKingDataMod
         private Type _jumpChargeCalcType;
         private PropertyInfo _jumpFramesProp;
         private PropertyInfo _jumpPercentageProp;
+        private TeleporterBehavior _teleporter;
 
         private static readonly int[] WindScreens = { 25, 26, 27, 28, 29, 30, 31 };
         private static readonly int[] IceScreens = { 36, 37, 38 };
 
-        public GameStateWriterBehaviour(PlayerEntity player) { }
+        public GameStateWriterBehaviour(PlayerEntity player)
+        {
+            _teleporter = new TeleporterBehavior();
+        }
 
         private void InitializeReflection()
         {
@@ -79,6 +83,7 @@ namespace JumpKingDataMod
         public void Deactivate()
         {
             _isActive = false;
+            _teleporter?.Deactivate();
             try
             {
                 if (File.Exists(GameStateMod._outputPath))
@@ -129,6 +134,7 @@ namespace JumpKingDataMod
             {
                 BodyComp body = context.BodyComp;
                 if (body == null) return true;
+                _teleporter?.Update(body);
 
                 bool isOnGround = body.IsOnGround;
                 int currentScreen = Camera.CurrentScreen;

@@ -235,7 +235,7 @@ callback = JumpKingCallback()
 with open("C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/platformdata.txt") as f:
     platform_str = f.read()
 platforms = env.parse_platforms(platform_str)
-print (platforms)
+print (f"state space: {platforms}")
 
 env.close()
 

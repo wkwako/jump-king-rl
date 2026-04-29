@@ -14,6 +14,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
     def __init__(self, episode_mode, max_episode_actions=10, curriculum_screens=5):
         self.platform_path = "C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/platformdata.txt"
+        self.teleport_path = "C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/teleport.txt"
         self.action_map = self.init_action_map()
         self.action_space = spaces.Discrete(len(self.action_map))
         self.state = None
@@ -66,12 +67,12 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #reward calculation
         #must land for current_screen to be registered as above previous screen
         if current_screen > current_screen_prev:
-            print (f"Reward for new screen: {self.new_screen_reward}")
+            #print (f"Reward for new screen: {self.new_screen_reward}")
             reward += self.new_screen_reward
 
         #if we landed higher, reward. if we landed lower, punish
         if y > y_prev or y < y_prev:
-            print (f"Reward for landing at new altitude: {self.new_height_reward(y, y_prev, jump_percentage)}")
+            #print (f"Reward for landing at new altitude: {self.new_height_reward(y, y_prev, jump_percentage)}")
             reward += self.new_height_reward(y, y_prev, jump_percentage)
 
         #reward moving right after a big fall so the player stands up?
@@ -259,20 +260,19 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
                 except ValueError:
                     continue
 
-        # compute wall distances
-        wall_y_offset = -15
-        wall_tolerance = 32
-        near_player_tiles = [t for t in current_screen_tiles
-                    if abs(t[1] - wall_y_offset) < wall_tolerance]
+        # compute wall distances using merge_walls
+        walls = self.merge_walls(current_screen_tiles)
 
-        if near_player_tiles:
-            left_tiles = [t[0] for t in near_player_tiles if t[0] < 0]
-            right_tiles = [t[0] for t in near_player_tiles if t[0] > 0]
-            left_wall_dist = max(left_tiles) if left_tiles else -9999
-            right_wall_dist = min(right_tiles) if right_tiles else 9999
-        else:
-            left_wall_dist = -9999
-            right_wall_dist = 9999
+        # exclude walls that contain the player's x position (standing platform edges)
+        left_walls = [w[0] for w in walls if w[0] < 0 and w[1] < 0 and w[2] > 0]
+        right_walls = [w[0] for w in walls if w[0] > 0 and w[1] < 0 and w[2] > 0]
+
+        left_wall_dist = max(left_walls) if left_walls else -9999
+        right_wall_dist = min(right_walls) if right_walls else 9999
+
+        print (f"current walls: {walls}")
+        print (f"left walls: {left_walls}")
+        print (f"right walls: {right_walls}")
 
         # merge tiles into platforms
         current_platforms = self.merge_tiles(current_screen_tiles)
@@ -347,6 +347,35 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
                     platforms.append((-y, center_x, x_start, x_end))
 
         return platforms
+    
+    def merge_walls(self, tiles):
+        tile_h = 8
+        tile_spacing = 8
+        min_wall_height = 80  # must span at least 10 tiles vertically to count as a wall
+
+        # group by x
+        by_x = {}
+        for x, y, w, h in tiles:
+            by_x.setdefault(round(x), []).append(y)
+
+        walls = []
+        for x, y_values in by_x.items():
+            y_values.sort()
+            # merge vertically, same logic as horizontal merge
+            start = y_values[0]; end = y_values[0]
+            for y in y_values[1:]:
+                if y - end - tile_h <= tile_spacing:
+                    end = y
+                else:
+                    wall_height = (end + tile_h) - start
+                    if wall_height >= min_wall_height:
+                        walls.append((x, start, end + tile_h, wall_height))
+                    start = y; end = y
+            wall_height = (end + tile_h) - start
+            if wall_height >= min_wall_height:
+                walls.append((x, start, end + tile_h, wall_height))
+
+        return walls  # list of (x, y_start, y_end, height)
 
     def assign_sectors(self, current_platforms, next_platforms):
         sectors = {
