@@ -41,6 +41,7 @@ class JumpKingRL:
 
     def __init__(self):
         self.model_direc = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/models/"
+        #self.model_direc = "C:/Users/wkwak/Documents/CodingWork/PythonStuff/jump-king-rl/models/"
 
         self.MODEL_CONFIGS = {
             "PPO": {
