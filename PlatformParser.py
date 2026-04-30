@@ -98,12 +98,10 @@ class PlatformParser:
             return None
 
     def process_registry(self, current_screen, player_position):
-        player_x, player_y = player_position
+        player_x, player_y = player_position[0], player_position[1]
         sentinel = (-9999, -9999)
-        distance_limit_x = 400
-        distance_limit_y = 170
 
-        wide_ceiling_dist = self.detect_wide_ceiling(self.current_tiles) if self.current_tiles else 9999
+        ceiling_dist = self.parse_result[0][2] if self.parse_result is not None else 9999
 
         sectors = {
             'upper_right': (float('inf'), None),
@@ -114,40 +112,41 @@ class PlatformParser:
             'next_upper_left': (float('inf'), None),
         }
 
-        # current screen platforms
         current_key = str(current_screen)
         for platform in self.registry.get(current_key, []):
-            
-            #skip the platform the player is standing on
             abs_x_start, abs_y, abs_x_end, _, center_x, length = platform
             if abs_x_start <= player_x <= abs_x_end and abs(abs_y - player_y) < 10:
                 continue
 
             angle, distance, rel_x, rel_y = self.get_angle_and_distance(player_x, player_y, platform)
-            
-            #don't add to sectors if the platform is too far away
-            if abs(rel_x) > distance_limit_x or abs(rel_y) > distance_limit_y:
-                continue
 
-            # blocked by ceiling
-            if rel_y > wide_ceiling_dist: 
+            #print(f"  platform={platform}, angle={angle:.1f}, rel_x={rel_x:.1f}, rel_y={rel_y:.1f}, sector={self.get_sector(angle)}")
+
+            if rel_y > 170:
+                #print(f"    -> filtered: rel_y {rel_y:.1f} > 170")
+                continue
+            if abs(rel_x) > 350:
+                #print(f"    -> filtered: rel_x {abs(rel_x):.1f} > 350")
+                continue
+            if rel_y > ceiling_dist:
+                #print(f"    -> filtered: rel_y {rel_y:.1f} > ceiling {ceiling_dist:.1f}")
                 continue
 
             sector = self.get_sector(angle)
-
             if sector and distance < sectors[sector][0]:
                 sectors[sector] = (distance, (angle, distance))
-                
-        # next screen platforms
+                #print(f"    -> assigned to {sector}")
+
         next_key = str(current_screen + 1)
         for platform in self.registry.get(next_key, []):
             abs_x_start, abs_y, abs_x_end, _, center_x, length = platform
             angle, distance, rel_x, rel_y = self.get_angle_and_distance(player_x, player_y, platform)
 
-            if abs(rel_y) > 170 or abs(rel_x) > 350:
+            if rel_y > 170:
                 continue
-
-            if rel_y > wide_ceiling_dist:
+            if abs(rel_x) > 350:
+                continue
+            if rel_y > ceiling_dist:
                 continue
 
             sector = self.get_sector(angle)
@@ -156,13 +155,12 @@ class PlatformParser:
             elif sector == 'upper_left' and distance < sectors['next_upper_left'][0]:
                 sectors['next_upper_left'] = (distance, (angle, distance))
 
-        # flatten to state
         result = []
         for key in ['upper_left', 'upper_right', 'left', 'right', 'next_upper_left', 'next_upper_right']:
             val = sectors[key][1]
             result.extend(val if val is not None else sentinel)
 
-        return result  # 12 values: 6 sectors x (angle, distance)
+        return result
 
     def is_coord_in_registry(self, new_platform, current_screen):
         platforms_in_screen = self.registry[current_screen]
@@ -267,13 +265,14 @@ class PlatformParser:
 
         ceiling_candidates = [t for t in current_screen_tiles
                       if t[1] < 0 and abs(t[0]) < player_width]
+        
+        
 
-        next_ceiling = [(t[0], t[1] + 360, t[2], t[3]) for t in next_screen_tiles]
-        next_ceiling_candidates = [t for t in next_ceiling
-                                if t[1] < 0 and abs(t[0]) < player_width]
+        #next_ceiling = [(t[0], t[1] + 360, t[2], t[3]) for t in next_screen_tiles]
+        #next_ceiling_candidates = [t for t in next_ceiling
+                                #if t[1] < 0 and abs(t[0]) < player_width]
 
-        all_ceiling = ceiling_candidates + next_ceiling_candidates
-        ceiling_dist = -max([t[1] for t in all_ceiling]) if all_ceiling else 9999
+        ceiling_dist = (-max([t[1] for t in ceiling_candidates]) + 50) if ceiling_candidates else 9999
 
         current_platforms = self.merge_tiles(current_screen_tiles)
 
@@ -464,26 +463,30 @@ class PlatformParser:
 
         return result
     
-    def detect_wide_ceiling(self, tiles, min_ceiling_width=100):
-        # only look at tiles above player
-        above_tiles = [t for t in tiles if t[1] < 0]
+    def detect_wide_ceiling(self, tiles, min_ceiling_width=150):
+        above_tiles = [t for t in tiles if t[1] < -8 and abs(t[0]) < 350]
 
         if not above_tiles:
             return 9999
+        
+        tile_positions = set((int(t[0]), int(t[1])) for t in above_tiles)
+
+        # only keep tiles with no tile directly below them — bottom face of structures
+        def has_no_tile_below(x, y, tile_positions, tile_h=8):
+            return (int(x), int(y + tile_h)) not in tile_positions
+
+        ceiling_tiles = [t for t in above_tiles if has_no_tile_below(t[0], t[1], tile_positions)]
+
+        # group by y and find wide horizontal segments
+        by_y = {}
+        for x, y, w, h in ceiling_tiles:
+            by_y.setdefault(round(y), []).append(x)
 
         tile_w = 8
         tile_spacing = 8
 
-        # group by y
-        by_y = {}
-        for x, y, w, h in above_tiles:
-            by_y.setdefault(round(y), []).append(x)
-
-        # find the lowest (closest to player) wide segment
-        wide_ceiling_dist = 9999
-        for y in sorted(by_y.keys(), reverse=True):  # closest y first
+        for y in sorted(by_y.keys(), reverse=True):  # closest first
             xs = sorted(by_y[y])
-            # merge horizontally
             start = xs[0]; end = xs[0]
             for x in xs[1:]:
                 if x - end - tile_w <= tile_spacing:
@@ -491,12 +494,50 @@ class PlatformParser:
                 else:
                     width = (end + tile_w) - start
                     if width >= min_ceiling_width:
-                        wide_ceiling_dist = -y  # convert to positive distance
-                        return wide_ceiling_dist
+                        return -y
                     start = x; end = x
             width = (end + tile_w) - start
             if width >= min_ceiling_width:
-                wide_ceiling_dist = -y
-                return wide_ceiling_dist
+                return -y
 
-        return wide_ceiling_dist
+        return 9999
+
+
+    # def detect_wide_ceiling(self, tiles, min_ceiling_width=100):
+    #     # only look at tiles above player
+    #     above_tiles = [t for t in tiles if t[1] < -50 and abs(t[0]) < 350]
+    #     #print(f"y range of above_tiles: min={min(t[1] for t in above_tiles):.1f}, max={max(t[1] for t in above_tiles):.1f}")
+    #     #print(f"by_y keys sorted reverse: {sorted(by_y.keys(), reverse=True)[:10]}")
+
+    #     if not above_tiles:
+    #         return 9999
+
+    #     tile_w = 8
+    #     tile_spacing = 8
+
+    #     # group by y
+    #     by_y = {}
+    #     for x, y, w, h in above_tiles:
+    #         by_y.setdefault(round(y), []).append(x)
+
+    #     # find the lowest (closest to player) wide segment
+    #     wide_ceiling_dist = 9999
+    #     for y in sorted(by_y.keys(), reverse=True):  # closest y first
+    #         xs = sorted(by_y[y])
+    #         # merge horizontally
+    #         start = xs[0]; end = xs[0]
+    #         for x in xs[1:]:
+    #             if x - end - tile_w <= tile_spacing:
+    #                 end = x
+    #             else:
+    #                 width = (end + tile_w) - start
+    #                 if width >= min_ceiling_width:
+    #                     wide_ceiling_dist = -y  # convert to positive distance
+    #                     return wide_ceiling_dist
+    #                 start = x; end = x
+    #         width = (end + tile_w) - start
+    #         if width >= min_ceiling_width:
+    #             wide_ceiling_dist = -y
+    #             return wide_ceiling_dist
+
+    #     return wide_ceiling_dist

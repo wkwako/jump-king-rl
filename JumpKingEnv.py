@@ -59,7 +59,6 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.execute_action(action)
 
         #reads gamedata. pauses here until the character lands
-        time.sleep(1)
         self.gamedata = self.read_gamedata()
 
         #release spacebar if it's beind held before we choose another action
@@ -78,7 +77,9 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             pos_state_data = [-9999, 9999, 9999, -9999, 9999]
 
         pos_state_data = list(self.platform_parser.parse_result[0])
+        pos_state_data[2] += -50
         sector_state_data = self.platform_parser.process_registry(current_screen, (x, y))
+        #ceiling_data = sector_state_data[0][2] - 50
 
         pos_state = [x, y, current_screen]
 
@@ -312,60 +313,60 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         action_map = []
 
         #perform no action - only used for testing
-        action_map.append([0, 0, 0])
+        #action_map.append([0, 0, 0])
 
         #walk left
-        # action_map.append([0.2, 0, 0])
+        action_map.append([0.2, 0, 0])
 
-        # #walk small left
-        # action_map.append([0.05, 0, 0])
+        #walk small left
+        action_map.append([0.05, 0, 0])
 
-        # #walk right
-        # action_map.append([0, 0.2, 0])
+        #walk right
+        action_map.append([0, 0.2, 0])
 
-        # #walk small right
-        # action_map.append([0, 0.05, 0])
+        #walk small right
+        action_map.append([0, 0.05, 0])
 
-        # #jump right, 0.05s
-        # action_map.append([0, 0.05, 0.05])
+        #jump right, 0.05s
+        action_map.append([0, 0.05, 0.05])
 
-        # #jump right, 0.1s
-        # action_map.append([0, 0.1, 0.1])
+        #jump right, 0.1s
+        action_map.append([0, 0.1, 0.1])
 
-        # #jump right, 0.2s
-        # action_map.append([0, 0.2, 0.2])
+        #jump right, 0.2s
+        action_map.append([0, 0.2, 0.2])
 
-        # #jump right, 0.3s
-        # action_map.append([0, 0.3, 0.3])
+        #jump right, 0.3s
+        action_map.append([0, 0.3, 0.3])
 
-        # #jump right, 0.4s
-        # action_map.append([0, 0.4, 0.4])
+        #jump right, 0.4s
+        action_map.append([0, 0.4, 0.4])
 
-        # #jump right, 0.5s
-        # action_map.append([0, 0.5, 0.5])
+        #jump right, 0.5s
+        action_map.append([0, 0.5, 0.5])
 
-        # #jump right, 0.6s
-        # action_map.append([0, 0.6, 0.6])
+        #jump right, 0.6s
+        action_map.append([0, 0.6, 0.6])
 
-        # #jump left, 0.05s
-        # action_map.append([0.05, 0, 0.05])
+        #jump left, 0.05s
+        action_map.append([0.05, 0, 0.05])
 
-        # #jump left, 0.1s
-        # action_map.append([0.1, 0, 0.1])
+        #jump left, 0.1s
+        action_map.append([0.1, 0, 0.1])
 
-        # #jump left, 0.2s
-        # action_map.append([0.2, 0, 0.2])
+        #jump left, 0.2s
+        action_map.append([0.2, 0, 0.2])
 
-        # #jump left, 0.3s
-        # action_map.append([0.3, 0, 0.3])
+        #jump left, 0.3s
+        action_map.append([0.3, 0, 0.3])
 
-        # #jump left, 0.4s
-        # action_map.append([0.4, 0, 0.4])
+        #jump left, 0.4s
+        action_map.append([0.4, 0, 0.4])
 
-        # #jump left, 0.5s
-        # action_map.append([0.5, 0, 0.5])
+        #jump left, 0.5s
+        action_map.append([0.5, 0, 0.5])
 
-        # #jump left, 0.6s
-        # action_map.append([0.6, 0, 0.6])
+        #jump left, 0.6s
+        action_map.append([0.6, 0, 0.6])
 
         return action_map

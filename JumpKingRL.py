@@ -166,8 +166,8 @@ class JumpKingRL:
         print ("Creating new model...")
         model = config["class"]("MlpPolicy", env, verbose=verbose, **params)
 
-        #logger = configure(model_path + "_log/", ["stdout", "csv"])
-        logger = configure(model_path + "_log/", ["csv"])
+        logger = configure(model_path + "_log/", ["stdout", "csv"])
+        #logger = configure(model_path + "_log/", ["csv"])
         model.set_logger(logger)
 
         model.save(model_path)
@@ -201,8 +201,8 @@ class JumpKingRL:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         log_path = self.model_direc + name + "_log/" + timestamp + "/"
         
-        #logger = configure(log_path, ["stdout", "csv"])
-        logger = configure(log_path, ["csv"])
+        logger = configure(log_path, ["stdout", "csv"])
+        #logger = configure(log_path, ["csv"])
         model.set_logger(logger)
         
         try:
@@ -234,16 +234,14 @@ def human_readable_platforms(platforms):
 JK = JumpKingRL()
 max_episode_actions = 4
 env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=max_episode_actions)
-n_steps=128
+n_steps=512
 callback = JumpKingCallback()
 platform_parser = PlatformParser()
 
 #create, load, train model. create not needed if already created
-#model = JK.create_model("jk_ppo_dummy", env, "PPO", verbose=0, n_steps=n_steps)
-model = JK.load_model("jk_ppo_dummy")
-JK.train_model("jk_ppo_dummy", model, total_timesteps=10000, callback=callback) #default is 2k
-
-
+#model = JK.create_model("jk_ppo_fullregistry1", env, "PPO", verbose=1, n_steps=n_steps)
+model = JK.load_model("jk_ppo_fullregistry1")
+JK.train_model("jk_ppo_fullregistry1", model, total_timesteps=10000, callback=callback) #default is 2k
 
 #debug information
 x, y, vel_x, vel_y, is_on_ground, current_screen, total_screens, jump_frames, jump_percentage, max_height_this_jump = env.read_gamedata()
