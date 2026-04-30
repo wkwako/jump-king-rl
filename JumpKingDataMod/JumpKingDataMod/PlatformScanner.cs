@@ -102,7 +102,7 @@ namespace JumpKingDataMod
                 if (block == null) continue;
                 Rectangle rect = block.GetRect();
 
-                float relX = rect.X - playerX;
+                float relX = rect.X - (playerX + 8f);
                 float relY = (rect.Y - playerY) + yOffset;
 
                 sb.AppendLine($"{relX:F0},{relY:F0},{rect.Width},{rect.Height}");

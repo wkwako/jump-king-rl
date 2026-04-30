@@ -10,7 +10,7 @@ from gymnasium import logger, spaces
 from gymnasium.envs.classic_control import utils
 from gymnasium.error import DependencyNotInstalled
 
-import PlatformParser
+from PlatformParser import PlatformParser
 
 class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
@@ -56,15 +56,22 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #reads gamedata. pauses here until the character lands
         self.gamedata = self.read_gamedata()
 
-        platform_data = self.platform_parser.read_platform_data()
-        platform_state = self.platform_parser.flatten_platform_state(platform_data)
-
         #release spacebar if it's beind held before we choose another action
         self.reset_keys()
 
         #set game data into individual variables
         x, y, vel_x, vel_y, is_on_ground, current_screen, total_screens, jump_frames, jump_percentage, max_height_this_jump = self.gamedata   
         x_prev, y_prev, vel_x_prev, vel_y_prev, is_on_ground_prev, current_screen_prev, total_screens_prev, jump_frames_prev, jump_percentage_prev, max_height_this_jump_prev = self.gamedata_prev
+
+        #get new platform we're standing on, put in registry for that screen if it doesn't exist
+        self.platform_parser.update_registry(current_screen, (x, y))
+
+        
+        #process registry to update state information
+
+        platform_data = self.platform_parser.read_platform_data()
+        platform_state = self.platform_parser.flatten_platform_state(platform_data)
+
 
         #reward calculation
         #must land for current_screen to be registered as above previous screen
@@ -136,7 +143,6 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         return result
     
-
     def reset_keys(self):
         #stops pressing all keys
         pydirectinput.keyUp("space")
@@ -181,7 +187,6 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         x, y, vel_x, vel_y, is_on_ground, current_screen = self.gamedata[:6]
         pos_state = (x, y, current_screen)
         self.state = np.concatenate([np.array(pos_state, dtype=np.float32), platform_state])
-
 
         return self.state, {}
 

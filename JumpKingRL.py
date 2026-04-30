@@ -8,6 +8,7 @@ import signal
 import os
 import json
 from datetime import datetime
+from PlatformParser import PlatformParser
 
 import sys
 sys.path.append("C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL")
@@ -231,7 +232,8 @@ JK = JumpKingRL()
 max_episode_actions = 4
 env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=max_episode_actions)
 n_steps=128
-callback = JumpKingCallback()  
+callback = JumpKingCallback()
+platform_parser = PlatformParser()
   
 #model = JK.create_model("jk_ppo_goodplatformdata1", env, "PPO", 1, n_steps=n_steps)
 #model = JK.load_model("jk_ppo_goodplatformdata1")
@@ -247,7 +249,7 @@ callback = JumpKingCallback()
 
 with open("C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/platformdata.txt") as f:
     platform_str = f.read()
-platforms = env.parse_platforms(platform_str)
+platforms = platform_parser.parse_platforms(platform_str)
 #print (human_readable_platforms(platforms))
 print (f"state space: {platforms}")
 

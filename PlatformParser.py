@@ -2,9 +2,135 @@ import json
 import os
 import time
 import numpy as np
-
+import math
 
 class PlatformParser:
+    def __init__(self):
+        self.platform_path = "C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/platformdata.txt"
+        self.registry_path = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/registry.txt"
+        self.registry = self.load_registry()
+        self.parse_result
+
+    def save_registry(self):
+        with open(self.registry_path, 'w') as f:
+            json.dump(self.registry, f)
+
+    def load_registry(self):
+        if os.path.exists(self.registry_path):
+            with open(self.registry_path, 'r') as f:
+                return json.load(f)
+        else:
+            return {}
+
+    def update_registry(self, current_screen, player_position):
+        # get standing platform
+        self.parse_result = self.parse_platforms()
+        standing_start, standing_end = self.parse_result[3], self.parse_result[4]
+
+        # guard against sentinel values
+        if standing_start == -9999 or standing_end == 9999:
+            return
+
+        player_x, player_y = player_position
+
+        # convert to absolute coordinates as flat tuple of 4
+        new_platform = (
+            standing_start + player_x,
+            player_y,
+            standing_end + player_x,
+            player_y
+        )
+
+        screen_key = str(current_screen)
+
+        # if current screen is not a key in registry, add it
+        if screen_key not in self.registry:
+            self.registry[screen_key] = []
+
+        # if new_platform not in registry, add it and save
+        if not self.is_coord_in_registry(new_platform, screen_key):
+            self.registry[screen_key].append(list(new_platform))
+            self.save_registry()
+
+    def get_angle_and_distance(self, player_x, player_y, platform):
+        abs_x_start, abs_y, abs_x_end, _ = platform
+        center_x = (abs_x_start + abs_x_end) / 2
+        
+        # relative coords
+        rel_x = center_x - player_x
+        rel_y = player_y - abs_y  # positive = above player
+        
+        # angle: 0 = up, clockwise positive
+        angle = math.degrees(math.atan2(rel_x, rel_y)) % 360
+        distance = math.sqrt(rel_x**2 + rel_y**2)
+        
+        return angle, distance
+
+    def get_sector(self, angle):
+        if 0 <= angle <= 75:
+            return 'upper_right'
+        elif 75 < angle <= 105:
+            return 'right'
+        elif 260 <= angle <= 290:
+            return 'left'
+        elif 290 < angle <= 360:
+            return 'upper_left'
+        else:
+            return None  # below player, ignore
+
+    def process_registry(self, current_screen, player_position):
+        player_x, player_y = player_position
+        sentinel = (-9999, -9999)
+
+        sectors = {
+            'upper_right': (float('inf'), None),
+            'right': (float('inf'), None),
+            'upper_left': (float('inf'), None),
+            'left': (float('inf'), None),
+            'next_upper_right': (float('inf'), None),
+            'next_upper_left': (float('inf'), None),
+        }
+
+        # current screen platforms
+        current_key = str(current_screen)
+        for platform in self.registry.get(current_key, []):
+            angle, distance = self.get_angle_and_distance(player_x, player_y, platform)
+            sector = self.get_sector(angle)
+            if sector and distance < sectors[sector][0]:
+                sectors[sector] = (distance, (angle, distance))
+
+        # next screen platforms
+        next_key = str(current_screen + 1)
+        for platform in self.registry.get(next_key, []):
+            angle, distance = self.get_angle_and_distance(player_x, player_y, platform)
+            sector = self.get_sector(angle)
+            if sector == 'upper_right' and distance < sectors['next_upper_right'][0]:
+                sectors['next_upper_right'] = (distance, (angle, distance))
+            elif sector == 'upper_left' and distance < sectors['next_upper_left'][0]:
+                sectors['next_upper_left'] = (distance, (angle, distance))
+
+        # flatten to state
+        result = []
+        for key in ['upper_left', 'upper_right', 'left', 'right', 'next_upper_left', 'next_upper_right']:
+            val = sectors[key][1]
+            result.extend(val if val is not None else sentinel)
+
+        return result  # 12 values: 6 sectors x (angle, distance)
+
+
+    def is_coord_in_registry(self, new_platform, current_screen):
+        platforms_in_screen = self.registry[current_screen]
+        for platform in platforms_in_screen:
+            if self.within_threshold(platform, new_platform):
+                return True
+        return False
+
+    def within_threshold(self, list1, list2, thresh=5):
+        for i in range(len(list1)):
+            if abs(list1[i] - list2[i]) > thresh:
+                return False
+        return True
+
     def read_platform_data(self):
         for _ in range(3):
             try:
