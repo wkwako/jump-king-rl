@@ -238,58 +238,29 @@ platform_parser = PlatformParser()
 #model = JK.create_model("jk_ppo_discover1", env, "PPO", 1, n_steps=n_steps)
 model = JK.load_model("jk_ppo_discover1")
 
+#JK.train_model("jk_ppo_discover1", model, total_timesteps=2000, callback=callback) #default is 2k
+
+x, y, vel_x, vel_y, is_on_ground, current_screen, total_screens, jump_frames, jump_percentage, max_height_this_jump = env.read_gamedata()
+
+platform_parser.update_registry(current_screen, (x, y))
+
+pos_state_data = list(platform_parser.parse_result[0])
+sector_state_data = platform_parser.process_registry(current_screen, (x, y))
+pos_state = [x, y, current_screen]
+
+state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
+
+print(f"x={x:.1f}, y={y:.1f}, screen={current_screen}")
+print(f"left_wall={pos_state_data[0]}, right_wall={pos_state_data[1]}, ceiling={pos_state_data[2]}")
+print(f"platform_x_start={pos_state_data[3]}, platform_x_end={pos_state_data[4]}")
+print(f"sectors: {sector_state_data}")
+#print(f"full state ({len(state)} values): {state}")
+
 # model = JK.create_model("jk_dqn_test2", env, "DQN", learning_starts=1000, 
 #                         exploration_fraction=0.8,
 #                         exploration_initial_eps=1.0,
 #                         exploration_final_eps=0.05,
 #                         batch_size=64)
-  #  m odel = JK.load_model("jk_dqn_test2") 
-
-JK.train_model("jk_ppo_discover1", model, total_timesteps=2000, callback=callback) #default is 2k
-
-with open("C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/platformdata.txt") as f:
-    platform_str = f.read()
-platforms = platform_parser.parse_platforms(platform_str)
-#print (human_readable_platforms(platforms))
-
-x, y, vel_x, vel_y, is_on_ground, current_screen, total_screens, jump_frames, jump_percentage, max_height_this_jump = env.read_gamedata()   
-sectors = platform_parser.process_registry(current_screen, (x, y))
-
-print (f"state space: {x, y, current_screen, platforms[0], sectors}")
-env.close()
-
-#then train it
-
-#MODEL_PATH = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/models/jumpking_ppo"
-
-# max_episode_actions = 10
-# env = JumpKingEnv(episode_mode=EpisodeMode.ACTION, max_episode_actions=max_episode_actions)
-# OVERWRITE_MODEL = True
-# n_steps = 512
-
-# #if model exists, load it
-# if os.path.exists(MODEL_PATH + ".zip") and OVERWRITE_MODEL is False:
-#     print ("Loading existing model...")
-#     model = PPO.load(MODEL_PATH, env=env)
-
-# #if it doesn't, create a new model
-# else:
-#     print ("Creating new model...")
-#     model = PPO("MlpPolicy", env, verbose=1, n_steps=n_steps)
-
-# #save and quit if q is pressed
-# #keyboard.add_hotkey("ctrl+q", save_and_quit)
-
-# try:
-#     model.learn(total_timesteps=1000)
-#     print ("Training complete. Saving...")
-#     model.save(MODEL_PATH)
-
-# except KeyboardInterrupt:
-#     print ("Interrupted. Saving...")
-#     model.save(MODEL_PATH)
-
-
 
 #env.close()
 

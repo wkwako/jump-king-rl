@@ -12,6 +12,7 @@ class PlatformParser:
         self.parse_result = None
         self.sleep_time = 0.1
         self.current_platforms = None
+        self.current_times = []
 
     def save_registry(self):
         with open(self.registry_path, 'w') as f:
@@ -64,29 +65,33 @@ class PlatformParser:
         
         # relative coords
         rel_x = center_x - player_x
-        rel_y = player_y - abs_y  # positive = above player
+        rel_y = abs_y - player_y  # positive = above player
         
         # angle: 0 = up, clockwise positive
         angle = math.degrees(math.atan2(rel_x, rel_y)) % 360
         distance = math.sqrt(rel_x**2 + rel_y**2)
         
-        return angle, distance
+        return angle, distance, rel_x, rel_y
 
     def get_sector(self, angle):
-        if 0 <= angle <= 75:
+        if 5 <= angle <= 85:
             return 'upper_right'
-        elif 75 < angle <= 105:
+        elif 85 < angle <= 110:
             return 'right'
-        elif 260 <= angle <= 290:
+        elif 250 <= angle <= 275:
             return 'left'
-        elif 290 < angle <= 360:
+        elif 275 < angle <= 355:
             return 'upper_left'
         else:
-            return None  # below player, ignore
+            return None
 
     def process_registry(self, current_screen, player_position):
         player_x, player_y = player_position
         sentinel = (-9999, -9999)
+        distance_limit_x = 400
+        distance_limit_y = 170
+
+        wide_ceiling_dist = self.detect_wide_ceiling(self.current_tiles) if self.current_tiles else 9999
 
         sectors = {
             'upper_right': (float('inf'), None),
@@ -100,11 +105,30 @@ class PlatformParser:
         # current screen platforms
         current_key = str(current_screen)
         for platform in self.registry.get(current_key, []):
-            angle, distance = self.get_angle_and_distance(player_x, player_y, platform)
+            
+            #skip the platform the player is standing on
+            abs_x_start, abs_y, abs_x_end, _ = platform
+            if abs_x_start <= player_x <= abs_x_end and abs(abs_y - player_y) < 10:
+                continue
+
+            angle, distance, rel_x, rel_y = self.get_angle_and_distance(player_x, player_y, platform)
+            
+            #don't add to sectors if the platform is too far away
+            if abs(rel_x) > distance_limit_x or abs(rel_y) > distance_limit_y:
+                continue
+
+            # blocked by ceiling
+            if rel_y > wide_ceiling_dist: 
+                continue
+
             sector = self.get_sector(angle)
+
+            #print(f"  platform={platform}, angle={angle:.1f}, dist={distance:.1f}, sector={sector}")
+            #print (f"player position: {player_position}")
+
             if sector and distance < sectors[sector][0]:
                 sectors[sector] = (distance, (angle, distance))
-
+                
         # next screen platforms
         next_key = str(current_screen + 1)
         for platform in self.registry.get(next_key, []):
@@ -131,6 +155,25 @@ class PlatformParser:
                 return True
         return False
 
+    def _extract_tiles(self, platform_str):
+        tiles = []
+        parsing_next = False
+        for line in platform_str.strip().split("\n"):
+            line = line.strip()
+            if not line or line.startswith("player") or line.startswith("DEBUG"):
+                continue
+            if line.startswith("screen:"):
+                if tiles:  # once we've seen current screen tiles, stop
+                    break
+                continue
+            vals = line.split(",")
+            if len(vals) == 4:
+                try:
+                    tiles.append((float(vals[0]), float(vals[1]), float(vals[2]), float(vals[3])))
+                except ValueError:
+                    continue
+        return tiles
+
     def within_threshold(self, list1, list2, thresh=5):
         for i in range(len(list1)):
             if abs(list1[i] - list2[i]) > thresh:
@@ -145,6 +188,7 @@ class PlatformParser:
                 if content:
                     result = self.parse_platforms(content)
                     if result is not None:
+                        self.current_tiles = self._extract_tiles(content)  # ADD THIS
                         return result
             except:
                 pass

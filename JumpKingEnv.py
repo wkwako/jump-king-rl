@@ -77,7 +77,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         pos_state = [x, y, current_screen]
 
-        time.sleep(0.5)
+        #time.sleep(0.5)
 
         self.state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
 
