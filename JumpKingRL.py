@@ -154,7 +154,7 @@ class JumpKingRL:
 
         return metadata
 
-    def create_model(self, name, env, model_type, verbose=1, **kwargs):
+    def create_model(self, name, env, model_type, verbose, **kwargs):
         #creates a new model. will throw an error if model_name already exists
         model_path = self.model_direc + name
         if os.path.exists(model_path + ".zip"):
@@ -166,7 +166,8 @@ class JumpKingRL:
         print ("Creating new model...")
         model = config["class"]("MlpPolicy", env, verbose=verbose, **params)
 
-        logger = configure(model_path + "_log/", ["stdout", "csv"])
+        #logger = configure(model_path + "_log/", ["stdout", "csv"])
+        logger = configure(model_path + "_log/", ["csv"])
         model.set_logger(logger)
 
         model.save(model_path)
@@ -199,7 +200,9 @@ class JumpKingRL:
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         log_path = self.model_direc + name + "_log/" + timestamp + "/"
-        logger = configure(log_path, ["stdout", "csv"])
+        
+        #logger = configure(log_path, ["stdout", "csv"])
+        logger = configure(log_path, ["csv"])
         model.set_logger(logger)
         
         try:
@@ -231,25 +234,24 @@ def human_readable_platforms(platforms):
 JK = JumpKingRL()
 max_episode_actions = 4
 env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=max_episode_actions)
-n_steps=64
+n_steps=128
 callback = JumpKingCallback()
 platform_parser = PlatformParser()
-  
-#model = JK.create_model("jk_ppo_discover1", env, "PPO", 1, n_steps=n_steps)
-model = JK.load_model("jk_ppo_discover1")
 
-#JK.train_model("jk_ppo_discover1", model, total_timesteps=2000, callback=callback) #default is 2k
+#create, load, train model. create not needed if already created
+#model = JK.create_model("jk_ppo_dummy", env, "PPO", verbose=0, n_steps=n_steps)
+model = JK.load_model("jk_ppo_dummy")
+JK.train_model("jk_ppo_dummy", model, total_timesteps=10000, callback=callback) #default is 2k
 
+
+
+#debug information
 x, y, vel_x, vel_y, is_on_ground, current_screen, total_screens, jump_frames, jump_percentage, max_height_this_jump = env.read_gamedata()
-
 platform_parser.update_registry(current_screen, (x, y))
-
 pos_state_data = list(platform_parser.parse_result[0])
 sector_state_data = platform_parser.process_registry(current_screen, (x, y))
 pos_state = [x, y, current_screen]
-
 state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
-
 print(f"x={x:.1f}, y={y:.1f}, screen={current_screen}")
 print(f"left_wall={pos_state_data[0]}, right_wall={pos_state_data[1]}, ceiling={pos_state_data[2]}")
 print(f"platform_x_start={pos_state_data[3]}, platform_x_end={pos_state_data[4]}")

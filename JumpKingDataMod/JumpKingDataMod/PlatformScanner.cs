@@ -5,7 +5,6 @@ using System.Reflection;
 using System.Text;
 using System.IO;
 using System.Threading;
-using JumpKing;
 
 namespace JumpKingDataMod
 {
@@ -54,7 +53,7 @@ namespace JumpKingDataMod
             }
         }
 
-        public static void ScanAndWrite(float playerX, float playerY, int currentScreen, int totalScreens)
+        public static void ScanAndWrite(int currentScreen, int totalScreens)
         {
             try
             {
@@ -65,15 +64,13 @@ namespace JumpKingDataMod
 
                 StringBuilder sb = new StringBuilder();
 
-                sb.AppendLine($"player:{playerX:F1},{playerY:F1}");
                 sb.AppendLine($"screen:{currentScreen}");
-
-                ScanScreen(playerX, playerY, currentScreen, 0, sb);
+                ScanScreen(currentScreen, sb);
 
                 if (currentScreen + 1 < totalScreens)
                 {
                     sb.AppendLine($"screen:{currentScreen + 1}");
-                    ScanScreen(playerX, playerY, currentScreen + 1, -360, sb);
+                    ScanScreen(currentScreen + 1, sb);
                 }
 
                 WriteSafe(sb.ToString());
@@ -84,7 +81,7 @@ namespace JumpKingDataMod
             }
         }
 
-        private static void ScanScreen(float playerX, float playerY, int screenIndex, float yOffset, StringBuilder sb)
+        private static void ScanScreen(int screenIndex, StringBuilder sb)
         {
             if (_screensField == null) return;
 
@@ -100,12 +97,13 @@ namespace JumpKingDataMod
             foreach (IBlock block in hitboxes)
             {
                 if (block == null) continue;
+
+                // skip slope blocks entirely
+                if (block is SlopeBlock)
+                    continue;
+
                 Rectangle rect = block.GetRect();
-
-                float relX = rect.X - (playerX + 8f);
-                float relY = (rect.Y - playerY) + yOffset;
-
-                sb.AppendLine($"{relX:F0},{relY:F0},{rect.Width},{rect.Height}");
+                sb.AppendLine($"{rect.X},{rect.Y},{rect.Width},{rect.Height}");
             }
         }
 

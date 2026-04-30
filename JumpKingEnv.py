@@ -37,6 +37,11 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.gamedata_start_of_episode = None
         self.platform_parser = PlatformParser()
 
+        self.recent_landings = []
+        self.landing_memory = 5  # how many recent landings to remember
+        self.stuck_penalty = -3
+        self.stuck_threshold = 10  # pixels — how close counts as "same spot"
+
         self.observation_space = spaces.Box(
             low=np.array([-np.inf] * 20, dtype=np.float32),
             high=np.array([np.inf] * 20, dtype=np.float32),
@@ -54,11 +59,11 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.execute_action(action)
 
         #reads gamedata. pauses here until the character lands
-        #time.sleep(2)
+        time.sleep(1)
         self.gamedata = self.read_gamedata()
 
         #release spacebar if it's beind held before we choose another action
-        self.reset_keys()
+        #self.reset_keys()
 
         #set game data into individual variables
         x, y, vel_x, vel_y, is_on_ground, current_screen, total_screens, jump_frames, jump_percentage, max_height_this_jump = self.gamedata   
@@ -92,6 +97,11 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             #print (f"Reward for landing at new altitude: {self.new_height_reward(y, y_prev, jump_percentage)}")
             reward += self.new_height_reward(y, y_prev, jump_percentage)
 
+        #punish repeated jumps that land in the same spot
+        self.add_landing(x, y)
+        if self.check_landing_cluster():
+            reward += self.stuck_penalty
+
         #reward moving right after a big fall so the player stands up?
 
         #reward exploring unexplored grid cells this episode
@@ -118,9 +128,29 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #     y_start = self.gamedata_start_of_episode[1]
         #     reward += (y - y_start) / 5
 
+        #print (f"State: {self.state}")
+
         #state, reward, if the episode is terminated, truncation, and info dict
         return self.state, reward, terminated, False, {}
     
+    def add_landing(self, x, y):
+        if not self.jumped:
+            return
+        self.recent_landings.append((x, y))
+        if len(self.recent_landings) > self.landing_memory:
+            self.recent_landings.pop(0)
+
+    def check_landing_cluster(self):
+        if len(self.recent_landings) < self.landing_memory:
+            return False
+        
+        xs = [l[0] for l in self.recent_landings]
+        ys = [l[1] for l in self.recent_landings]
+        x_spread = max(xs) - min(xs)
+        y_spread = max(ys) - min(ys)
+        
+        return x_spread < self.stuck_threshold and y_spread < self.stuck_threshold
+
     def set_terminated(self, current_screen, current_screen_prev, y, y_prev):
         #check for termination based on episode type
 
@@ -242,7 +272,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         if not jump:
             if left:
                 self.key_press("left", left)
-            else:
+            elif right:
                 self.key_press("right", right)
 
         #jumping
@@ -281,52 +311,61 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #left, right, spacebar
         action_map = []
 
+        #perform no action - only used for testing
+        action_map.append([0, 0, 0])
+
         #walk left
-        action_map.append([0.2, 0, 0])
+        # action_map.append([0.2, 0, 0])
 
-        #walk small left
-        action_map.append([0.05, 0, 0])
+        # #walk small left
+        # action_map.append([0.05, 0, 0])
 
-        #walk right
-        action_map.append([0, 0.2, 0])
+        # #walk right
+        # action_map.append([0, 0.2, 0])
 
-        #walk small right
-        action_map.append([0, 0.05, 0])
+        # #walk small right
+        # action_map.append([0, 0.05, 0])
 
-        #jump right, 0.1s
-        action_map.append([0, 0.1, 0.1])
+        # #jump right, 0.05s
+        # action_map.append([0, 0.05, 0.05])
 
-        #jump right, 0.2s
-        action_map.append([0, 0.2, 0.2])
+        # #jump right, 0.1s
+        # action_map.append([0, 0.1, 0.1])
 
-        #jump right, 0.3s
-        action_map.append([0, 0.3, 0.3])
+        # #jump right, 0.2s
+        # action_map.append([0, 0.2, 0.2])
 
-        #jump right, 0.4s
-        action_map.append([0, 0.4, 0.4])
+        # #jump right, 0.3s
+        # action_map.append([0, 0.3, 0.3])
 
-        #jump right, 0.5s
-        action_map.append([0, 0.5, 0.5])
+        # #jump right, 0.4s
+        # action_map.append([0, 0.4, 0.4])
 
-        #jump right, 0.6s
-        action_map.append([0, 0.6, 0.6])
+        # #jump right, 0.5s
+        # action_map.append([0, 0.5, 0.5])
 
-        #jump left, 0.1s
-        action_map.append([0.1, 0, 0.1])
+        # #jump right, 0.6s
+        # action_map.append([0, 0.6, 0.6])
 
-        #jump left, 0.2s
-        action_map.append([0.2, 0, 0.2])
+        # #jump left, 0.05s
+        # action_map.append([0.05, 0, 0.05])
 
-        #jump left, 0.3s
-        action_map.append([0.3, 0, 0.3])
+        # #jump left, 0.1s
+        # action_map.append([0.1, 0, 0.1])
 
-        #jump left, 0.4s
-        action_map.append([0.4, 0, 0.4])
+        # #jump left, 0.2s
+        # action_map.append([0.2, 0, 0.2])
 
-        #jump left, 0.5s
-        action_map.append([0.5, 0, 0.5])
+        # #jump left, 0.3s
+        # action_map.append([0.3, 0, 0.3])
 
-        #jump left, 0.6s
-        action_map.append([0.6, 0, 0.6])
+        # #jump left, 0.4s
+        # action_map.append([0.4, 0, 0.4])
+
+        # #jump left, 0.5s
+        # action_map.append([0.5, 0, 0.5])
+
+        # #jump left, 0.6s
+        # action_map.append([0.6, 0, 0.6])
 
         return action_map

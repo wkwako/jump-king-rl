@@ -32,6 +32,12 @@ namespace JumpKingDataMod
             if (player == null) return;
             _behaviour = new GameStateWriterBehaviour(player);
             player.m_body.RegisterBehaviour(_behaviour);
+
+            // write platform data once on level start
+            int totalScreens = LevelManager.TotalScreens;
+            int currentScreen = Camera.CurrentScreen;
+            PlatformScanner.ScanAndWrite(currentScreen, totalScreens);
+
         }
 
         [OnLevelEnd]
@@ -167,13 +173,15 @@ namespace JumpKingDataMod
                 // fall back to current Y if no airborne frames recorded yet
                 float maxHeight = _maxHeightThisJump ?? y;
 
-                //get platform data
-                PlatformScanner.ScanAndWrite(body.Position.X, body.Position.Y, currentScreen, totalScreens);
-
                 // invert Y values so higher = larger number in Python
                 string state = $"{x},{-y},{velX},{-velY},{isOnGround},{currentScreen},{totalScreens},{jumpFrames},{jumpPercentage},{-maxHeight}";
 
                 WriteStateSafe(state);
+
+                if (isOnGround && !_wasOnGround)
+                {
+                    PlatformScanner.ScanAndWrite(currentScreen, totalScreens);
+                }
 
                 _wasOnGround = isOnGround;
             }
