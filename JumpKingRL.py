@@ -8,6 +8,7 @@ import signal
 import os
 import json
 from datetime import datetime
+from PlatformParser import PlatformParser
 
 import sys
 sys.path.append("C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL")
@@ -153,7 +154,7 @@ class JumpKingRL:
 
         return metadata
 
-    def create_model(self, name, env, model_type, verbose=1, **kwargs):
+    def create_model(self, name, env, model_type, verbose, **kwargs):
         #creates a new model. will throw an error if model_name already exists
         model_path = self.model_direc + name
         if os.path.exists(model_path + ".zip"):
@@ -166,6 +167,7 @@ class JumpKingRL:
         model = config["class"]("MlpPolicy", env, verbose=verbose, **params)
 
         logger = configure(model_path + "_log/", ["stdout", "csv"])
+        #logger = configure(model_path + "_log/", ["csv"])
         model.set_logger(logger)
 
         model.save(model_path)
@@ -198,7 +200,9 @@ class JumpKingRL:
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         log_path = self.model_direc + name + "_log/" + timestamp + "/"
+        
         logger = configure(log_path, ["stdout", "csv"])
+        #logger = configure(log_path, ["csv"])
         model.set_logger(logger)
         
         try:
@@ -212,65 +216,51 @@ class JumpKingRL:
             env.jump_counter_metadata = 0
             env.reset_keys()
             
-        
+def human_readable_platforms(platforms):
+    print (f"left wall: {platforms[0][0]}")
+    print (f"right wall: {platforms[0][1]}")
+    print (f"ceiling: {platforms[0][2]}")
+    print (f"left edge of current platform: {platforms[0][3]}")
+    print (f"right edge of current platform: {platforms[0][4]}")
+    print ("Sector info (relative y, length)")
+    print (f"up left: {platforms[1][0]}")
+    print (f"up right: {platforms[1][1]}")
+    print (f"left: {platforms[1][2]}")
+    print (f"right: {platforms[1][3]}")
+    print (f"next screen, up left: {platforms[1][4]}")
+    print (f"next screen, up right: {platforms[1][5]}")
+
 #create model first
 JK = JumpKingRL()
 max_episode_actions = 4
 env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=max_episode_actions)
-n_steps=128
-callback = JumpKingCallback()  
-  
-#model = JK.create_model("jk_ppo_goodplatformdata1", env, "PPO", 1, n_steps=n_steps)
-#model = JK.load_model("jk_ppo_goodplatformdata1")
+n_steps=512
+callback = JumpKingCallback()
+platform_parser = PlatformParser()
+
+#create, load, train model. create not needed if already created
+#model = JK.create_model("jk_ppo_fullregistry1", env, "PPO", verbose=1, n_steps=n_steps)
+model = JK.load_model("jk_ppo_fullregistry1")
+JK.train_model("jk_ppo_fullregistry1", model, total_timesteps=10000, callback=callback) #default is 2k
+
+#debug information
+x, y, vel_x, vel_y, is_on_ground, current_screen, total_screens, jump_frames, jump_percentage, max_height_this_jump = env.read_gamedata()
+platform_parser.update_registry(current_screen, (x, y))
+pos_state_data = list(platform_parser.parse_result[0])
+sector_state_data = platform_parser.process_registry(current_screen, (x, y))
+pos_state = [x, y, current_screen]
+state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
+print(f"x={x:.1f}, y={y:.1f}, screen={current_screen}")
+print(f"left_wall={pos_state_data[0]}, right_wall={pos_state_data[1]}, ceiling={pos_state_data[2]}")
+print(f"platform_x_start={pos_state_data[3]}, platform_x_end={pos_state_data[4]}")
+print(f"sectors: {sector_state_data}")
+#print(f"full state ({len(state)} values): {state}")
 
 # model = JK.create_model("jk_dqn_test2", env, "DQN", learning_starts=1000, 
 #                         exploration_fraction=0.8,
 #                         exploration_initial_eps=1.0,
 #                         exploration_final_eps=0.05,
 #                         batch_size=64)
-# model = JK.load_model("jk_dqn_test2") 
-
-# JK.train_model("jk_dqn_test2", model, total_timesteps=2000, callback=callback) #default is 2k
-
-with open("C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/platformdata.txt") as f:
-    platform_str = f.read()
-platforms = env.parse_platforms(platform_str)
-print (platforms)
-
-env.close()
-
-#then train it
-
-#MODEL_PATH = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/models/jumpking_ppo"
-
-# max_episode_actions = 10
-# env = JumpKingEnv(episode_mode=EpisodeMode.ACTION, max_episode_actions=max_episode_actions)
-# OVERWRITE_MODEL = True
-# n_steps = 512
-
-# #if model exists, load it
-# if os.path.exists(MODEL_PATH + ".zip") and OVERWRITE_MODEL is False:
-#     print ("Loading existing model...")
-#     model = PPO.load(MODEL_PATH, env=env)
-
-# #if it doesn't, create a new model
-# else:
-#     print ("Creating new model...")
-#     model = PPO("MlpPolicy", env, verbose=1, n_steps=n_steps)
-
-# #save and quit if q is pressed
-# #keyboard.add_hotkey("ctrl+q", save_and_quit)
-
-# try:
-#     model.learn(total_timesteps=1000)
-#     print ("Training complete. Saving...")
-#     model.save(MODEL_PATH)
-
-# except KeyboardInterrupt:
-#     print ("Interrupted. Saving...")
-#     model.save(MODEL_PATH)
-
-
 
 #env.close()
 

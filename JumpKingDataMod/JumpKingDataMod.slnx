@@ -3,6 +3,7 @@
     <Platform Name="Any CPU" />
     <Platform Name="x64" />
   </Configurations>
+  <Folder Name="/Solution Items/" />
   <Project Path="JumpKingDataMod/JumpKingDataMod.csproj" Id="278ffad0-d104-43fc-919c-ffdee2737ff2">
     <Platform Solution="*|x64" Project="x64" />
   </Project>

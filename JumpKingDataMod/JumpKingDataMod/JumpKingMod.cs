@@ -32,6 +32,12 @@ namespace JumpKingDataMod
             if (player == null) return;
             _behaviour = new GameStateWriterBehaviour(player);
             player.m_body.RegisterBehaviour(_behaviour);
+
+            // write platform data once on level start
+            int totalScreens = LevelManager.TotalScreens;
+            int currentScreen = Camera.CurrentScreen;
+            PlatformScanner.ScanAndWrite(currentScreen, totalScreens);
+
         }
 
         [OnLevelEnd]
@@ -52,11 +58,15 @@ namespace JumpKingDataMod
         private Type _jumpChargeCalcType;
         private PropertyInfo _jumpFramesProp;
         private PropertyInfo _jumpPercentageProp;
+        private TeleporterBehavior _teleporter;
 
         private static readonly int[] WindScreens = { 25, 26, 27, 28, 29, 30, 31 };
         private static readonly int[] IceScreens = { 36, 37, 38 };
 
-        public GameStateWriterBehaviour(PlayerEntity player) { }
+        public GameStateWriterBehaviour(PlayerEntity player)
+        {
+            _teleporter = new TeleporterBehavior();
+        }
 
         private void InitializeReflection()
         {
@@ -79,6 +89,7 @@ namespace JumpKingDataMod
         public void Deactivate()
         {
             _isActive = false;
+            _teleporter?.Deactivate();
             try
             {
                 if (File.Exists(GameStateMod._outputPath))
@@ -129,6 +140,7 @@ namespace JumpKingDataMod
             {
                 BodyComp body = context.BodyComp;
                 if (body == null) return true;
+                _teleporter?.Update(body);
 
                 bool isOnGround = body.IsOnGround;
                 int currentScreen = Camera.CurrentScreen;
@@ -161,26 +173,14 @@ namespace JumpKingDataMod
                 // fall back to current Y if no airborne frames recorded yet
                 float maxHeight = _maxHeightThisJump ?? y;
 
-                //get platform data
-                PlatformScanner.ScanAndWrite(body.Position.X, body.Position.Y, currentScreen, totalScreens);
-
                 // invert Y values so higher = larger number in Python
                 string state = $"{x},{-y},{velX},{-velY},{isOnGround},{currentScreen},{totalScreens},{jumpFrames},{jumpPercentage},{-maxHeight}";
 
-                if (IsSpecialScreen(currentScreen))
+                WriteStateSafe(state);
+
+                if (isOnGround && !_wasOnGround)
                 {
-                    // wind/ice: write every frame, Python handles race condition
-                    WriteStateSafe(state);
-                }
-                else if (isOnGround && !_wasOnGround)
-                {
-                    // normal ground: write only on first frame of landing
-                    WriteStateSafe(state);
-                }
-                else if (isOnGround && velX != 0f)
-                {
-                    // walking: write state so Python sees movement
-                    WriteStateSafe(state);
+                    PlatformScanner.ScanAndWrite(currentScreen, totalScreens);
                 }
 
                 _wasOnGround = isOnGround;
