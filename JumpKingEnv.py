@@ -54,6 +54,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.execute_action(action)
 
         #reads gamedata. pauses here until the character lands
+        time.sleep(2)
         self.gamedata = self.read_gamedata()
 
         #release spacebar if it's beind held before we choose another action
@@ -63,15 +64,22 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         x, y, vel_x, vel_y, is_on_ground, current_screen, total_screens, jump_frames, jump_percentage, max_height_this_jump = self.gamedata   
         x_prev, y_prev, vel_x_prev, vel_y_prev, is_on_ground_prev, current_screen_prev, total_screens_prev, jump_frames_prev, jump_percentage_prev, max_height_this_jump_prev = self.gamedata_prev
 
-        #get new platform we're standing on, put in registry for that screen if it doesn't exist
+        # update registry and get state
         self.platform_parser.update_registry(current_screen, (x, y))
 
-        
-        #process registry to update state information
+        if self.platform_parser.parse_result is not None:
+            pos_state_data = list(self.platform_parser.parse_result[0])
+        else:
+            pos_state_data = [-9999, 9999, 9999, -9999, 9999]
 
-        platform_data = self.platform_parser.read_platform_data()
-        platform_state = self.platform_parser.flatten_platform_state(platform_data)
+        pos_state_data = list(self.platform_parser.parse_result[0])
+        sector_state_data = self.platform_parser.process_registry(current_screen, (x, y))
 
+        pos_state = [x, y, current_screen]
+
+        time.sleep(0.5)
+
+        self.state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
 
         #reward calculation
         #must land for current_screen to be registered as above previous screen
@@ -94,8 +102,6 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         #create state tuple. this is what the agent uses to determine actions
         #self.state = (x, y, vel_x, vel_y, current_screen)
-        pos_state = (x, y, current_screen)
-        self.state = np.concatenate([np.array(pos_state, dtype=np.float32), platform_state])
 
         #increment jump count metadata
         if self.jumped:
@@ -174,19 +180,26 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         return (int(x // self.grid_size), int(y // self.grid_size))
 
     def reset(self, seed=None, options=None):
+        time.sleep(2)
         self.gamedata = self.read_gamedata()
-        platform_data = self.platform_parser.read_platform_data()
-        platform_state = self.platform_parser.flatten_platform_state(platform_data)
-
         self.gamedata_prev = list(self.gamedata)
         self.visited_cells.clear()
         self.action_counter = 0
-        
         self.gamedata_start_of_episode = list(self.gamedata)
 
         x, y, vel_x, vel_y, is_on_ground, current_screen = self.gamedata[:6]
-        pos_state = (x, y, current_screen)
-        self.state = np.concatenate([np.array(pos_state, dtype=np.float32), platform_state])
+
+        # reuse last state if available, otherwise use sentinels
+        if self.state is not None:
+            # update just x, y, current_screen in the existing state
+            self.state[0] = x
+            self.state[1] = y
+            self.state[2] = current_screen
+        else:
+            # first ever reset - use sentinels
+            pos_state_data = [-9999, 9999, 9999, -9999, 9999]
+            sector_state_data = [-9999] * 12
+            self.state = np.array([x, y, current_screen] + pos_state_data + sector_state_data, dtype=np.float32)
 
         return self.state, {}
 

@@ -231,29 +231,31 @@ def human_readable_platforms(platforms):
 JK = JumpKingRL()
 max_episode_actions = 4
 env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=max_episode_actions)
-n_steps=128
+n_steps=64
 callback = JumpKingCallback()
 platform_parser = PlatformParser()
   
-#model = JK.create_model("jk_ppo_goodplatformdata1", env, "PPO", 1, n_steps=n_steps)
-#model = JK.load_model("jk_ppo_goodplatformdata1")
+#model = JK.create_model("jk_ppo_discover1", env, "PPO", 1, n_steps=n_steps)
+model = JK.load_model("jk_ppo_discover1")
 
 # model = JK.create_model("jk_dqn_test2", env, "DQN", learning_starts=1000, 
 #                         exploration_fraction=0.8,
 #                         exploration_initial_eps=1.0,
 #                         exploration_final_eps=0.05,
 #                         batch_size=64)
-# model = JK.load_model("jk_dqn_test2") 
+  #  m odel = JK.load_model("jk_dqn_test2") 
 
-# JK.train_model("jk_dqn_test2", model, total_timesteps=2000, callback=callback) #default is 2k
+JK.train_model("jk_ppo_discover1", model, total_timesteps=2000, callback=callback) #default is 2k
 
 with open("C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/platformdata.txt") as f:
     platform_str = f.read()
 platforms = platform_parser.parse_platforms(platform_str)
 #print (human_readable_platforms(platforms))
-print (f"state space: {platforms}")
 
+x, y, vel_x, vel_y, is_on_ground, current_screen, total_screens, jump_frames, jump_percentage, max_height_this_jump = env.read_gamedata()   
+sectors = platform_parser.process_registry(current_screen, (x, y))
 
+print (f"state space: {x, y, current_screen, platforms[0], sectors}")
 env.close()
 
 #then train it

@@ -9,7 +9,9 @@ class PlatformParser:
         self.platform_path = "C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/platformdata.txt"
         self.registry_path = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/registry.txt"
         self.registry = self.load_registry()
-        self.parse_result
+        self.parse_result = None
+        self.sleep_time = 0.1
+        self.current_platforms = None
 
     def save_registry(self):
         with open(self.registry_path, 'w') as f:
@@ -23,23 +25,25 @@ class PlatformParser:
             return {}
 
     def update_registry(self, current_screen, player_position):
-        # get standing platform
-        self.parse_result = self.parse_platforms()
-        standing_start, standing_end = self.parse_result[3], self.parse_result[4]
+        # ensure parse_result is fresh
+        self.parse_result = self.read_platform_data()
+        
+        if self.parse_result is None:
+            return False
+
+        env_state = self.parse_result[0]
+        standing_start, standing_end = env_state[3], env_state[4]
 
         # guard against sentinel values
         if standing_start == -9999 or standing_end == 9999:
-            return
+            return False
 
         player_x, player_y = player_position
 
-        # convert to absolute coordinates as flat tuple of 4
-        new_platform = (
-            standing_start + player_x,
-            player_y,
-            standing_end + player_x,
-            player_y
-        )
+        # convert to absolute coordinates and snap to 8px grid for consistency
+        abs_start = round((standing_start + player_x) / 8) * 8
+        abs_end = round((standing_end + player_x) / 8) * 8
+        new_platform = (abs_start, player_y, abs_end, player_y)
 
         screen_key = str(current_screen)
 
@@ -51,6 +55,8 @@ class PlatformParser:
         if not self.is_coord_in_registry(new_platform, screen_key):
             self.registry[screen_key].append(list(new_platform))
             self.save_registry()
+        
+        return True
 
     def get_angle_and_distance(self, player_x, player_y, platform):
         abs_x_start, abs_y, abs_x_end, _ = platform
@@ -158,7 +164,6 @@ class PlatformParser:
         return np.array(flat, dtype=np.float32)
 
     def parse_platforms(self, platform_str):
-
         if not platform_str:
             return None
 
@@ -262,9 +267,6 @@ class PlatformParser:
 
         surface_tiles = [t for t in tiles if has_clearance(t[0], t[1], clearance, tile_positions)]
         
-        surface_tiles_ur = [t for t in surface_tiles if t[0] > 50 and t[1] < 0]
-        print(f"Upper-right surface tiles: {sorted(surface_tiles_ur, key=lambda t: t[1])}")
-
         # group surface tiles by y and merge horizontally
         by_y = {}
         for x, y, w, h in surface_tiles:
@@ -337,8 +339,6 @@ class PlatformParser:
         # filter out platforms above the wide ceiling
         current_platforms = [p for p in current_platforms if p[0] <= wide_ceiling_dist]
         next_platforms = [p for p in next_platforms if p[0] <= wide_ceiling_dist]
-
-        print (f"current platforms: {current_platforms}")
         
         sectors = {
             'upper_left': None,
