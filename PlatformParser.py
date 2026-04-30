@@ -57,7 +57,7 @@ class PlatformParser:
             self.registry[screen_key] = []
 
         if not self.is_coord_in_registry(new_platform, screen_key):
-            print (f"Adding new platform on screen {current_screen}: {new_platform}")
+            #print (f"Adding new platform on screen {current_screen}: {new_platform}")
             self.registry[screen_key].append(list(new_platform))
             self.save_registry()
 
