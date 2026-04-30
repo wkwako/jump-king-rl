@@ -54,7 +54,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.execute_action(action)
 
         #reads gamedata. pauses here until the character lands
-        time.sleep(2)
+        #time.sleep(2)
         self.gamedata = self.read_gamedata()
 
         #release spacebar if it's beind held before we choose another action
@@ -180,7 +180,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         return (int(x // self.grid_size), int(y // self.grid_size))
 
     def reset(self, seed=None, options=None):
-        time.sleep(2)
+        #time.sleep(2)
         self.gamedata = self.read_gamedata()
         self.gamedata_prev = list(self.gamedata)
         self.visited_cells.clear()
@@ -214,15 +214,22 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         return reward
 
     def read_gamedata(self):
-        """Reads the game state and outputs a list with 9 parts.
-           [x, y, velX, velY, isOnGround, currentScreen, totalScreens, jumpFrames, jumpPercentage, maxHeightThisJump]"""
+        """Blocks until the player is on the ground (action fully resolved), then returns state."""
         while True:
             try:
                 with open("C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/gamestate.txt") as f:
                     content = f.read()
                 parts = content.split(",")
                 if len(parts) == 10:
-                    return [float(parts[0]), float(parts[1]), float(parts[2]), float(parts[3]), parts[4].strip().lower() == "true", int(parts[5]), int(parts[6]), int(parts[7]), float(parts[8]), float(parts[9])]
+                    is_on_ground = parts[4].strip().lower() == "true"
+                    if is_on_ground:
+                        return [
+                            float(parts[0]), float(parts[1]),
+                            float(parts[2]), float(parts[3]),
+                            True,
+                            int(parts[5]), int(parts[6]),
+                            int(parts[7]), float(parts[8]), float(parts[9])
+                        ]
             except:
                 pass
             time.sleep(self.sleep_time)

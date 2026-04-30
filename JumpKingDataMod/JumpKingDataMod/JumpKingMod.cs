@@ -173,21 +173,7 @@ namespace JumpKingDataMod
                 // invert Y values so higher = larger number in Python
                 string state = $"{x},{-y},{velX},{-velY},{isOnGround},{currentScreen},{totalScreens},{jumpFrames},{jumpPercentage},{-maxHeight}";
 
-                if (IsSpecialScreen(currentScreen))
-                {
-                    // wind/ice: write every frame, Python handles race condition
-                    WriteStateSafe(state);
-                }
-                else if (isOnGround && !_wasOnGround)
-                {
-                    // normal ground: write only on first frame of landing
-                    WriteStateSafe(state);
-                }
-                else if (isOnGround && velX != 0f)
-                {
-                    // walking: write state so Python sees movement
-                    WriteStateSafe(state);
-                }
+                WriteStateSafe(state);
 
                 _wasOnGround = isOnGround;
             }
