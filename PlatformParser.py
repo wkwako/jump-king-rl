@@ -53,13 +53,13 @@ class PlatformParser:
 
         screen_key = str(current_screen)
 
-        if screen_key not in self.registry:
-            self.registry[screen_key] = []
+        # if screen_key not in self.registry:
+        #     self.registry[screen_key] = []
 
-        if not self.is_coord_in_registry(new_platform, screen_key):
-            #print (f"Adding new platform on screen {current_screen}: {new_platform}")
-            self.registry[screen_key].append(list(new_platform))
-            self.save_registry()
+        # if not self.is_coord_in_registry(new_platform, screen_key):
+        #     #print (f"Adding new platform on screen {current_screen}: {new_platform}")
+        #     self.registry[screen_key].append(list(new_platform))
+        #     self.save_registry()
 
         return True
     

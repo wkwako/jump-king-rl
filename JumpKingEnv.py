@@ -11,6 +11,7 @@ from gymnasium.envs.classic_control import utils
 from gymnasium.error import DependencyNotInstalled
 
 from PlatformParser import PlatformParser
+from Ray import Ray
 
 class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
@@ -36,15 +37,22 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.exploration_reward = 0.1
         self.gamedata_start_of_episode = None
         self.platform_parser = PlatformParser()
+        self.ray_caster = Ray(max_distance=400, step_size=8)
 
         self.recent_landings = []
         self.landing_memory = 5  # how many recent landings to remember
         self.stuck_penalty = -3
         self.stuck_threshold = 10  # pixels — how close counts as "same spot"
 
+        # self.observation_space = spaces.Box(
+        #     low=np.array([-np.inf] * 20, dtype=np.float32),
+        #     high=np.array([np.inf] * 20, dtype=np.float32),
+        #     dtype=np.float32
+        # )
+
         self.observation_space = spaces.Box(
-            low=np.array([-np.inf] * 20, dtype=np.float32),
-            high=np.array([np.inf] * 20, dtype=np.float32),
+            low=np.array([-np.inf] * 48, dtype=np.float32),
+            high=np.array([np.inf] * 48, dtype=np.float32),
             dtype=np.float32
         )
 
@@ -81,11 +89,15 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         sector_state_data = self.platform_parser.process_registry(current_screen, (x, y))
         #ceiling_data = sector_state_data[0][2] - 50
 
+        self.ray_caster.build_ray_collision_index(self.platform_parser.current_tiles)
+        ray_state_data = self.ray_caster.build_ray_states(num_angles=40)
+
         pos_state = [x, y, current_screen]
 
         #time.sleep(0.5)
 
-        self.state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
+        self.state = np.array(pos_state + pos_state_data + ray_state_data, dtype=np.float32)
+        #self.state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
 
         #reward calculation
         #must land for current_screen to be registered as above previous screen
