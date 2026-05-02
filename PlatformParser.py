@@ -42,16 +42,16 @@ class PlatformParser:
         if standing_start == -9999 or standing_end == 9999:
             return False
 
-        player_x, player_y = player_position
+        #player_x, player_y = player_position
 
         # standing_start/end are now already absolute since tiles are absolute
-        abs_start = round((standing_start + player_x) / 8) * 8
-        abs_end = round((standing_end + player_x) / 8) * 8
-        length = abs_end - abs_start
-        center_x = (abs_start + abs_end) / 2
-        new_platform = (abs_start, player_y, abs_end, player_y, center_x, length)
+        # abs_start = round((standing_start + player_x) / 8) * 8
+        # abs_end = round((standing_end + player_x) / 8) * 8
+        # length = abs_end - abs_start
+        # center_x = (abs_start + abs_end) / 2
+        # new_platform = (abs_start, player_y, abs_end, player_y, center_x, length)
 
-        screen_key = str(current_screen)
+        # screen_key = str(current_screen)
 
         # if screen_key not in self.registry:
         #     self.registry[screen_key] = []

@@ -27,8 +27,8 @@ class JumpKingCallback(BaseCallback):
     def _on_step(self) -> bool:
         env = self.training_env.envs[0].env
         if env.gamedata is not None:
-            self.logger.record("custom/current_screen", env.gamedata[5])
-            self.logger.record("custom/max_height", env.gamedata[1])
+            self.logger.record("custom/current_screen", env.gamedata["current_screen"])
+            self.logger.record("custom/max_height", env.gamedata["y"])
         return True
 
 class EpisodeMode:
@@ -234,17 +234,17 @@ def human_readable_platforms(platforms):
 JK = JumpKingRL()
 max_episode_actions = 4
 env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=max_episode_actions)
-n_steps=512
+n_steps=64
 callback = JumpKingCallback()
 platform_parser = PlatformParser()
 
 #create, load, train model. create not needed if already created
-#model = JK.create_model("jk_ppo_fullregistry1", env, "PPO", verbose=1, n_steps=n_steps)
-model = JK.load_model("jk_ppo_fullregistry1")
-JK.train_model("jk_ppo_fullregistry1", model, total_timesteps=10000, callback=callback) #default is 2k
+#model = JK.create_model("jk_ppo_temp1", env, "PPO", verbose=1, n_steps=n_steps)
+model = JK.load_model("jk_ppo_temp1")
+JK.train_model("jk_ppo_temp1", model, total_timesteps=10000, callback=callback) #default is 2k
 
 #debug information
-x, y, vel_x, vel_y, is_on_ground, current_screen, total_screens, jump_frames, jump_percentage, max_height_this_jump = env.read_gamedata()
+x, y, vel_x, vel_y, is_on_ground, current_screen = env.get_gamedata_old()
 platform_parser.update_registry(current_screen, (x, y))
 pos_state_data = list(platform_parser.parse_result[0])
 sector_state_data = platform_parser.process_registry(current_screen, (x, y))

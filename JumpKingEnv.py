@@ -4,6 +4,7 @@ import time
 import keyboard
 import pydirectinput
 import numpy as np
+import json
 
 import gymnasium as gym
 from gymnasium import logger, spaces
@@ -39,22 +40,31 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.platform_parser = PlatformParser()
         self.ray_caster = Ray(max_distance=400, step_size=8)
 
+        self.x = self.y = self.vel_x = self.vel_y = None
+        self.is_on_ground = self.current_screen = self.total_screens = None
+        self.jump_frames = self.jump_percentage = self.max_height_this_jump = None
+        self.is_on_ice = self.is_in_snow = self.is_in_water = self.wind_velocity = None
+        self.x_prev = self.y_prev = self.vel_x_prev = self.vel_y_prev = None
+        self.is_on_ground_prev = self.current_screen_prev = self.total_screens_prev = None
+        self.jump_frames_prev = self.jump_percentage_prev = self.max_height_this_jump_prev = None
+        self.is_on_ice_prev = self.is_in_snow_prev = self.is_in_water_prev = self.wind_velocity_prev = None
+
         self.recent_landings = []
         self.landing_memory = 5  # how many recent landings to remember
         self.stuck_penalty = -3
         self.stuck_threshold = 10  # pixels — how close counts as "same spot"
 
-        # self.observation_space = spaces.Box(
-        #     low=np.array([-np.inf] * 20, dtype=np.float32),
-        #     high=np.array([np.inf] * 20, dtype=np.float32),
-        #     dtype=np.float32
-        # )
-
         self.observation_space = spaces.Box(
-            low=np.array([-np.inf] * 48, dtype=np.float32),
-            high=np.array([np.inf] * 48, dtype=np.float32),
+            low=np.array([-np.inf] * 20, dtype=np.float32),
+            high=np.array([np.inf] * 20, dtype=np.float32),
             dtype=np.float32
         )
+
+        # self.observation_space = spaces.Box(
+        #     low=np.array([-np.inf] * 48, dtype=np.float32),
+        #     high=np.array([np.inf] * 48, dtype=np.float32),
+        #     dtype=np.float32
+        # )
 
     def step(self, action):
         #set reward to 0 for this step
@@ -73,11 +83,13 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #self.reset_keys()
 
         #set game data into individual variables
-        x, y, vel_x, vel_y, is_on_ground, current_screen, total_screens, jump_frames, jump_percentage, max_height_this_jump = self.gamedata   
-        x_prev, y_prev, vel_x_prev, vel_y_prev, is_on_ground_prev, current_screen_prev, total_screens_prev, jump_frames_prev, jump_percentage_prev, max_height_this_jump_prev = self.gamedata_prev
+        #x, y, vel_x, vel_y, is_on_ground, current_screen, total_screens, jump_frames, jump_percentage, max_height_this_jump = self.gamedata   
+        self.load_game_attributes()
+        #x_prev, y_prev, vel_x_prev, vel_y_prev, is_on_ground_prev, current_screen_prev, total_screens_prev, jump_frames_prev, jump_percentage_prev, max_height_this_jump_prev = self.gamedata_prev
+        self.load_game_attributes_prev()
 
         # update registry and get state
-        self.platform_parser.update_registry(current_screen, (x, y))
+        self.platform_parser.update_registry(self.current_screen, (self.x, self.y))
 
         if self.platform_parser.parse_result is not None:
             pos_state_data = list(self.platform_parser.parse_result[0])
@@ -86,32 +98,29 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         pos_state_data = list(self.platform_parser.parse_result[0])
         pos_state_data[2] += -50
-        sector_state_data = self.platform_parser.process_registry(current_screen, (x, y))
-        #ceiling_data = sector_state_data[0][2] - 50
+        sector_state_data = self.platform_parser.process_registry(self.current_screen, (self.x, self.y))
 
-        self.ray_caster.build_ray_collision_index(self.platform_parser.current_tiles)
-        ray_state_data = self.ray_caster.build_ray_states(num_angles=40)
+        #self.ray_caster.build_ray_collision_index(self.platform_parser.current_tiles)
+        #ray_state_data = self.ray_caster.build_ray_states(num_angles=40)
 
-        pos_state = [x, y, current_screen]
+        pos_state = [self.x, self.y, self.current_screen]
 
-        #time.sleep(0.5)
-
-        self.state = np.array(pos_state + pos_state_data + ray_state_data, dtype=np.float32)
-        #self.state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
+        #self.state = np.array(pos_state + pos_state_data + ray_state_data, dtype=np.float32)
+        self.state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
 
         #reward calculation
         #must land for current_screen to be registered as above previous screen
-        if current_screen > current_screen_prev:
+        if self.current_screen > self.current_screen_prev:
             #print (f"Reward for new screen: {self.new_screen_reward}")
             reward += self.new_screen_reward
 
         #if we landed higher, reward. if we landed lower, punish
-        if y > y_prev or y < y_prev:
+        if self.y != self.y_prev:
             #print (f"Reward for landing at new altitude: {self.new_height_reward(y, y_prev, jump_percentage)}")
-            reward += self.new_height_reward(y, y_prev, jump_percentage)
+            reward += self.new_height_reward()
 
         #punish repeated jumps that land in the same spot
-        self.add_landing(x, y)
+        self.add_landing()
         if self.check_landing_cluster():
             reward += self.stuck_penalty
 
@@ -135,7 +144,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             self.jumped = False
 
         #set terminated bool based on episode_mode
-        terminated = self.set_terminated(current_screen, current_screen_prev, y, y_prev)
+        terminated = self.set_terminated()
 
         # if terminated:
         #     y_start = self.gamedata_start_of_episode[1]
@@ -146,10 +155,10 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #state, reward, if the episode is terminated, truncation, and info dict
         return self.state, reward, terminated, False, {}
     
-    def add_landing(self, x, y):
+    def add_landing(self):
         if not self.jumped:
             return
-        self.recent_landings.append((x, y))
+        self.recent_landings.append((self.x, self.y))
         if len(self.recent_landings) > self.landing_memory:
             self.recent_landings.pop(0)
 
@@ -164,7 +173,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         
         return x_spread < self.stuck_threshold and y_spread < self.stuck_threshold
 
-    def set_terminated(self, current_screen, current_screen_prev, y, y_prev):
+    def set_terminated(self):
         #check for termination based on episode type
 
         #terminate after a certain number of actions
@@ -173,22 +182,22 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         
         #terminate after reaching a new screen and landing there
         elif self.episode_mode == "screen":
-            result = self.terminate_screen_episode(current_screen, current_screen_prev)
+            result = self.terminate_screen_episode()
         
         #terminate after landing with a positive height gain
         elif self.episode_mode == "height":
-            result = self.terminate_height_episode(y, y_prev)
+            result = self.terminate_height_episode()
 
         elif self.episode_mode == "action_height":
-            result = self.terminate_action_episode() or self.terminate_height_episode(y, y_prev)
+            result = self.terminate_action_episode() or self.terminate_height_episode()
 
         #combines multiple episode types. type1 for first n/2 screens, type2 for second n/2 screens
         elif self.episode_mode == "curriculum":
             #uses jump episodes beneath n screens, and screen episodes above n screens
-            if current_screen < self.curriculum_screens:
-                result = self.terminate_height_episode(y, y_prev)
+            if self.current_screen < self.curriculum_screens:
+                result = self.terminate_height_episode()
             else:
-                result = self.terminate_screen_episode(current_screen, current_screen_prev)
+                result = self.terminate_screen_episode()
 
         return result
     
@@ -198,8 +207,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         pydirectinput.keyUp("right")
         pydirectinput.keyUp("left")
 
-    def terminate_height_episode(self, y, y_prev):
-        if y > y_prev:
+    def terminate_height_episode(self):
+        if self.y > self.y_prev:
             return True
         return False
 
@@ -212,9 +221,9 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     
         return False
 
-    def terminate_screen_episode(self, current_screen, current_screen_prev):
+    def terminate_screen_episode(self):
         #returns True if we should terminate the episode (based on screens). False otherwise
-        if current_screen > current_screen_prev:
+        if self.current_screen > self.current_screen_prev:
             return True
 
         return False
@@ -225,57 +234,60 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     def reset(self, seed=None, options=None):
         #time.sleep(2)
         self.gamedata = self.read_gamedata()
-        self.gamedata_prev = list(self.gamedata)
-        self.visited_cells.clear()
+        self.load_game_attributes()
+        self.load_game_attributes_prev()
+        #self.gamedata_prev = list(self.gamedata)
+        #self.visited_cells.clear()
         self.action_counter = 0
-        self.gamedata_start_of_episode = list(self.gamedata)
+        #self.gamedata_start_of_episode = list(self.gamedata)
 
-        x, y, vel_x, vel_y, is_on_ground, current_screen = self.gamedata[:6]
+
+        #x, y, vel_x, vel_y, is_on_ground, current_screen = self.gamedata[:6]
+        self.load_game_attributes()
 
         # reuse last state if available, otherwise use sentinels
         if self.state is not None:
             # update just x, y, current_screen in the existing state
-            self.state[0] = x
-            self.state[1] = y
-            self.state[2] = current_screen
+            self.state[0] = self.x
+            self.state[1] = self.y
+            self.state[2] = self.current_screen
         else:
             # first ever reset - use sentinels
             pos_state_data = [-9999, 9999, 9999, -9999, 9999]
             sector_state_data = [-9999] * 12
-            self.state = np.array([x, y, current_screen] + pos_state_data + sector_state_data, dtype=np.float32)
+            self.state = np.array([self.x, self.y, self.current_screen] + pos_state_data + sector_state_data, dtype=np.float32)
+            #ray_state_data = [400] * 40  # max distance sentinel
+            #self.state = np.array([x, y, current_screen] + pos_state_data + ray_state_data, dtype=np.float32)
 
         return self.state, {}
 
-    def new_height_reward(self, y, y_prev, jump_percentage):
+    def new_height_reward(self):
         #if jump was max height, increase reward by 20%
 
-        reward = (y - y_prev) / 5
+        reward = (self.y - self.y_prev) / 5
 
-        if jump_percentage == 1 and y > y_prev:
+        if self.jump_percentage == 1 and self.y > self.y_prev:
             reward *= self.max_jump_bonus
 
         return reward
 
     def read_gamedata(self):
-        """Blocks until the player is on the ground (action fully resolved), then returns state."""
         while True:
             try:
                 with open("C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/gamestate.txt") as f:
                     content = f.read()
-                parts = content.split(",")
-                if len(parts) == 10:
-                    is_on_ground = parts[4].strip().lower() == "true"
-                    if is_on_ground:
-                        return [
-                            float(parts[0]), float(parts[1]),
-                            float(parts[2]), float(parts[3]),
-                            True,
-                            int(parts[5]), int(parts[6]),
-                            int(parts[7]), float(parts[8]), float(parts[9])
-                        ]
-            except:
-                pass
+                data = json.loads(content)
+                if data.get("is_on_ground"):
+                    return data
+            except Exception as e:
+                continue
+                #print(f"error: {e}")
             time.sleep(self.sleep_time)
+
+    def get_gamedata_old(self):
+        self.gamedata = self.read_gamedata()
+        self.load_game_attributes()
+        return self.x, self.y, self.vel_x, self.vel_y, self.is_on_ground, self.current_screen
                 
     def execute_action(self, action):
         #map action index to keypresses
@@ -382,3 +394,37 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         action_map.append([0.6, 0, 0.6])
 
         return action_map
+    
+    def load_game_attributes(self):
+        """Unpacks current gamedata dict into instance variables."""
+        self.x = self.gamedata["x"]
+        self.y = self.gamedata["y"]
+        self.vel_x = self.gamedata["vel_x"]
+        self.vel_y = self.gamedata["vel_y"]
+        self.is_on_ground = self.gamedata["is_on_ground"]
+        self.current_screen = self.gamedata["current_screen"]
+        self.total_screens = self.gamedata["total_screens"]
+        self.jump_frames = self.gamedata["jump_frames"]
+        self.jump_percentage = self.gamedata["jump_percentage"]
+        self.max_height_this_jump = self.gamedata["max_height"]
+        self.is_on_ice = self.gamedata["is_on_ice"]
+        self.is_in_snow = self.gamedata["is_in_snow"]
+        self.is_in_water = self.gamedata["is_in_water"]
+        self.wind_velocity = self.gamedata["wind_velocity"]
+
+    def load_game_attributes_prev(self):
+        """Unpacks current gamedata dict into instance variables."""
+        self.x_prev = self.gamedata["x"]
+        self.y_prev = self.gamedata["y"]
+        self.vel_x_prev = self.gamedata["vel_x"]
+        self.vel_y_prev = self.gamedata["vel_y"]
+        self.is_on_ground_prev = self.gamedata["is_on_ground"]
+        self.current_screen_prev = self.gamedata["current_screen"]
+        self.total_screens_prev = self.gamedata["total_screens"]
+        self.jump_frames_prev = self.gamedata["jump_frames"]
+        self.jump_percentage_prev = self.gamedata["jump_percentage"]
+        self.max_height_this_jump_prev = self.gamedata["max_height"]
+        self.is_on_ice_prev = self.gamedata["is_on_ice"]
+        self.is_in_snow_prev = self.gamedata["is_in_snow"]
+        self.is_in_water_prev = self.gamedata["is_in_water"]
+        self.wind_velocity_prev = self.gamedata["wind_velocity"]

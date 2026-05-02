@@ -7,6 +7,7 @@ using JumpKing.Level;
 using JumpKing.Mods;
 using JumpKing.Player;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Input;
 using System;
 using System.IO;
 using System.Reflection;
@@ -54,11 +55,16 @@ namespace JumpKingDataMod
         private float? _maxHeightThisJump = null;
         private bool _isActive = true;
         private bool _reflectionInitialized = false;
+        private bool _prevAnyKeyDown = false;
 
         private Type _jumpChargeCalcType;
         private PropertyInfo _jumpFramesProp;
         private PropertyInfo _jumpPercentageProp;
         private TeleporterBehavior _teleporter;
+        private FieldInfo _windQueryField;
+        private FieldInfo _collisionQueryField;
+        private MethodInfo _windGetVelocityMethod;
+        private ActionKeylogger _keylogger;
 
         private static readonly int[] WindScreens = { 25, 26, 27, 28, 29, 30, 31 };
         private static readonly int[] IceScreens = { 36, 37, 38 };
@@ -66,6 +72,7 @@ namespace JumpKingDataMod
         public GameStateWriterBehaviour(PlayerEntity player)
         {
             _teleporter = new TeleporterBehavior();
+            _keylogger = new ActionKeylogger();
         }
 
         private void InitializeReflection()
@@ -82,6 +89,13 @@ namespace JumpKingDataMod
                     }
                     break;
                 }
+
+                _windQueryField = typeof(BodyComp).GetField("m_windVelocityQuery",
+                BindingFlags.NonPublic | BindingFlags.Instance);
+                _windGetVelocityMethod = typeof(WindManager).GetMethod(
+                    "JumpKing.API.IWindVelocityQuery.GetCurrentVelocity",
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+
             }
             _reflectionInitialized = true;
         }
@@ -101,12 +115,6 @@ namespace JumpKingDataMod
             }
         }
 
-        private bool IsSpecialScreen(int screen)
-        {
-            return Array.IndexOf(WindScreens, screen) >= 0 ||
-                   Array.IndexOf(IceScreens, screen) >= 0;
-        }
-
         private void WriteStateSafe(string state)
         {
             int attempts = 0;
@@ -117,14 +125,14 @@ namespace JumpKingDataMod
                     File.WriteAllText(GameStateMod._outputPath, state);
                     return;
                 }
-                catch (UnauthorizedAccessException)
-                {
-                    return;
-                }
                 catch (IOException)
                 {
                     attempts++;
                     Thread.Sleep(5);
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    return;
                 }
             }
         }
@@ -170,24 +178,66 @@ namespace JumpKingDataMod
                         _maxHeightThisJump = y;
                 }
 
-                // fall back to current Y if no airborne frames recorded yet
                 float maxHeight = _maxHeightThisJump ?? y;
 
-                // invert Y values so higher = larger number in Python
-                string state = $"{x},{-y},{velX},{-velY},{isOnGround},{currentScreen},{totalScreens},{jumpFrames},{jumpPercentage},{-maxHeight}";
+                // get block states
+                bool isOnIce = body.IsOnBlock(typeof(IceBlock));
+                bool isInSnow = body.IsOnBlock(typeof(SnowBlock));
+                bool isInWater = body.IsOnBlock(typeof(WaterBlock));
 
-                WriteStateSafe(state);
+                // get wind velocity via reflection
+                float windVelocity = 0f;
+                if (_windQueryField != null && _windGetVelocityMethod != null)
+                {
+                    object windQuery = _windQueryField.GetValue(body);
+                    if (windQuery != null)
+                        windVelocity = (float)_windGetVelocityMethod.Invoke(windQuery, null);
+                }
+
+                string state = $@"{{
+                    ""x"": {x:F2},
+                    ""y"": {-y:F2},
+                    ""vel_x"": {velX:F2},
+                    ""vel_y"": {-velY:F2},
+                    ""is_on_ground"": {isOnGround.ToString().ToLower()},
+                    ""current_screen"": {currentScreen},
+                    ""total_screens"": {totalScreens},
+                    ""jump_frames"": {jumpFrames},
+                    ""jump_percentage"": {jumpPercentage:F4},
+                    ""max_height"": {-maxHeight:F2},
+                    ""is_on_ice"": {isOnIce.ToString().ToLower()},
+                    ""is_in_snow"": {isInSnow.ToString().ToLower()},
+                    ""is_in_water"": {isInWater.ToString().ToLower()},
+                    ""wind_velocity"": {windVelocity:F4}
+                }}";
+
+                // keylogger runs every frame
+                _keylogger.Update(state, isOnGround);
+
+                // track key state for write trigger
+                KeyboardState keyState = Keyboard.GetState();
+                bool anyKeyDown = keyState.IsKeyDown(Keys.Left) ||
+                                  keyState.IsKeyDown(Keys.Right) ||
+                                  keyState.IsKeyDown(Keys.Space);
 
                 if (isOnGround && !_wasOnGround)
                 {
+                    // landing
+                    WriteStateSafe(state);
                     PlatformScanner.ScanAndWrite(currentScreen, totalScreens);
                 }
+                else if (!anyKeyDown && _prevAnyKeyDown && isOnGround)
+                {
+                    // all keys released while on ground — covers post-walk
+                    WriteStateSafe(state);
+                }
 
+                _prevAnyKeyDown = anyKeyDown;
                 _wasOnGround = isOnGround;
             }
             catch (Exception e)
             {
-                WriteStateSafe($"ERROR:{e.Message}");
+                WriteStateSafe($"{{\"error\": \"{e.Message}\"}}");
             }
             return true;
         }

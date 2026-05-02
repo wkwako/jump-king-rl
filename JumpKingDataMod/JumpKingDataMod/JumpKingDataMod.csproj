@@ -71,6 +71,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ActionKeylogger.cs" />
     <Compile Include="JumpKingMod.cs" />
     <Compile Include="PlatformScanner.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
