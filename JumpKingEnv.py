@@ -27,7 +27,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.jumped = False
         self.sleep_time = 0.1
         self.jump_counter_metadata = 0
-        self.jump_penalty = -0.25
+        self.jump_penalty = 0
         self.max_jump_bonus = 1.0
         self.episode_mode = episode_mode
         self.max_episode_actions = max_episode_actions

@@ -233,16 +233,16 @@ def human_readable_platforms(platforms):
 
 #create model first
 JK = JumpKingRL()
-max_episode_actions = 4
+max_episode_actions = 8
 env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=max_episode_actions)
 n_steps=64
 callback = JumpKingCallback()
 platform_parser = PlatformParser()
 
 #create, load, train model. create not needed if already created
-#model = JK.create_model("jk_ppo_temp1", env, "PPO", verbose=1, n_steps=n_steps)
-#model = JK.load_model("jk_ppo_temp1")
-#JK.train_model("jk_ppo_temp1", model, total_timesteps=10000, callback=callback) #default is 2k
+model = JK.create_model("jk_ppo_ray1", env, "PPO", verbose=1, n_steps=n_steps)
+model = JK.load_model("jk_ppo_ray1")
+JK.train_model("jk_ppo_ray1", model, total_timesteps=10000, callback=callback) #default is 2k
  
 
 #ray info debugging
