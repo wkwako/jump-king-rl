@@ -12,8 +12,26 @@ class PlatformParser:
         self.parse_result = None
         self.sleep_time = 0.1
         self.current_platforms = None
-        self.current_times = []
         self.registry_threshold = 5
+        self.tile_map = self.load_tile_map()
+
+    def load_tile_map(self):
+        """Loads the full tile map from platformdata.txt, keyed by screen number."""
+        max_attempts = 30
+        for attempt in range(max_attempts):
+            try:
+                with open(self.platform_path) as f:
+                    data = json.load(f)
+                # only load screens 0-42, convert keys to int and values to list of tuples
+                return {
+                    int(k): [tuple(t) for t in v]
+                    for k, v in data.items()
+                    if int(k) <= 42
+                }
+            except:
+                pass
+            time.sleep(self.sleep_time)
+        raise RuntimeError("Failed to load tile map after 30 attempts.")
 
     def save_registry(self):
         with open(self.registry_path, 'w') as f:
@@ -25,44 +43,32 @@ class PlatformParser:
                 return json.load(f)
         else:
             return {}
-
+        
     def update_registry(self, current_screen, player_position):
-        max_attempts = 30
-        for attempt in range(max_attempts):
-            self.parse_result = self.read_platform_data(player_position)
-            if self.parse_result is not None:
-                break
-            time.sleep(self.sleep_time)
-        else:
-            raise RuntimeError(f"Failed to read platform data after {max_attempts} attempts — game may have crashed or file is corrupted.")
-
+        #helper function for updating the registry. used for manual registry population only
         env_state = self.parse_result[0]
         standing_start, standing_end = env_state[3], env_state[4]
 
         if standing_start == -9999 or standing_end == 9999:
             return False
 
-        #player_x, player_y = player_position
+        player_x, player_y = player_position
+        abs_start = round((standing_start + player_x) / 8) * 8
+        abs_end = round((standing_end + player_x) / 8) * 8
+        length = abs_end - abs_start
+        center_x = (abs_start + abs_end) / 2
+        new_platform = (abs_start, player_y, abs_end, player_y, center_x, length)
 
-        # standing_start/end are now already absolute since tiles are absolute
-        # abs_start = round((standing_start + player_x) / 8) * 8
-        # abs_end = round((standing_end + player_x) / 8) * 8
-        # length = abs_end - abs_start
-        # center_x = (abs_start + abs_end) / 2
-        # new_platform = (abs_start, player_y, abs_end, player_y, center_x, length)
+        screen_key = str(current_screen)
+        if screen_key not in self.registry:
+            self.registry[screen_key] = []
 
-        # screen_key = str(current_screen)
-
-        # if screen_key not in self.registry:
-        #     self.registry[screen_key] = []
-
-        # if not self.is_coord_in_registry(new_platform, screen_key):
-        #     #print (f"Adding new platform on screen {current_screen}: {new_platform}")
-        #     self.registry[screen_key].append(list(new_platform))
-        #     self.save_registry()
+        if not self.is_coord_in_registry(new_platform, screen_key):
+            self.registry[screen_key].append(list(new_platform))
+            self.save_registry()
 
         return True
-    
+
     def is_coord_in_registry(self, new_platform, screen_key):
         new_length = new_platform[5]
         new_y = new_platform[1]
@@ -162,13 +168,6 @@ class PlatformParser:
 
         return result
 
-    def is_coord_in_registry(self, new_platform, current_screen):
-        platforms_in_screen = self.registry[current_screen]
-        for platform in platforms_in_screen:
-            if self.within_threshold(platform, new_platform):
-                return True
-        return False
-
     def _extract_tiles(self, platform_str, player_x, player_y):
         tiles = []
         for line in platform_str.strip().split("\n"):
@@ -186,102 +185,50 @@ class PlatformParser:
                     continue
         return tiles
 
-    def within_threshold(self, list1, list2, thresh=5):
-        for i in range(len(list1)):
-            if abs(list1[i] - list2[i]) > thresh:
-                return False
-        return True
+    def read_platform_data(self, player_position, current_screen):
+        player_x, player_y = player_position
 
-    def read_platform_data(self, player_position):
-        for _ in range(3):
-            try:
-                with open(self.platform_path) as f:
-                    content = f.read()
-                if content:
-                    result = self.parse_platforms(content, player_position[0], player_position[1])
-                    if result is not None:
-                        self.current_tiles = self._extract_tiles(content, player_position[0], player_position[1])
-                        return result
-            except:
-                pass
-            time.sleep(self.sleep_time)
-        return None
-    
-    def flatten_platform_state(self, platform_data):
-        if platform_data is None:
-            return np.full(17, -9999, dtype=np.float32)
-        
-        (left_wall, right_wall, ceiling, platform_x_start, platform_x_end), sectors = platform_data
-        
-        flat = [left_wall, right_wall, ceiling, platform_x_start, platform_x_end]
-        for sector in sectors:
-            flat.extend(sector)  # each sector is now (rel_y, length)
-        
-        return np.array(flat, dtype=np.float32)
+        def to_relative(tiles):
+            return [
+                (abs_x - (player_x + 8), abs_y + player_y, w, h)
+                for abs_x, abs_y, w, h in tiles
+            ]
 
-    def parse_platforms(self, platform_str, player_x, player_y):
-        if not platform_str:
+        current_tiles_abs = self.tile_map.get(current_screen, [])
+        next_tiles_abs = self.tile_map.get(current_screen + 1, [])
+
+        current_screen_tiles = to_relative(current_tiles_abs)
+        next_screen_tiles = to_relative(next_tiles_abs)
+
+        self.current_tiles = current_screen_tiles
+        self.next_tiles = next_screen_tiles
+
+        return self.parse_platforms_from_tiles(current_screen_tiles, next_screen_tiles)
+
+    def parse_platforms_from_tiles(self, current_screen_tiles, next_screen_tiles):
+        if not current_screen_tiles:
             return None
 
-        current_screen_tiles = []
-        next_screen_tiles = []
-        parsing_next = False
-
-        for line in platform_str.strip().split("\n"):
-            line = line.strip()
-            if not line or line.startswith("DEBUG"):
-                continue
-            if line.startswith("screen:"):
-                if current_screen_tiles:
-                    parsing_next = True
-                continue
-            vals = line.split(",")
-            if len(vals) == 4:
-                try:
-                    abs_x, abs_y, w, h = float(vals[0]), float(vals[1]), float(vals[2]), float(vals[3])
-                    # convert to relative coordinates using player position
-                    rel_x = abs_x - (player_x + 8)
-                    rel_y = abs_y + player_y
-                    tile = (rel_x, rel_y, w, h)
-                    if not parsing_next:
-                        current_screen_tiles.append(tile)
-                    else:
-                        next_screen_tiles.append(tile)
-                except ValueError:
-                    continue
-
-        # compute wall distances using merge_walls
+        # compute wall distances
         walls = self.merge_walls(current_screen_tiles)
-
-        # exclude walls that contain the player's x position (standing platform edges)
-        #walls must extend player's vertical position to be considered a wall
         left_walls = [w[0] for w in walls if w[0] < 0 and w[1] < 0 and w[2] > 0]
         right_walls = [w[0] for w in walls if w[0] > 0 and w[1] < 0 and w[2] > 0]
-
         left_wall_dist = max(left_walls) if left_walls else -9999
         right_wall_dist = min(right_walls) if right_walls else 9999
 
+        # ceiling detection — current screen only
         player_width = 8
-
         ceiling_candidates = [t for t in current_screen_tiles
-                      if t[1] < 0 and abs(t[0]) < player_width]
-        
-        
+                            if t[1] < 0 and abs(t[0]) < player_width]
+        ceiling_dist = -max([t[1] for t in ceiling_candidates]) if ceiling_candidates else 9999
+        self.ceiling_dist_filtered = ceiling_dist + 16
 
-        #next_ceiling = [(t[0], t[1] + 360, t[2], t[3]) for t in next_screen_tiles]
-        #next_ceiling_candidates = [t for t in next_ceiling
-                                #if t[1] < 0 and abs(t[0]) < player_width]
-
-        ceiling_dist = (-max([t[1] for t in ceiling_candidates]) + 50) if ceiling_candidates else 9999
-
+        # merge platforms
         current_platforms = self.merge_tiles(current_screen_tiles)
-
-        # offset next screen tiles by +360 before merging so they fall within
-        # the Y filter range and produce valid next_left/next_right sectors
         next_screen_tiles_offset = [(x, y + 360, w, h) for x, y, w, h in next_screen_tiles]
         next_platforms = self.merge_tiles(next_screen_tiles_offset)
 
-        # find standing platform (the one the player is on: contains x=0, just below player)
+        # find standing platform
         standing_platform = None
         below_platforms = [p for p in current_platforms if p[0] < 0 and p[2] <= 20 and p[3] >= -20]
         if below_platforms:
@@ -294,14 +241,7 @@ class PlatformParser:
             platform_x_start, platform_x_end = standing_platform
 
         wide_ceiling_dist = self.detect_wide_ceiling(current_screen_tiles)
-
-        # assign to sectors
         sectors = self.assign_sectors(current_platforms, next_platforms, wide_ceiling_dist)
-
-        # print(f"current_screen_tiles count: {len(current_screen_tiles)}")
-        # print(f"sample tiles: {current_screen_tiles[:5]}")
-        # print(f"current_platforms: {current_platforms}")
-        # print(f"below_platforms: {below_platforms}")
 
         return (left_wall_dist, right_wall_dist, ceiling_dist, platform_x_start, platform_x_end), sectors
 
@@ -501,43 +441,3 @@ class PlatformParser:
                 return -y
 
         return 9999
-
-
-    # def detect_wide_ceiling(self, tiles, min_ceiling_width=100):
-    #     # only look at tiles above player
-    #     above_tiles = [t for t in tiles if t[1] < -50 and abs(t[0]) < 350]
-    #     #print(f"y range of above_tiles: min={min(t[1] for t in above_tiles):.1f}, max={max(t[1] for t in above_tiles):.1f}")
-    #     #print(f"by_y keys sorted reverse: {sorted(by_y.keys(), reverse=True)[:10]}")
-
-    #     if not above_tiles:
-    #         return 9999
-
-    #     tile_w = 8
-    #     tile_spacing = 8
-
-    #     # group by y
-    #     by_y = {}
-    #     for x, y, w, h in above_tiles:
-    #         by_y.setdefault(round(y), []).append(x)
-
-    #     # find the lowest (closest to player) wide segment
-    #     wide_ceiling_dist = 9999
-    #     for y in sorted(by_y.keys(), reverse=True):  # closest y first
-    #         xs = sorted(by_y[y])
-    #         # merge horizontally
-    #         start = xs[0]; end = xs[0]
-    #         for x in xs[1:]:
-    #             if x - end - tile_w <= tile_spacing:
-    #                 end = x
-    #             else:
-    #                 width = (end + tile_w) - start
-    #                 if width >= min_ceiling_width:
-    #                     wide_ceiling_dist = -y  # convert to positive distance
-    #                     return wide_ceiling_dist
-    #                 start = x; end = x
-    #         width = (end + tile_w) - start
-    #         if width >= min_ceiling_width:
-    #             wide_ceiling_dist = -y
-    #             return wide_ceiling_dist
-
-    #     return wide_ceiling_dist

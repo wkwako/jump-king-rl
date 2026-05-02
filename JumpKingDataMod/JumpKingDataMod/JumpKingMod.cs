@@ -34,11 +34,9 @@ namespace JumpKingDataMod
             _behaviour = new GameStateWriterBehaviour(player);
             player.m_body.RegisterBehaviour(_behaviour);
 
-            // write platform data once on level start
+            // scan all screens once on load
             int totalScreens = LevelManager.TotalScreens;
-            int currentScreen = Camera.CurrentScreen;
-            PlatformScanner.ScanAndWrite(currentScreen, totalScreens);
-
+            PlatformScanner.ScanAllScreens(totalScreens);
         }
 
         [OnLevelEnd]
@@ -224,7 +222,7 @@ namespace JumpKingDataMod
                 {
                     // landing
                     WriteStateSafe(state);
-                    PlatformScanner.ScanAndWrite(currentScreen, totalScreens);
+                    //PlatformScanner.ScanAndWrite(currentScreen, totalScreens);
                 }
                 else if (!anyKeyDown && _prevAnyKeyDown && isOnGround)
                 {

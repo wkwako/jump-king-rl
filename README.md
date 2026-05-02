@@ -5,9 +5,7 @@ TO DO:
 1. Generate more game play
 2. Test sector assignment
 3. Test entire ray implementation
-4. Switch file reading over to new implementation
-5. Generate all tile data at once
-6. write ImitationLearning class. should contain method for transformating recording.txt into state data, and do Imitationlearning stuff
+4. write ImitationLearning class. should contain method for transformating recording.txt into state data, and do Imitationlearning stuff
 
 # Training term definitions
 

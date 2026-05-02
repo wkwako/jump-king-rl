@@ -31,6 +31,56 @@ namespace JumpKingDataMod
             _initialized = true;
         }
 
+        public static void ScanAllScreens(int totalScreens)
+        {
+            try
+            {
+                if (!_initialized)
+                    Initialize();
+
+                if (_hitboxField == null) return;
+
+                StringBuilder sb = new StringBuilder();
+                sb.AppendLine("{");
+
+                for (int i = 0; i < totalScreens; i++)
+                {
+                    sb.Append($"  \"{i}\": [");
+
+                    LevelScreen[] screens = (LevelScreen[])_screensField.GetValue(null);
+                    if (screens != null && i < screens.Length && screens[i] != null)
+                    {
+                        IBlock[] hitboxes = (IBlock[])_hitboxField.GetValue(screens[i]);
+                        if (hitboxes != null)
+                        {
+                            bool first = true;
+                            foreach (IBlock block in hitboxes)
+                            {
+                                if (block == null) continue;
+                                if (block is SlopeBlock) continue;
+                                Rectangle rect = block.GetRect();
+                                if (!first) sb.Append(",");
+                                sb.Append($"[{rect.X},{rect.Y},{rect.Width},{rect.Height}]");
+                                first = false;
+                            }
+                        }
+                    }
+
+                    if (i < totalScreens - 1)
+                        sb.AppendLine("],");
+                    else
+                        sb.AppendLine("]");
+                }
+
+                sb.AppendLine("}");
+                WriteSafe(sb.ToString());
+            }
+            catch (Exception e)
+            {
+                WriteSafe($"{{\"error\": \"{e.Message}\"}}");
+            }
+        }
+
         private static void WriteSafe(string data)
         {
             int attempts = 0;

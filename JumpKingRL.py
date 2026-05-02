@@ -18,6 +18,7 @@ from stable_baselines3 import PPO, DQN
 from stable_baselines3.common.logger import configure
 
 from JumpKingEnv import JumpKingEnv
+from Ray import Ray
 from stable_baselines3.common.callbacks import BaseCallback
 
 class JumpKingCallback(BaseCallback):
@@ -240,28 +241,36 @@ platform_parser = PlatformParser()
 
 #create, load, train model. create not needed if already created
 #model = JK.create_model("jk_ppo_temp1", env, "PPO", verbose=1, n_steps=n_steps)
-model = JK.load_model("jk_ppo_temp1")
-JK.train_model("jk_ppo_temp1", model, total_timesteps=10000, callback=callback) #default is 2k
+#model = JK.load_model("jk_ppo_temp1")
+#JK.train_model("jk_ppo_temp1", model, total_timesteps=10000, callback=callback) #default is 2k
+ 
 
-#debug information
-x, y, vel_x, vel_y, is_on_ground, current_screen = env.get_gamedata_old()
-platform_parser.update_registry(current_screen, (x, y))
-pos_state_data = list(platform_parser.parse_result[0])
-sector_state_data = platform_parser.process_registry(current_screen, (x, y))
-pos_state = [x, y, current_screen]
-state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
-print(f"x={x:.1f}, y={y:.1f}, screen={current_screen}")
-print(f"left_wall={pos_state_data[0]}, right_wall={pos_state_data[1]}, ceiling={pos_state_data[2]}")
-print(f"platform_x_start={pos_state_data[3]}, platform_x_end={pos_state_data[4]}")
-print(f"sectors: {sector_state_data}")
-#print(f"full state ({len(state)} values): {state}")
-
-# model = JK.create_model("jk_dqn_test2", env, "DQN", learning_starts=1000, 
-#                         exploration_fraction=0.8,
-#                         exploration_initial_eps=1.0,
-#                         exploration_final_eps=0.05,
-#                         batch_size=64)
-
-#env.close()
+#ray info debugging
+env.gamedata = env.read_gamedata()
+env.load_game_attributes()
+platform_parser = PlatformParser()
+ray_caster = Ray()
+platform_parser.parse_result = platform_parser.read_platform_data((env.x, env.y), env.current_screen)
+ray_caster.build_ray_collision_index(platform_parser.current_tiles, platform_parser.next_tiles)
+ray_data = ray_caster.build_ray_states(num_angles=36)
+print(f"x={env.x:.1f}, y={env.y:.1f}, screen={env.current_screen}")
+print(f"ray data ({len(ray_data)} values):")
+for i, dist in enumerate(ray_data):
+    angle = i * (360 / 36)
+    print(f"  {angle:6.1f}°: {dist:.1f}px")
 
 
+
+#sector information debugging
+# x, y, vel_x, vel_y, is_on_ground, current_screen = env.get_gamedata_old()
+# platform_parser.parse_result = platform_parser.read_platform_data((x, y), current_screen)
+# pos_state_data = list(platform_parser.parse_result[0])
+# #pos_state_data[2] += -50  # ceiling offset
+# sector_state_data = platform_parser.process_registry(current_screen, (x, y))
+# pos_state = [env.x, env.y, env.current_screen]
+# state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
+
+# print(f"x={env.x:.1f}, y={env.y:.1f}, screen={env.current_screen}")
+# print(f"left_wall={pos_state_data[0]}, right_wall={pos_state_data[1]}, ceiling={pos_state_data[2]}")
+# print(f"platform_x_start={pos_state_data[3]}, platform_x_end={pos_state_data[4]}")
+# print(f"sectors: {sector_state_data}")

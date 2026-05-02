@@ -54,17 +54,21 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.stuck_penalty = -3
         self.stuck_threshold = 10  # pixels — how close counts as "same spot"
 
+        #sector observation space
+        # self.observation_space = spaces.Box(
+        #     low=np.array([-np.inf] * 20, dtype=np.float32),
+        #     high=np.array([np.inf] * 20, dtype=np.float32),
+        #     dtype=np.float32
+        # )
+
+        #ray observation space
         self.observation_space = spaces.Box(
-            low=np.array([-np.inf] * 20, dtype=np.float32),
-            high=np.array([np.inf] * 20, dtype=np.float32),
+            low=np.array([-np.inf] * 42, dtype=np.float32),
+            high=np.array([np.inf] * 42, dtype=np.float32),
             dtype=np.float32
         )
 
-        # self.observation_space = spaces.Box(
-        #     low=np.array([-np.inf] * 48, dtype=np.float32),
-        #     high=np.array([np.inf] * 48, dtype=np.float32),
-        #     dtype=np.float32
-        # )
+
 
     def step(self, action):
         #set reward to 0 for this step
@@ -79,61 +83,51 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #reads gamedata. pauses here until the character lands
         self.gamedata = self.read_gamedata()
 
-        #release spacebar if it's beind held before we choose another action
-        #self.reset_keys()
+        #release spacebar if it's being held before we choose another action
+        self.reset_keys()
 
         #set game data into individual variables
-        #x, y, vel_x, vel_y, is_on_ground, current_screen, total_screens, jump_frames, jump_percentage, max_height_this_jump = self.gamedata   
         self.load_game_attributes()
-        #x_prev, y_prev, vel_x_prev, vel_y_prev, is_on_ground_prev, current_screen_prev, total_screens_prev, jump_frames_prev, jump_percentage_prev, max_height_this_jump_prev = self.gamedata_prev
         self.load_game_attributes_prev()
 
-        # update registry and get state
-        self.platform_parser.update_registry(self.current_screen, (self.x, self.y))
+        #ray state building
+        self.platform_parser.parse_result = self.platform_parser.read_platform_data((self.x, self.y), self.current_screen)
+        self.ray_caster.build_ray_collision_index(self.platform_parser.current_tiles, self.platform_parser.next_tiles)
+        ray_state_data = self.ray_caster.build_ray_states(num_angles=36)
+        pos_state = [self.x, self.y, self.current_screen, self.is_on_ice, self.is_in_snow, self.wind_velocity]
+        self.state = np.array(pos_state + ray_state_data, dtype=np.float32)
 
-        if self.platform_parser.parse_result is not None:
-            pos_state_data = list(self.platform_parser.parse_result[0])
-        else:
-            pos_state_data = [-9999, 9999, 9999, -9999, 9999]
-
-        pos_state_data = list(self.platform_parser.parse_result[0])
-        pos_state_data[2] += -50
-        sector_state_data = self.platform_parser.process_registry(self.current_screen, (self.x, self.y))
-
-        #self.ray_caster.build_ray_collision_index(self.platform_parser.current_tiles)
-        #ray_state_data = self.ray_caster.build_ray_states(num_angles=40)
-
-        pos_state = [self.x, self.y, self.current_screen]
-
-        #self.state = np.array(pos_state + pos_state_data + ray_state_data, dtype=np.float32)
-        self.state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
+        #sector state building
+        # self.platform_parser.parse_result = self.platform_parser.read_platform_data((self.x, self.y), self.current_screen)
+        # # build state
+        # if self.platform_parser.parse_result is not None:
+        #     pos_state_data = list(self.platform_parser.parse_result[0])
+        #     #pos_state_data[2] += -50  # ceiling offset
+        # else:
+        #     pos_state_data = [-9999, 9999, 9999, -9999, 9999]
+        # sector_state_data = self.platform_parser.process_registry(self.current_screen, (self.x, self.y))
+        # pos_state = [self.x, self.y, self.current_screen]
+        # self.state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
 
         #reward calculation
-        #must land for current_screen to be registered as above previous screen
         if self.current_screen > self.current_screen_prev:
-            #print (f"Reward for new screen: {self.new_screen_reward}")
             reward += self.new_screen_reward
 
-        #if we landed higher, reward. if we landed lower, punish
+        #if we landed higher, reward. if we landed lower, penalty
         if self.y != self.y_prev:
             #print (f"Reward for landing at new altitude: {self.new_height_reward(y, y_prev, jump_percentage)}")
             reward += self.new_height_reward()
 
-        #punish repeated jumps that land in the same spot
+        #penalty for repeated jumps that land in the same spot
         self.add_landing()
         if self.check_landing_cluster():
             reward += self.stuck_penalty
-
-        #reward moving right after a big fall so the player stands up?
 
         #reward exploring unexplored grid cells this episode
         # cell = self.get_grid_cell(x, y)
         # if cell not in self.visited_cells:
         #     self.visited_cells.add(cell)
         #     reward += self.exploration_reward
-
-        #create state tuple. this is what the agent uses to determine actions
-        #self.state = (x, y, vel_x, vel_y, current_screen)
 
         #increment jump count metadata
         if self.jumped:
@@ -150,10 +144,39 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #     y_start = self.gamedata_start_of_episode[1]
         #     reward += (y - y_start) / 5
 
-        #print (f"State: {self.state}")
-
-        #state, reward, if the episode is terminated, truncation, and info dict
         return self.state, reward, terminated, False, {}
+
+    def reset(self, seed=None, options=None):
+        #time.sleep(2)
+        self.gamedata = self.read_gamedata()
+        self.load_game_attributes()
+        self.load_game_attributes_prev()
+        #self.gamedata_prev = list(self.gamedata)
+        #self.visited_cells.clear()
+        self.action_counter = 0
+        #self.gamedata_start_of_episode = list(self.gamedata)
+
+        #x, y, vel_x, vel_y, is_on_ground, current_screen = self.gamedata[:6]
+        self.load_game_attributes()
+
+        # reuse last state if available, otherwise use sentinels
+        if self.state is not None:
+            # update just x, y, current_screen in the existing state
+            self.state[0] = self.x
+            self.state[1] = self.y
+            self.state[2] = self.current_screen
+        else:
+            # first ever reset - use sentinels
+            #sector sentinels
+            #pos_state_data = [-9999, 9999, 9999, -9999, 9999]
+            #sector_state_data = [-9999] * 12
+            #self.state = np.array([self.x, self.y, self.current_screen] + pos_state_data + sector_state_data, dtype=np.float32)
+
+            #ray sentinels
+            ray_state_data = [400] * 36
+            self.state = np.array([self.x, self.y, self.current_screen, 0, 0, 0] + ray_state_data, dtype=np.float32)
+
+        return self.state, {}
     
     def add_landing(self):
         if not self.jumped:
@@ -230,36 +253,6 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     
     def get_grid_cell(self, x, y):
         return (int(x // self.grid_size), int(y // self.grid_size))
-
-    def reset(self, seed=None, options=None):
-        #time.sleep(2)
-        self.gamedata = self.read_gamedata()
-        self.load_game_attributes()
-        self.load_game_attributes_prev()
-        #self.gamedata_prev = list(self.gamedata)
-        #self.visited_cells.clear()
-        self.action_counter = 0
-        #self.gamedata_start_of_episode = list(self.gamedata)
-
-
-        #x, y, vel_x, vel_y, is_on_ground, current_screen = self.gamedata[:6]
-        self.load_game_attributes()
-
-        # reuse last state if available, otherwise use sentinels
-        if self.state is not None:
-            # update just x, y, current_screen in the existing state
-            self.state[0] = self.x
-            self.state[1] = self.y
-            self.state[2] = self.current_screen
-        else:
-            # first ever reset - use sentinels
-            pos_state_data = [-9999, 9999, 9999, -9999, 9999]
-            sector_state_data = [-9999] * 12
-            self.state = np.array([self.x, self.y, self.current_screen] + pos_state_data + sector_state_data, dtype=np.float32)
-            #ray_state_data = [400] * 40  # max distance sentinel
-            #self.state = np.array([x, y, current_screen] + pos_state_data + ray_state_data, dtype=np.float32)
-
-        return self.state, {}
 
     def new_height_reward(self):
         #if jump was max height, increase reward by 20%
