@@ -219,13 +219,60 @@ class JumpKingRL:
             env.reset_keys()
 
 #behavioral cloning test
-platform_parser = PlatformParser()
+# env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)
+# bc = BehavioralCloning()
+
+# records = bc.load_recording()
+# states, actions = bc.separate_actions_and_state(records)
+# actions = bc.equalize_actions(actions)
+# actions = bc.cap_actions(actions)
+# actions = bc.snap_to_increment(actions, increment=0.05)
+# action_indices = bc.convert_to_discretized_actions(actions, env.action_map)
+
+# #print(f"Dataset shape: {x.shape}, {y.shape}")
+# #print(f"Sample state: {x[0]}")
+
+# X, y_labels = bc.generate_dataset(records, action_indices)
+
+# model = bc.train(
+#     X, y_labels,
+#     action_dim=len(env.action_map),
+#     model_path="models/bc_policy.pth",
+#     epochs=100,
+#     batch_size=64,
+#     lr=1e-3,
+#     hidden_dim=256
+# )
+
+# load BC model
 bc = BehavioralCloning()
-records = bc.load_recording()
-left, right, space = bc.tally_actions(records, threshold=0.05)
-print(f"Left walks: {left}")
-print(f"Right walks: {right}")
-print(f"Space (jumps): {space}")
+bc.load_model("models/bc_policy.pth")
+
+# run BC policy in environment
+env = JumpKingEnv(episode_mode=EpisodeMode.ACTION, max_episode_actions=100)
+obs, _ = env.reset()
+
+print("Running BC policy...")
+total_reward = 0
+num_episodes = 5
+
+for episode in range(num_episodes):
+    obs, _ = env.reset()
+    episode_reward = 0
+    done = False
+
+    while not done:
+        # generate fresh state from current game data
+        state = bc.generate_state(env.gamedata)
+        action_idx = bc.predict(state, temperature=1.5)
+        obs, reward, terminated, truncated, info = env.step(action_idx)
+        episode_reward += reward
+        done = terminated or truncated
+
+    print(f"Episode {episode+1}: reward={episode_reward:.2f}, screen={env.current_screen}")
+    total_reward += episode_reward
+
+print(f"Average reward: {total_reward/num_episodes:.2f}")
 
 #environment setup
 # JK = JumpKingRL()

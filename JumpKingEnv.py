@@ -16,8 +16,9 @@ from Ray import Ray
 
 class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
-    def __init__(self, episode_mode, max_episode_actions=10, curriculum_screens=5):
+    def __init__(self, episode_mode, max_episode_actions=10, curriculum_screens=5, spacing=0.05):
         self.teleport_path = "C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/teleport.txt"
+        self.spacing = spacing
         self.action_map = self.init_action_map()
         self.action_space = spaces.Discrete(len(self.action_map))
         self.state = None
@@ -325,7 +326,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         if key2:
             pydirectinput.keyUp(key2)
 
-    def init_action_map(self, spacing=0.1):
+    def init_action_map(self):
         #left, right, spacebar
         action_map = []
 
@@ -336,9 +337,9 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             action_map.append([t, 0, 0])
             action_map.append([0, t, 0])
 
-        for t in np.arange(spacing, 0.65, spacing):  # 0.05 to 0.60 inclusive
-            action_map.append([0, round(t, 2), round(t, 2)])
-            action_map.append([round(t, 2), 0, round(t, 2)])
+        for t in np.arange(self.spacing, 0.65, self.spacing):
+            action_map.append([0, float(round(t, 2)), float(round(t, 2))])
+            action_map.append([float(round(t, 2)), 0, float(round(t, 2))])
 
         return action_map
     
