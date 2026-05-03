@@ -57,8 +57,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         #sector observation space
         self.observation_space = spaces.Box(
-            low=np.array([-np.inf] * 23, dtype=np.float32),
-            high=np.array([np.inf] * 23, dtype=np.float32),
+            low=np.array([-np.inf] * 25, dtype=np.float32),
+            high=np.array([np.inf] * 25, dtype=np.float32),
             dtype=np.float32
         )
 
@@ -107,7 +107,14 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         else:
             pos_state_data = [-9999, 9999, 9999, -9999, 9999]
         sector_state_data = self.platform_parser.process_registry(self.current_screen, (self.x, self.y))
-        pos_state = [self.x, self.y, self.current_screen]
+        #pos_state = [self.x, self.y, self.current_screen]
+
+        can_bounce_right, can_bounce_left = self.platform_parser.set_rebound_state(
+            (self.x, self.y), self.current_screen
+        )
+
+        pos_state = [self.x, self.y, self.current_screen, self.is_on_ice, self.is_in_snow, self.wind_velocity, can_bounce_right, can_bounce_left]
+
         self.state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
 
         #reward calculation
@@ -280,7 +287,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     def get_gamedata_old(self):
         self.gamedata = self.read_gamedata()
         self.load_game_attributes()
-        return self.x, self.y, self.vel_x, self.vel_y, self.is_on_ground, self.current_screen
+        return self.gamedata
                 
     def execute_action(self, action):
         #map action index to keypresses
