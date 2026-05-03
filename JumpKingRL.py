@@ -9,6 +9,8 @@ import os
 import json
 from datetime import datetime
 from PlatformParser import PlatformParser
+from JumpKingEnv import JumpKingEnv
+from BehavioralCloning import BehavioralCloning
 
 import sys
 sys.path.append("C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL")
@@ -17,7 +19,6 @@ import gymnasium as gym
 from stable_baselines3 import PPO, DQN
 from stable_baselines3.common.logger import configure
 
-from JumpKingEnv import JumpKingEnv
 from Ray import Ray
 from stable_baselines3.common.callbacks import BaseCallback
 
@@ -216,50 +217,44 @@ class JumpKingRL:
             env = model.env.envs[0].env
             env.jump_counter_metadata = 0
             env.reset_keys()
-            
-def human_readable_platforms(platforms):
-    print (f"left wall: {platforms[0][0]}")
-    print (f"right wall: {platforms[0][1]}")
-    print (f"ceiling: {platforms[0][2]}")
-    print (f"left edge of current platform: {platforms[0][3]}")
-    print (f"right edge of current platform: {platforms[0][4]}")
-    print ("Sector info (relative y, length)")
-    print (f"up left: {platforms[1][0]}")
-    print (f"up right: {platforms[1][1]}")
-    print (f"left: {platforms[1][2]}")
-    print (f"right: {platforms[1][3]}")
-    print (f"next screen, up left: {platforms[1][4]}")
-    print (f"next screen, up right: {platforms[1][5]}")
 
-#create model first
-JK = JumpKingRL()
-max_episode_actions = 8
-env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=max_episode_actions)
-n_steps=64
-callback = JumpKingCallback()
+#behavioral cloning test
 platform_parser = PlatformParser()
+bc = BehavioralCloning()
+records = bc.load_recording()
+left, right, space = bc.tally_actions(records, threshold=0.05)
+print(f"Left walks: {left}")
+print(f"Right walks: {right}")
+print(f"Space (jumps): {space}")
 
-#create, load, train model. create not needed if already created
-model = JK.create_model("jk_ppo_ray1", env, "PPO", verbose=1, n_steps=n_steps)
-model = JK.load_model("jk_ppo_ray1")
-JK.train_model("jk_ppo_ray1", model, total_timesteps=10000, callback=callback) #default is 2k
+#environment setup
+# JK = JumpKingRL()
+# max_episode_actions = 8
+# env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=max_episode_actions)
+# n_steps=64
+# callback = JumpKingCallback()
+# platform_parser = PlatformParser()
+
+# #create, load, train model
+# model = JK.create_model("jk_ppo_ray1", env, "PPO", verbose=1, n_steps=n_steps)
+# model = JK.load_model("jk_ppo_ray1")
+# JK.train_model("jk_ppo_ray1", model, total_timesteps=10000, callback=callback) #default is 2k
  
+# #ray info debugging
+# env.gamedata = env.read_gamedata()
+# env.load_game_attributes()
+# platform_parser = PlatformParser()
+# ray_caster = Ray()
+# platform_parser.parse_result = platform_parser.read_platform_data((env.x, env.y), env.current_screen)
+# ray_caster.build_ray_collision_index(platform_parser.current_tiles, platform_parser.next_tiles)
+# ray_data = ray_caster.build_ray_states(num_angles=36)
+# print(f"x={env.x:.1f}, y={env.y:.1f}, screen={env.current_screen}")
+# print(f"ray data ({len(ray_data)} values):")
+# for i, dist in enumerate(ray_data):
+#     angle = i * (360 / 36)
+#     print(f"  {angle:6.1f}°: {dist:.1f}px")
 
-#ray info debugging
-env.gamedata = env.read_gamedata()
-env.load_game_attributes()
-platform_parser = PlatformParser()
-ray_caster = Ray()
-platform_parser.parse_result = platform_parser.read_platform_data((env.x, env.y), env.current_screen)
-ray_caster.build_ray_collision_index(platform_parser.current_tiles, platform_parser.next_tiles)
-ray_data = ray_caster.build_ray_states(num_angles=36)
-print(f"x={env.x:.1f}, y={env.y:.1f}, screen={env.current_screen}")
-print(f"ray data ({len(ray_data)} values):")
-for i, dist in enumerate(ray_data):
-    angle = i * (360 / 36)
-    print(f"  {angle:6.1f}°: {dist:.1f}px")
-
-
+#--------------------------------
 
 #sector information debugging
 # x, y, vel_x, vel_y, is_on_ground, current_screen = env.get_gamedata_old()

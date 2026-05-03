@@ -3,7 +3,6 @@ import json
 class BehavioralCloning:
     def __init__(self):
         self.filepath = "C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/recording.txt"
-        pass
 
     def load_recording(self):
         """Reads recording.txt and returns list of (state_dict, (left, right, space)) tuples."""

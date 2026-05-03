@@ -325,66 +325,20 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         if key2:
             pydirectinput.keyUp(key2)
 
-    def init_action_map(self):
+    def init_action_map(self, spacing=0.1):
         #left, right, spacebar
         action_map = []
 
         #perform no action - only used for testing
         #action_map.append([0, 0, 0])
 
-        #walk left
-        action_map.append([0.2, 0, 0])
+        for t in [0.1, 0.2]:
+            action_map.append([t, 0, 0])
+            action_map.append([0, t, 0])
 
-        #walk small left
-        action_map.append([0.05, 0, 0])
-
-        #walk right
-        action_map.append([0, 0.2, 0])
-
-        #walk small right
-        action_map.append([0, 0.05, 0])
-
-        #jump right, 0.05s
-        action_map.append([0, 0.05, 0.05])
-
-        #jump right, 0.1s
-        action_map.append([0, 0.1, 0.1])
-
-        #jump right, 0.2s
-        action_map.append([0, 0.2, 0.2])
-
-        #jump right, 0.3s
-        action_map.append([0, 0.3, 0.3])
-
-        #jump right, 0.4s
-        action_map.append([0, 0.4, 0.4])
-
-        #jump right, 0.5s
-        action_map.append([0, 0.5, 0.5])
-
-        #jump right, 0.6s
-        action_map.append([0, 0.6, 0.6])
-
-        #jump left, 0.05s
-        action_map.append([0.05, 0, 0.05])
-
-        #jump left, 0.1s
-        action_map.append([0.1, 0, 0.1])
-
-        #jump left, 0.2s
-        action_map.append([0.2, 0, 0.2])
-
-        #jump left, 0.3s
-        action_map.append([0.3, 0, 0.3])
-
-        #jump left, 0.4s
-        action_map.append([0.4, 0, 0.4])
-
-        #jump left, 0.5s
-        action_map.append([0.5, 0, 0.5])
-
-        #jump left, 0.6s
-        action_map.append([0.6, 0, 0.6])
+        for t in np.arange(spacing, 0.65, spacing):  # 0.05 to 0.60 inclusive
+            action_map.append([0, round(t, 2), round(t, 2)])
+            action_map.append([round(t, 2), 0, round(t, 2)])
 
         return action_map
     
