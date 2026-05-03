@@ -10,7 +10,7 @@ import json
 from datetime import datetime
 from PlatformParser import PlatformParser
 from JumpKingEnv import JumpKingEnv
-from BehavioralCloning import BehavioralCloning
+#from BehavioralCloning import BehavioralCloning
 
 import sys
 sys.path.append("C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL")
@@ -244,49 +244,57 @@ class JumpKingRL:
 #     hidden_dim=256
 # )
 
-# load BC model
-bc = BehavioralCloning()
-bc.load_model("models/bc_policy.pth")
-
-# run BC policy in environment
-env = JumpKingEnv(episode_mode=EpisodeMode.ACTION, max_episode_actions=100)
-obs, _ = env.reset()
-
-print("Running BC policy...")
-total_reward = 0
-num_episodes = 5
-
-for episode in range(num_episodes):
-    obs, _ = env.reset()
-    episode_reward = 0
-    done = False
-
-    while not done:
-        # generate fresh state from current game data
-        state = bc.generate_state(env.gamedata)
-        action_idx = bc.predict(state, temperature=1.5)
-        obs, reward, terminated, truncated, info = env.step(action_idx)
-        episode_reward += reward
-        done = terminated or truncated
-
-    print(f"Episode {episode+1}: reward={episode_reward:.2f}, screen={env.current_screen}")
-    total_reward += episode_reward
-
-print(f"Average reward: {total_reward/num_episodes:.2f}")
+# BC model testing, no RL
+# bc = BehavioralCloning()
+# bc.load_model("models/bc_policy.pth")
+# env = JumpKingEnv(episode_mode=EpisodeMode.ACTION, max_episode_actions=100)
+# obs, _ = env.reset()
+# print("Running BC policy...")
+# total_reward = 0
+# num_episodes = 5
+# for episode in range(num_episodes):
+#     obs, _ = env.reset()
+#     episode_reward = 0
+#     done = False
+#     while not done:
+#         # generate fresh state from current game data
+#         state = bc.generate_state(env.gamedata)
+#         action_idx = bc.predict(state, temperature=1.5)
+#         obs, reward, terminated, truncated, info = env.step(action_idx)
+#         episode_reward += reward
+#         done = terminated or truncated
+#     print(f"Episode {episode+1}: reward={episode_reward:.2f}, screen={env.current_screen}")
+#     total_reward += episode_reward
+# print(f"Average reward: {total_reward/num_episodes:.2f}")
 
 #environment setup
-# JK = JumpKingRL()
-# max_episode_actions = 8
-# env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=max_episode_actions)
-# n_steps=64
-# callback = JumpKingCallback()
-# platform_parser = PlatformParser()
+JK = JumpKingRL()
+max_episode_actions = 8
+env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=max_episode_actions)
+n_steps=64
+callback = JumpKingCallback()
+platform_parser = PlatformParser()
 
 # #create, load, train model
 # model = JK.create_model("jk_ppo_ray1", env, "PPO", verbose=1, n_steps=n_steps)
 # model = JK.load_model("jk_ppo_ray1")
 # JK.train_model("jk_ppo_ray1", model, total_timesteps=10000, callback=callback) #default is 2k
  
+#sector information debugging
+x, y, vel_x, vel_y, is_on_ground, current_screen = env.get_gamedata_old()
+platform_parser.parse_result = platform_parser.read_platform_data((x, y), current_screen)
+pos_state_data = list(platform_parser.parse_result[0])
+#pos_state_data[2] += -50  # ceiling offset
+sector_state_data = platform_parser.process_registry(current_screen, (x, y))
+pos_state = [env.x, env.y, env.current_screen]
+state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
+
+print(f"x={env.x:.1f}, y={env.y:.1f}, screen={env.current_screen}")
+print(f"left_wall={pos_state_data[0]}, right_wall={pos_state_data[1]}, ceiling={pos_state_data[2]}")
+print(f"platform_x_start={pos_state_data[3]}, platform_x_end={pos_state_data[4]}")
+print(f"sectors: {sector_state_data}")
+
+
 # #ray info debugging
 # env.gamedata = env.read_gamedata()
 # env.load_game_attributes()
@@ -301,18 +309,4 @@ print(f"Average reward: {total_reward/num_episodes:.2f}")
 #     angle = i * (360 / 36)
 #     print(f"  {angle:6.1f}°: {dist:.1f}px")
 
-#--------------------------------
 
-#sector information debugging
-# x, y, vel_x, vel_y, is_on_ground, current_screen = env.get_gamedata_old()
-# platform_parser.parse_result = platform_parser.read_platform_data((x, y), current_screen)
-# pos_state_data = list(platform_parser.parse_result[0])
-# #pos_state_data[2] += -50  # ceiling offset
-# sector_state_data = platform_parser.process_registry(current_screen, (x, y))
-# pos_state = [env.x, env.y, env.current_screen]
-# state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
-
-# print(f"x={env.x:.1f}, y={env.y:.1f}, screen={env.current_screen}")
-# print(f"left_wall={pos_state_data[0]}, right_wall={pos_state_data[1]}, ceiling={pos_state_data[2]}")
-# print(f"platform_x_start={pos_state_data[3]}, platform_x_end={pos_state_data[4]}")
-# print(f"sectors: {sector_state_data}")

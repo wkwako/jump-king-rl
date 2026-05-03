@@ -128,17 +128,29 @@ class PlatformParser:
 
             #print(f"  platform={platform}, angle={angle:.1f}, rel_x={rel_x:.1f}, rel_y={rel_y:.1f}, sector={self.get_sector(angle)}")
 
-            if rel_y > 170:
+            vertical_max = 170
+            horizontal_max = 330
+            horizontal_max_diagonal = 210
+            
+            if rel_y > vertical_max:
                 #print(f"    -> filtered: rel_y {rel_y:.1f} > 170")
                 continue
-            if abs(rel_x) > 350:
+            if abs(rel_x) > horizontal_max:
                 #print(f"    -> filtered: rel_x {abs(rel_x):.1f} > 350")
                 continue
-            if rel_y > ceiling_dist:
+            if rel_y > ceiling_dist + 50:
                 #print(f"    -> filtered: rel_y {rel_y:.1f} > ceiling {ceiling_dist:.1f}")
                 continue
 
             sector = self.get_sector(angle)
+
+            if sector in ('upper_left', 'upper_right'):
+                if abs(rel_x) > vertical_max:
+                    continue
+            else:
+                if abs(rel_x) > horizontal_max_diagonal:
+                    continue
+
             if sector and distance < sectors[sector][0]:
                 sectors[sector] = (distance, (angle, distance))
                 #print(f"    -> assigned to {sector}")
@@ -216,11 +228,17 @@ class PlatformParser:
         left_wall_dist = max(left_walls) if left_walls else -9999
         right_wall_dist = min(right_walls) if right_walls else 9999
 
-        # ceiling detection — current screen only
+        # ceiling detection — current screen and next screen
         player_width = 8
         ceiling_candidates = [t for t in current_screen_tiles
                             if t[1] < 0 and abs(t[0]) < player_width]
-        ceiling_dist = -max([t[1] for t in ceiling_candidates]) if ceiling_candidates else 9999
+
+        # include next screen tiles shifted -360 into current screen space
+        next_ceiling_candidates = [t for t in next_screen_tiles
+                           if t[1] < 0 and abs(t[0]) < player_width]
+
+        all_ceiling = ceiling_candidates + next_ceiling_candidates
+        ceiling_dist = -max([t[1] for t in all_ceiling]) if all_ceiling else 9999
         self.ceiling_dist_filtered = ceiling_dist + 16
 
         # merge platforms

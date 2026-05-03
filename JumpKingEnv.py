@@ -56,18 +56,18 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.stuck_threshold = 10  # pixels — how close counts as "same spot"
 
         #sector observation space
-        # self.observation_space = spaces.Box(
-        #     low=np.array([-np.inf] * 20, dtype=np.float32),
-        #     high=np.array([np.inf] * 20, dtype=np.float32),
-        #     dtype=np.float32
-        # )
-
-        #ray observation space
         self.observation_space = spaces.Box(
-            low=np.array([-np.inf] * 42, dtype=np.float32),
-            high=np.array([np.inf] * 42, dtype=np.float32),
+            low=np.array([-np.inf] * 23, dtype=np.float32),
+            high=np.array([np.inf] * 23, dtype=np.float32),
             dtype=np.float32
         )
+
+        #ray observation space
+        # self.observation_space = spaces.Box(
+        #     low=np.array([-np.inf] * 42, dtype=np.float32),
+        #     high=np.array([np.inf] * 42, dtype=np.float32),
+        #     dtype=np.float32
+        # )
 
 
 
@@ -92,23 +92,23 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.load_game_attributes_prev()
 
         #ray state building
-        self.platform_parser.parse_result = self.platform_parser.read_platform_data((self.x, self.y), self.current_screen)
-        self.ray_caster.build_ray_collision_index(self.platform_parser.current_tiles, self.platform_parser.next_tiles)
-        ray_state_data = self.ray_caster.build_ray_states(num_angles=36)
-        pos_state = [self.x, self.y, self.current_screen, self.is_on_ice, self.is_in_snow, self.wind_velocity]
-        self.state = np.array(pos_state + ray_state_data, dtype=np.float32)
+        # self.platform_parser.parse_result = self.platform_parser.read_platform_data((self.x, self.y), self.current_screen)
+        # self.ray_caster.build_ray_collision_index(self.platform_parser.current_tiles, self.platform_parser.next_tiles)
+        # ray_state_data = self.ray_caster.build_ray_states(num_angles=36)
+        # pos_state = [self.x, self.y, self.current_screen, self.is_on_ice, self.is_in_snow, self.wind_velocity]
+        # self.state = np.array(pos_state + ray_state_data, dtype=np.float32)
 
         #sector state building
-        # self.platform_parser.parse_result = self.platform_parser.read_platform_data((self.x, self.y), self.current_screen)
-        # # build state
-        # if self.platform_parser.parse_result is not None:
-        #     pos_state_data = list(self.platform_parser.parse_result[0])
-        #     #pos_state_data[2] += -50  # ceiling offset
-        # else:
-        #     pos_state_data = [-9999, 9999, 9999, -9999, 9999]
-        # sector_state_data = self.platform_parser.process_registry(self.current_screen, (self.x, self.y))
-        # pos_state = [self.x, self.y, self.current_screen]
-        # self.state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
+        self.platform_parser.parse_result = self.platform_parser.read_platform_data((self.x, self.y), self.current_screen)
+        # build state
+        if self.platform_parser.parse_result is not None:
+            pos_state_data = list(self.platform_parser.parse_result[0])
+            #pos_state_data[2] += -50  # ceiling offset
+        else:
+            pos_state_data = [-9999, 9999, 9999, -9999, 9999]
+        sector_state_data = self.platform_parser.process_registry(self.current_screen, (self.x, self.y))
+        pos_state = [self.x, self.y, self.current_screen]
+        self.state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
 
         #reward calculation
         if self.current_screen > self.current_screen_prev:
@@ -167,15 +167,14 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             self.state[1] = self.y
             self.state[2] = self.current_screen
         else:
-            # first ever reset - use sentinels
             #sector sentinels
-            #pos_state_data = [-9999, 9999, 9999, -9999, 9999]
-            #sector_state_data = [-9999] * 12
-            #self.state = np.array([self.x, self.y, self.current_screen] + pos_state_data + sector_state_data, dtype=np.float32)
+            pos_state_data = [-9999, 9999, 9999, -9999, 9999]
+            sector_state_data = [-9999] * 12
+            self.state = np.array([self.x, self.y, self.current_screen] + pos_state_data + sector_state_data, dtype=np.float32)
 
             #ray sentinels
-            ray_state_data = [400] * 36
-            self.state = np.array([self.x, self.y, self.current_screen, 0, 0, 0] + ray_state_data, dtype=np.float32)
+            # ray_state_data = [400] * 36
+            # self.state = np.array([self.x, self.y, self.current_screen, 0, 0, 0] + ray_state_data, dtype=np.float32)
 
         return self.state, {}
     
