@@ -9,6 +9,8 @@ import os
 import json
 from datetime import datetime
 from PlatformParser import PlatformParser
+from JumpKingEnv import JumpKingEnv
+#from BehavioralCloning import BehavioralCloning
 
 import sys
 sys.path.append("C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL")
@@ -17,7 +19,6 @@ import gymnasium as gym
 from stable_baselines3 import PPO, DQN
 from stable_baselines3.common.logger import configure
 
-from JumpKingEnv import JumpKingEnv
 from Ray import Ray
 from stable_baselines3.common.callbacks import BaseCallback
 
@@ -216,22 +217,57 @@ class JumpKingRL:
             env = model.env.envs[0].env
             env.jump_counter_metadata = 0
             env.reset_keys()
-            
-def human_readable_platforms(platforms):
-    print (f"left wall: {platforms[0][0]}")
-    print (f"right wall: {platforms[0][1]}")
-    print (f"ceiling: {platforms[0][2]}")
-    print (f"left edge of current platform: {platforms[0][3]}")
-    print (f"right edge of current platform: {platforms[0][4]}")
-    print ("Sector info (relative y, length)")
-    print (f"up left: {platforms[1][0]}")
-    print (f"up right: {platforms[1][1]}")
-    print (f"left: {platforms[1][2]}")
-    print (f"right: {platforms[1][3]}")
-    print (f"next screen, up left: {platforms[1][4]}")
-    print (f"next screen, up right: {platforms[1][5]}")
 
-#create model first
+#behavioral cloning test
+# env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)
+# bc = BehavioralCloning()
+
+# records = bc.load_recording()
+# states, actions = bc.separate_actions_and_state(records)
+# actions = bc.equalize_actions(actions)
+# actions = bc.cap_actions(actions)
+# actions = bc.snap_to_increment(actions, increment=0.05)
+# action_indices = bc.convert_to_discretized_actions(actions, env.action_map)
+
+# #print(f"Dataset shape: {x.shape}, {y.shape}")
+# #print(f"Sample state: {x[0]}")
+
+# X, y_labels = bc.generate_dataset(records, action_indices)
+
+# model = bc.train(
+#     X, y_labels,
+#     action_dim=len(env.action_map),
+#     model_path="models/bc_policy.pth",
+#     epochs=100,
+#     batch_size=64,
+#     lr=1e-3,
+#     hidden_dim=256
+# )
+
+# BC model testing, no RL
+# bc = BehavioralCloning()
+# bc.load_model("models/bc_policy.pth")
+# env = JumpKingEnv(episode_mode=EpisodeMode.ACTION, max_episode_actions=100)
+# obs, _ = env.reset()
+# print("Running BC policy...")
+# total_reward = 0
+# num_episodes = 5
+# for episode in range(num_episodes):
+#     obs, _ = env.reset()
+#     episode_reward = 0
+#     done = False
+#     while not done:
+#         # generate fresh state from current game data
+#         state = bc.generate_state(env.gamedata)
+#         action_idx = bc.predict(state, temperature=1.5)
+#         obs, reward, terminated, truncated, info = env.step(action_idx)
+#         episode_reward += reward
+#         done = terminated or truncated
+#     print(f"Episode {episode+1}: reward={episode_reward:.2f}, screen={env.current_screen}")
+#     total_reward += episode_reward
+# print(f"Average reward: {total_reward/num_episodes:.2f}")
+
+#environment setup
 JK = JumpKingRL()
 max_episode_actions = 8
 env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=max_episode_actions)
@@ -239,38 +275,40 @@ n_steps=64
 callback = JumpKingCallback()
 platform_parser = PlatformParser()
 
-#create, load, train model. create not needed if already created
-model = JK.create_model("jk_ppo_ray1", env, "PPO", verbose=1, n_steps=n_steps)
-model = JK.load_model("jk_ppo_ray1")
-JK.train_model("jk_ppo_ray1", model, total_timesteps=10000, callback=callback) #default is 2k
+# #create, load, train model
+#model = JK.create_model("jk_ppo_dummy", env, "PPO", verbose=1, n_steps=n_steps)
+model = JK.load_model("jk_ppo_dummy")
+JK.train_model("jk_ppo_dummy", model, total_timesteps=10000, callback=callback) #default is 2k
  
-
-#ray info debugging
-env.gamedata = env.read_gamedata()
-env.load_game_attributes()
-platform_parser = PlatformParser()
-ray_caster = Ray()
-platform_parser.parse_result = platform_parser.read_platform_data((env.x, env.y), env.current_screen)
-ray_caster.build_ray_collision_index(platform_parser.current_tiles, platform_parser.next_tiles)
-ray_data = ray_caster.build_ray_states(num_angles=36)
-print(f"x={env.x:.1f}, y={env.y:.1f}, screen={env.current_screen}")
-print(f"ray data ({len(ray_data)} values):")
-for i, dist in enumerate(ray_data):
-    angle = i * (360 / 36)
-    print(f"  {angle:6.1f}°: {dist:.1f}px")
-
-
-
 #sector information debugging
-# x, y, vel_x, vel_y, is_on_ground, current_screen = env.get_gamedata_old()
-# platform_parser.parse_result = platform_parser.read_platform_data((x, y), current_screen)
-# pos_state_data = list(platform_parser.parse_result[0])
-# #pos_state_data[2] += -50  # ceiling offset
-# sector_state_data = platform_parser.process_registry(current_screen, (x, y))
-# pos_state = [env.x, env.y, env.current_screen]
-# state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
+gamedata = env.get_gamedata_old()
+platform_parser.parse_result = platform_parser.read_platform_data((gamedata["x"], gamedata["y"]), gamedata["current_screen"])
+pos_state_data = list(platform_parser.parse_result[0])
+#pos_state_data[2] += -50  # ceiling offset
+sector_state_data = platform_parser.process_registry(gamedata["current_screen"], (gamedata["x"], gamedata["y"]))
+can_bounce_right, can_bounce_left = platform_parser.set_rebound_state((gamedata["x"], gamedata["y"]), gamedata["current_screen"])
+pos_state = [gamedata["x"], gamedata["y"], gamedata["current_screen"], env.is_on_ice, env.is_in_snow, env.wind_velocity, can_bounce_left, can_bounce_right]
+state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
 
+print(f"x={gamedata['x']:.1f}, y={gamedata['y']:.1f}, screen={gamedata['current_screen']}")
+print(f"left_wall={pos_state_data[0]}, right_wall={pos_state_data[1]}, ceiling={pos_state_data[2]}")
+print(f"is_on_ice={pos_state[3]}, is_in_snow={pos_state[4]}, wind_velocity={pos_state[5]}")
+print(f"can_bounce_left={pos_state[-2]}, can_bounce_right={pos_state[-1]}")
+print(f"sectors: {sector_state_data}")
+
+
+# #ray info debugging
+# env.gamedata = env.read_gamedata()
+# env.load_game_attributes()
+# platform_parser = PlatformParser()
+# ray_caster = Ray()
+# platform_parser.parse_result = platform_parser.read_platform_data((env.x, env.y), env.current_screen)
+# ray_caster.build_ray_collision_index(platform_parser.current_tiles, platform_parser.next_tiles)
+# ray_data = ray_caster.build_ray_states(num_angles=36)
 # print(f"x={env.x:.1f}, y={env.y:.1f}, screen={env.current_screen}")
-# print(f"left_wall={pos_state_data[0]}, right_wall={pos_state_data[1]}, ceiling={pos_state_data[2]}")
-# print(f"platform_x_start={pos_state_data[3]}, platform_x_end={pos_state_data[4]}")
-# print(f"sectors: {sector_state_data}")
+# print(f"ray data ({len(ray_data)} values):")
+# for i, dist in enumerate(ray_data):
+#     angle = i * (360 / 36)
+#     print(f"  {angle:6.1f}°: {dist:.1f}px")
+
+

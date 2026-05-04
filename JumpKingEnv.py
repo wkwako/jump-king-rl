@@ -16,8 +16,9 @@ from Ray import Ray
 
 class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
-    def __init__(self, episode_mode, max_episode_actions=10, curriculum_screens=5):
+    def __init__(self, episode_mode, max_episode_actions=10, curriculum_screens=5, spacing=0.05):
         self.teleport_path = "C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/teleport.txt"
+        self.spacing = spacing
         self.action_map = self.init_action_map()
         self.action_space = spaces.Discrete(len(self.action_map))
         self.state = None
@@ -55,18 +56,18 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.stuck_threshold = 10  # pixels — how close counts as "same spot"
 
         #sector observation space
-        # self.observation_space = spaces.Box(
-        #     low=np.array([-np.inf] * 20, dtype=np.float32),
-        #     high=np.array([np.inf] * 20, dtype=np.float32),
-        #     dtype=np.float32
-        # )
-
-        #ray observation space
         self.observation_space = spaces.Box(
-            low=np.array([-np.inf] * 42, dtype=np.float32),
-            high=np.array([np.inf] * 42, dtype=np.float32),
+            low=np.array([-np.inf] * 25, dtype=np.float32),
+            high=np.array([np.inf] * 25, dtype=np.float32),
             dtype=np.float32
         )
+
+        #ray observation space
+        # self.observation_space = spaces.Box(
+        #     low=np.array([-np.inf] * 42, dtype=np.float32),
+        #     high=np.array([np.inf] * 42, dtype=np.float32),
+        #     dtype=np.float32
+        # )
 
 
 
@@ -91,23 +92,32 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.load_game_attributes_prev()
 
         #ray state building
-        self.platform_parser.parse_result = self.platform_parser.read_platform_data((self.x, self.y), self.current_screen)
-        self.ray_caster.build_ray_collision_index(self.platform_parser.current_tiles, self.platform_parser.next_tiles)
-        ray_state_data = self.ray_caster.build_ray_states(num_angles=36)
-        pos_state = [self.x, self.y, self.current_screen, self.is_on_ice, self.is_in_snow, self.wind_velocity]
-        self.state = np.array(pos_state + ray_state_data, dtype=np.float32)
+        # self.platform_parser.parse_result = self.platform_parser.read_platform_data((self.x, self.y), self.current_screen)
+        # self.ray_caster.build_ray_collision_index(self.platform_parser.current_tiles, self.platform_parser.next_tiles)
+        # ray_state_data = self.ray_caster.build_ray_states(num_angles=36)
+        # pos_state = [self.x, self.y, self.current_screen, self.is_on_ice, self.is_in_snow, self.wind_velocity]
+        # self.state = np.array(pos_state + ray_state_data, dtype=np.float32)
 
         #sector state building
-        # self.platform_parser.parse_result = self.platform_parser.read_platform_data((self.x, self.y), self.current_screen)
-        # # build state
-        # if self.platform_parser.parse_result is not None:
-        #     pos_state_data = list(self.platform_parser.parse_result[0])
-        #     #pos_state_data[2] += -50  # ceiling offset
-        # else:
-        #     pos_state_data = [-9999, 9999, 9999, -9999, 9999]
-        # sector_state_data = self.platform_parser.process_registry(self.current_screen, (self.x, self.y))
-        # pos_state = [self.x, self.y, self.current_screen]
-        # self.state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
+        self.platform_parser.parse_result = self.platform_parser.read_platform_data((self.x, self.y), self.current_screen)
+        # build state
+        if self.platform_parser.parse_result is not None:
+            pos_state_data = list(self.platform_parser.parse_result[0])
+            #pos_state_data[2] += -50  # ceiling offset
+        else:
+            pos_state_data = [-9999, 9999, 9999, -9999, 9999]
+        sector_state_data = self.platform_parser.process_registry(self.current_screen, (self.x, self.y))
+        #pos_state = [self.x, self.y, self.current_screen]
+
+        can_bounce_right, can_bounce_left = self.platform_parser.set_rebound_state(
+            (self.x, self.y), self.current_screen
+        )
+
+        pos_state = [self.x, self.y, self.current_screen, self.is_on_ice, self.is_in_snow, self.wind_velocity, can_bounce_right, can_bounce_left]
+
+        self.state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
+        print (f"state: {self.state}")
+        time.sleep(1)
 
         #reward calculation
         if self.current_screen > self.current_screen_prev:
@@ -166,15 +176,15 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             self.state[1] = self.y
             self.state[2] = self.current_screen
         else:
-            # first ever reset - use sentinels
             #sector sentinels
-            #pos_state_data = [-9999, 9999, 9999, -9999, 9999]
-            #sector_state_data = [-9999] * 12
-            #self.state = np.array([self.x, self.y, self.current_screen] + pos_state_data + sector_state_data, dtype=np.float32)
+            pos_state_data = [-9999, 9999, 9999, -9999, 9999]
+            sector_state_data = [-9999] * 12
+            pos_state = [self.x, self.y, self.current_screen, 0, 0, 0, 0, 0]
+            self.state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
 
             #ray sentinels
-            ray_state_data = [400] * 36
-            self.state = np.array([self.x, self.y, self.current_screen, 0, 0, 0] + ray_state_data, dtype=np.float32)
+            # ray_state_data = [400] * 36
+            # self.state = np.array([self.x, self.y, self.current_screen, 0, 0, 0] + ray_state_data, dtype=np.float32)
 
         return self.state, {}
     
@@ -280,7 +290,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     def get_gamedata_old(self):
         self.gamedata = self.read_gamedata()
         self.load_game_attributes()
-        return self.x, self.y, self.vel_x, self.vel_y, self.is_on_ground, self.current_screen
+        return self.gamedata
                 
     def execute_action(self, action):
         #map action index to keypresses
@@ -332,59 +342,13 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #perform no action - only used for testing
         #action_map.append([0, 0, 0])
 
-        #walk left
-        action_map.append([0.2, 0, 0])
+        for t in [0.1, 0.2]:
+            action_map.append([t, 0, 0])
+            action_map.append([0, t, 0])
 
-        #walk small left
-        action_map.append([0.05, 0, 0])
-
-        #walk right
-        action_map.append([0, 0.2, 0])
-
-        #walk small right
-        action_map.append([0, 0.05, 0])
-
-        #jump right, 0.05s
-        action_map.append([0, 0.05, 0.05])
-
-        #jump right, 0.1s
-        action_map.append([0, 0.1, 0.1])
-
-        #jump right, 0.2s
-        action_map.append([0, 0.2, 0.2])
-
-        #jump right, 0.3s
-        action_map.append([0, 0.3, 0.3])
-
-        #jump right, 0.4s
-        action_map.append([0, 0.4, 0.4])
-
-        #jump right, 0.5s
-        action_map.append([0, 0.5, 0.5])
-
-        #jump right, 0.6s
-        action_map.append([0, 0.6, 0.6])
-
-        #jump left, 0.05s
-        action_map.append([0.05, 0, 0.05])
-
-        #jump left, 0.1s
-        action_map.append([0.1, 0, 0.1])
-
-        #jump left, 0.2s
-        action_map.append([0.2, 0, 0.2])
-
-        #jump left, 0.3s
-        action_map.append([0.3, 0, 0.3])
-
-        #jump left, 0.4s
-        action_map.append([0.4, 0, 0.4])
-
-        #jump left, 0.5s
-        action_map.append([0.5, 0, 0.5])
-
-        #jump left, 0.6s
-        action_map.append([0.6, 0, 0.6])
+        for t in np.arange(self.spacing, 0.65, self.spacing):
+            action_map.append([0, float(round(t, 2)), float(round(t, 2))])
+            action_map.append([float(round(t, 2)), 0, float(round(t, 2))])
 
         return action_map
     

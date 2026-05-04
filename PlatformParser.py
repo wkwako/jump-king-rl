@@ -4,6 +4,8 @@ import time
 import numpy as np
 import math
 
+from Ray import Ray
+
 class PlatformParser:
     def __init__(self):
         self.platform_path = "C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/platformdata.txt"
@@ -14,6 +16,7 @@ class PlatformParser:
         self.current_platforms = None
         self.registry_threshold = 5
         self.tile_map = self.load_tile_map()
+        self.ray_caster = Ray()
 
     def load_tile_map(self):
         """Loads the full tile map from platformdata.txt, keyed by screen number."""
@@ -79,26 +82,31 @@ class PlatformParser:
 
     def get_angle_and_distance(self, player_x, player_y, platform):
         abs_x_start, abs_y, abs_x_end, _, center_x, length = platform
-        #center_x = (abs_x_start + abs_x_end) / 2
         
-        # relative coords
-        rel_x = center_x - player_x
-        rel_y = abs_y - player_y  # positive = above player
+        # find closest edge to player instead of center
+        if player_x < abs_x_start:
+            closest_x = abs_x_start
+        elif player_x > abs_x_end:
+            closest_x = abs_x_end
+        else:
+            closest_x = player_x  # player is above the platform
         
-        # angle: 0 = up, clockwise positive
+        rel_x = closest_x - player_x
+        rel_y = abs_y - player_y
+        
         angle = math.degrees(math.atan2(rel_x, rel_y)) % 360
         distance = math.sqrt(rel_x**2 + rel_y**2)
         
         return angle, distance, rel_x, rel_y
 
     def get_sector(self, angle):
-        if 5 <= angle <= 85:
+        if 32 <= angle <= 80:
             return 'upper_right'
-        elif 85 < angle <= 110:
+        elif 80 < angle <= 110:
             return 'right'
-        elif 250 <= angle <= 275:
+        elif 250 <= angle <= 270:
             return 'left'
-        elif 275 < angle <= 355:
+        elif 270 < angle <= 328:
             return 'upper_left'
         else:
             return None
@@ -124,21 +132,58 @@ class PlatformParser:
             if abs_x_start <= player_x <= abs_x_end and abs(abs_y - player_y) < 10:
                 continue
 
+            # get nearest edge for path check
+            nearest_x = abs_x_start if player_x < center_x else abs_x_end
+
+            #if self.is_path_mostly_blocked(player_x, player_y, nearest_x, abs_y):
+                #continue
+
             angle, distance, rel_x, rel_y = self.get_angle_and_distance(player_x, player_y, platform)
+
+            # get wall distances from parse_result
+            left_wall = self.parse_result[0][0]  # negative value
+            right_wall = self.parse_result[0][1]  # positive value
+
+            wall_buffer = 30  # pixels of tolerance near wall
+            left_wall_abs = player_x + left_wall
+            right_wall_abs = player_x + right_wall
+
+            # filter platforms behind left wall, unless their nearest edge is close to the wall
+            if abs_x_end < left_wall_abs and abs(abs_x_end - left_wall_abs) > wall_buffer:
+                continue
+
+            # filter platforms behind right wall, unless their nearest edge is close to the wall
+            if abs_x_start > right_wall_abs and abs(abs_x_start - right_wall_abs) > wall_buffer:
+                continue
 
             #print(f"  platform={platform}, angle={angle:.1f}, rel_x={rel_x:.1f}, rel_y={rel_y:.1f}, sector={self.get_sector(angle)}")
 
-            if rel_y > 170:
+            vertical_max = 170
+            horizontal_max = 330
+            horizontal_max_diagonal = 210 #210
+
+            if abs(rel_x - rel_y) < 25:
+                horizontal_max = 155
+
+            if rel_y > vertical_max:
                 #print(f"    -> filtered: rel_y {rel_y:.1f} > 170")
                 continue
-            if abs(rel_x) > 350:
+            if abs(rel_x) > horizontal_max:
                 #print(f"    -> filtered: rel_x {abs(rel_x):.1f} > 350")
                 continue
-            if rel_y > ceiling_dist:
+            if rel_y > ceiling_dist + 50:
                 #print(f"    -> filtered: rel_y {rel_y:.1f} > ceiling {ceiling_dist:.1f}")
                 continue
 
             sector = self.get_sector(angle)
+
+            if sector in ('upper_left', 'upper_right'):
+                if abs(rel_x) > vertical_max:
+                    continue
+            else:
+                if abs(rel_x) > horizontal_max_diagonal:
+                    continue
+
             if sector and distance < sectors[sector][0]:
                 sectors[sector] = (distance, (angle, distance))
                 #print(f"    -> assigned to {sector}")
@@ -216,11 +261,17 @@ class PlatformParser:
         left_wall_dist = max(left_walls) if left_walls else -9999
         right_wall_dist = min(right_walls) if right_walls else 9999
 
-        # ceiling detection — current screen only
+        # ceiling detection — current screen and next screen
         player_width = 8
         ceiling_candidates = [t for t in current_screen_tiles
                             if t[1] < 0 and abs(t[0]) < player_width]
-        ceiling_dist = -max([t[1] for t in ceiling_candidates]) if ceiling_candidates else 9999
+
+        # include next screen tiles shifted -360 into current screen space
+        next_ceiling_candidates = [t for t in next_screen_tiles
+                           if t[1] < 0 and abs(t[0]) < player_width]
+
+        all_ceiling = ceiling_candidates + next_ceiling_candidates
+        ceiling_dist = -max([t[1] for t in all_ceiling]) if all_ceiling else 9999
         self.ceiling_dist_filtered = ceiling_dist + 16
 
         # merge platforms
@@ -441,3 +492,132 @@ class PlatformParser:
                 return -y
 
         return 9999
+    
+    def is_path_mostly_blocked(self, player_x, player_y, nearest_x, abs_y, threshold=0.3):
+        steps = 20
+        blocked = 0
+        
+        rel_target_x = nearest_x - player_x
+        rel_target_y = abs_y - player_y
+        
+        tile_set = set((round(t[0] / 8) * 8, round(t[1] / 8) * 8) for t in self.current_tiles)
+        
+        for i in range(1, steps + 1):
+            t = i / steps
+            check_x = round((t * rel_target_x) / 8) * 8
+            check_y = round((t * rel_target_y) / 8) * 8
+            if (check_x, check_y) in tile_set:
+                blocked += 1
+        
+        return (blocked / steps) > threshold
+    
+
+    def detect_rebound_wall(self, player_position, direction='right', detection_range=100):
+        """Casts a 45 degree ray in given direction.
+        Returns (bounce_x, bounce_y) if wall hit within detection_range, else None."""
+        player_x, player_y = player_position
+        angle = 45 if direction == 'right' else 315
+
+        self.ray_caster.build_ray_collision_index(
+            self.current_tiles, self.next_tiles
+        )
+        dist = self.ray_caster.ray(angle)
+
+        if dist >= detection_range:
+            return None
+
+        angle_rad = math.radians(angle)
+        bounce_x = player_x + math.sin(angle_rad) * dist
+        bounce_y = player_y + math.cos(angle_rad) * dist  # negative because up = positive
+
+        return (bounce_x, bounce_y)
+
+    def simulate_platform_detection(self, player_position, rebound_position, current_screen):
+        """From rebound point, checks if any platforms are reachable in bounce direction.
+        If wall is to the right, player bounces left so check upper_left, and vice versa."""
+        player_x, player_y = player_position
+        bounce_x, bounce_y = rebound_position
+
+        # determine which direction player bounces
+        wall_is_right = bounce_x > player_x
+        target_sector = 'upper_left' if wall_is_right else 'upper_right'
+
+        # check current and next screen registry platforms
+        screens_to_check = [str(current_screen), str(current_screen + 1)]
+
+        for screen_key in screens_to_check:
+            for platform in self.registry.get(screen_key, []):
+                abs_x_start, abs_y, abs_x_end, _, center_x, length = platform
+
+                # skip standing platform
+                if abs(abs_y - player_y) < 5:
+                    continue
+
+                if bounce_x < abs_x_start:
+                    nearest_x = abs_x_start
+                elif bounce_x > abs_x_end:
+                    nearest_x = abs_x_end
+                else:
+                    # bounce point is above platform — use closer edge
+                    dist_to_start = abs(bounce_x - abs_x_start)
+                    dist_to_end = abs(bounce_x - abs_x_end)
+                    nearest_x = abs_x_start if dist_to_start < dist_to_end else abs_x_end
+
+                rel_x = nearest_x - bounce_x
+                rel_y = abs_y - bounce_y
+
+                wall_x_dist = abs(bounce_x - player_x)
+                max_wall_dist = 80  # beyond this, no meaningful bounce reach
+                #max_reach = 160     # reach when right against wall
+
+                if wall_x_dist >= max_wall_dist:
+                    continue  # too far from wall to bounce meaningfully
+
+                x_threshold = max(0, 118 - 0.45 * wall_x_dist)
+
+                # apply jump range filters
+                if abs(rel_y) > 150:
+                    continue
+                if abs(rel_x) > x_threshold:
+                    continue
+
+                # platform must be on the correct side of the bounce point
+                if wall_is_right and nearest_x > bounce_x:  # bouncing left, platform must be left
+                    continue
+                if not wall_is_right and nearest_x < bounce_x:  # bouncing right, platform must be right
+                    continue
+
+                if abs(nearest_x - bounce_x) < 8:
+                    continue
+
+                # check if platform is in target sector
+                angle = math.degrees(math.atan2(rel_x, rel_y)) % 360
+                if target_sector == 'upper_left':
+                    is_in_sector = 270 <= angle <= 360 or angle == 0
+                else:  # upper_right
+                    is_in_sector = 0 <= angle <= 90
+
+                if is_in_sector:
+                    return 1
+
+        return 0
+
+    def set_rebound_state(self, player_position, current_screen, detection_range=100):
+        """Returns (can_bounce_right, can_bounce_left) as 0/1 values."""
+        right_wall = self.detect_rebound_wall(player_position, 'right', detection_range)
+        left_wall = self.detect_rebound_wall(player_position, 'left', detection_range)
+
+        can_bounce_right = 0
+        can_bounce_left = 0
+
+        if right_wall is not None:
+            can_bounce_right = self.simulate_platform_detection(
+                player_position, right_wall, current_screen
+            )
+
+        if left_wall is not None:
+            can_bounce_left = self.simulate_platform_detection(
+                player_position, left_wall, current_screen
+            )
+
+        return can_bounce_right, can_bounce_left
