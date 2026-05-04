@@ -262,7 +262,7 @@ model = JK.create_model("jk_bc_ppo3", env, "PPO", verbose=1,
 
 bc.transfer_weights_to_ppo(model, "models/bc_policy_sectors_tanh.pth")
 #model = JK.load_model("jk_bc_ppo3")
-JK.train_model("jk_bc_ppo3", model, total_timesteps=100000, callback=callback)
+JK.train_model("jk_bc_ppo3", model, total_timesteps=50000, callback=callback)
 
 # BC model testing, no RL
 #bc.load_model("models/bc_policy.pth")
