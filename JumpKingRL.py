@@ -256,13 +256,13 @@ bc = BehavioralCloning()
 JK = JumpKingRL()
 callback = JumpKingCallback()
 
-model = JK.create_model("jk_bc_ppo3", env, "PPO", verbose=1,
-                         n_steps=512, ent_coef=0.05,
+model = JK.create_model("jk_bc_ppo4", env, "PPO", verbose=1,
+                         n_steps=2048, ent_coef=0.001, learning_rate=0.00003,
                          policy_kwargs={"net_arch": [256, 256]})
 
 bc.transfer_weights_to_ppo(model, "models/bc_policy_sectors_tanh.pth")
-#model = JK.load_model("jk_bc_ppo3")
-JK.train_model("jk_bc_ppo3", model, total_timesteps=50000, callback=callback)
+#model = JK.load_model("jk_bc_ppo4")
+JK.train_model("jk_bc_ppo4", model, total_timesteps=50000, callback=callback)
 
 # BC model testing, no RL
 #bc.load_model("models/bc_policy.pth")
