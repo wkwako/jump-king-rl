@@ -116,6 +116,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         pos_state = [self.x, self.y, self.current_screen, self.is_on_ice, self.is_in_snow, self.wind_velocity, can_bounce_right, can_bounce_left]
 
         self.state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
+        print (f"state: {self.state}")
+        time.sleep(1)
 
         #reward calculation
         if self.current_screen > self.current_screen_prev:
@@ -177,7 +179,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             #sector sentinels
             pos_state_data = [-9999, 9999, 9999, -9999, 9999]
             sector_state_data = [-9999] * 12
-            self.state = np.array([self.x, self.y, self.current_screen] + pos_state_data + sector_state_data, dtype=np.float32)
+            pos_state = [self.x, self.y, self.current_screen, 0, 0, 0, 0, 0]
+            self.state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
 
             #ray sentinels
             # ray_state_data = [400] * 36

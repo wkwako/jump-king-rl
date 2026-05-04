@@ -276,9 +276,9 @@ callback = JumpKingCallback()
 platform_parser = PlatformParser()
 
 # #create, load, train model
-# model = JK.create_model("jk_ppo_ray1", env, "PPO", verbose=1, n_steps=n_steps)
-# model = JK.load_model("jk_ppo_ray1")
-# JK.train_model("jk_ppo_ray1", model, total_timesteps=10000, callback=callback) #default is 2k
+#model = JK.create_model("jk_ppo_dummy", env, "PPO", verbose=1, n_steps=n_steps)
+model = JK.load_model("jk_ppo_dummy")
+JK.train_model("jk_ppo_dummy", model, total_timesteps=10000, callback=callback) #default is 2k
  
 #sector information debugging
 gamedata = env.get_gamedata_old()

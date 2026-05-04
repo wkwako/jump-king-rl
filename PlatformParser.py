@@ -132,14 +132,39 @@ class PlatformParser:
             if abs_x_start <= player_x <= abs_x_end and abs(abs_y - player_y) < 10:
                 continue
 
+            # get nearest edge for path check
+            nearest_x = abs_x_start if player_x < center_x else abs_x_end
+
+            #if self.is_path_mostly_blocked(player_x, player_y, nearest_x, abs_y):
+                #continue
+
             angle, distance, rel_x, rel_y = self.get_angle_and_distance(player_x, player_y, platform)
+
+            # get wall distances from parse_result
+            left_wall = self.parse_result[0][0]  # negative value
+            right_wall = self.parse_result[0][1]  # positive value
+
+            wall_buffer = 30  # pixels of tolerance near wall
+            left_wall_abs = player_x + left_wall
+            right_wall_abs = player_x + right_wall
+
+            # filter platforms behind left wall, unless their nearest edge is close to the wall
+            if abs_x_end < left_wall_abs and abs(abs_x_end - left_wall_abs) > wall_buffer:
+                continue
+
+            # filter platforms behind right wall, unless their nearest edge is close to the wall
+            if abs_x_start > right_wall_abs and abs(abs_x_start - right_wall_abs) > wall_buffer:
+                continue
 
             #print(f"  platform={platform}, angle={angle:.1f}, rel_x={rel_x:.1f}, rel_y={rel_y:.1f}, sector={self.get_sector(angle)}")
 
             vertical_max = 170
             horizontal_max = 330
-            horizontal_max_diagonal = 210
-            
+            horizontal_max_diagonal = 210 #210
+
+            if abs(rel_x - rel_y) < 25:
+                horizontal_max = 155
+
             if rel_y > vertical_max:
                 #print(f"    -> filtered: rel_y {rel_y:.1f} > 170")
                 continue
@@ -468,16 +493,20 @@ class PlatformParser:
 
         return 9999
     
-    def is_path_mostly_blocked(self, player_x, player_y, nearest_x, abs_y, threshold=0.5):
-        """Returns True if more than threshold fraction of steps to platform are blocked by tiles."""
+    def is_path_mostly_blocked(self, player_x, player_y, nearest_x, abs_y, threshold=0.3):
         steps = 20
         blocked = 0
         
+        rel_target_x = nearest_x - player_x
+        rel_target_y = abs_y - player_y
+        
+        tile_set = set((round(t[0] / 8) * 8, round(t[1] / 8) * 8) for t in self.current_tiles)
+        
         for i in range(1, steps + 1):
             t = i / steps
-            check_x = int((player_x + t * (nearest_x - player_x)) // 8) * 8
-            check_y = int((player_y + t * (abs_y - player_y)) // 8) * 8
-            if (check_x, check_y) in self.ray_caster.tile_index:
+            check_x = round((t * rel_target_x) / 8) * 8
+            check_y = round((t * rel_target_y) / 8) * 8
+            if (check_x, check_y) in tile_set:
                 blocked += 1
         
         return (blocked / steps) > threshold
