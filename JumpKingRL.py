@@ -10,7 +10,7 @@ import json
 from datetime import datetime
 from PlatformParser import PlatformParser
 from JumpKingEnv import JumpKingEnv
-#from BehavioralCloning import BehavioralCloning
+from BehavioralCloning import BehavioralCloning
 
 import sys
 sys.path.append("C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL")
@@ -219,8 +219,8 @@ class JumpKingRL:
             env.reset_keys()
 
 #behavioral cloning test
-# env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)
-# bc = BehavioralCloning()
+env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)
+bc = BehavioralCloning()
 
 # records = bc.load_recording()
 # states, actions = bc.separate_actions_and_state(records)
@@ -229,24 +229,44 @@ class JumpKingRL:
 # actions = bc.snap_to_increment(actions, increment=0.05)
 # action_indices = bc.convert_to_discretized_actions(actions, env.action_map)
 
-# #print(f"Dataset shape: {x.shape}, {y.shape}")
-# #print(f"Sample state: {x[0]}")
-
 # X, y_labels = bc.generate_dataset(records, action_indices)
 
 # model = bc.train(
 #     X, y_labels,
-#     action_dim=len(env.action_map),
-#     model_path="models/bc_policy.pth",
+#     action_dim=28,
+#     model_path="models/bc_policy_sectors_tanh.pth",
 #     epochs=100,
 #     batch_size=64,
 #     lr=1e-3,
 #     hidden_dim=256
 # )
 
+# bc.load_model("models/bc_policy_sectors_tanh.pth", input_dim=25)
+
+# for episode in range(3):
+#     obs, _ = env.reset()
+#     done = False
+#     while not done:
+#         state = bc.generate_state(env.gamedata)
+#         action_idx = bc.predict(state)
+#         obs, reward, terminated, truncated, info = env.step(action_idx)
+#         done = terminated or truncated
+#     print(f"Episode {episode+1}: screen={env.current_screen}")
+
+JK = JumpKingRL()
+callback = JumpKingCallback()
+
+model = JK.create_model("jk_bc_ppo3", env, "PPO", verbose=1,
+                         n_steps=512, ent_coef=0.05,
+                         policy_kwargs={"net_arch": [256, 256]})
+
+bc.transfer_weights_to_ppo(model, "models/bc_policy_sectors_tanh.pth")
+#model = JK.load_model("jk_bc_ppo3")
+JK.train_model("jk_bc_ppo3", model, total_timesteps=100000, callback=callback)
+
 # BC model testing, no RL
-# bc = BehavioralCloning()
-# bc.load_model("models/bc_policy.pth")
+#bc.load_model("models/bc_policy.pth")
+#print (bc.model)
 # env = JumpKingEnv(episode_mode=EpisodeMode.ACTION, max_episode_actions=100)
 # obs, _ = env.reset()
 # print("Running BC policy...")
@@ -268,33 +288,30 @@ class JumpKingRL:
 # print(f"Average reward: {total_reward/num_episodes:.2f}")
 
 #environment setup
-JK = JumpKingRL()
-max_episode_actions = 8
-env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=max_episode_actions)
-n_steps=64
-callback = JumpKingCallback()
-platform_parser = PlatformParser()
+# JK = JumpKingRL()
+# max_episode_actions = 8
+# env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=max_episode_actions)
+# n_steps=64
+# callback = JumpKingCallback()
+# platform_parser = PlatformParser()
+# # #create, load, train model
+# #model = JK.create_model("jk_ppo_dummy", env, "PPO", verbose=1, n_steps=n_steps)
+# model = JK.load_model("jk_ppo_dummy")
+# JK.train_model("jk_ppo_dummy", model, total_timesteps=10000, callback=callback) #default is 2k
+# #sector information debugging
+# gamedata = env.get_gamedata_old()
+# platform_parser.parse_result = platform_parser.read_platform_data((gamedata["x"], gamedata["y"]), gamedata["current_screen"])
+# pos_state_data = list(platform_parser.parse_result[0])
+# sector_state_data = platform_parser.process_registry(gamedata["current_screen"], (gamedata["x"], gamedata["y"]))
+# can_bounce_right, can_bounce_left = platform_parser.set_rebound_state((gamedata["x"], gamedata["y"]), gamedata["current_screen"])
+# pos_state = [gamedata["x"], gamedata["y"], gamedata["current_screen"], env.is_on_ice, env.is_in_snow, env.wind_velocity, can_bounce_left, can_bounce_right]
+# state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
 
-# #create, load, train model
-#model = JK.create_model("jk_ppo_dummy", env, "PPO", verbose=1, n_steps=n_steps)
-model = JK.load_model("jk_ppo_dummy")
-JK.train_model("jk_ppo_dummy", model, total_timesteps=10000, callback=callback) #default is 2k
- 
-#sector information debugging
-gamedata = env.get_gamedata_old()
-platform_parser.parse_result = platform_parser.read_platform_data((gamedata["x"], gamedata["y"]), gamedata["current_screen"])
-pos_state_data = list(platform_parser.parse_result[0])
-#pos_state_data[2] += -50  # ceiling offset
-sector_state_data = platform_parser.process_registry(gamedata["current_screen"], (gamedata["x"], gamedata["y"]))
-can_bounce_right, can_bounce_left = platform_parser.set_rebound_state((gamedata["x"], gamedata["y"]), gamedata["current_screen"])
-pos_state = [gamedata["x"], gamedata["y"], gamedata["current_screen"], env.is_on_ice, env.is_in_snow, env.wind_velocity, can_bounce_left, can_bounce_right]
-state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
-
-print(f"x={gamedata['x']:.1f}, y={gamedata['y']:.1f}, screen={gamedata['current_screen']}")
-print(f"left_wall={pos_state_data[0]}, right_wall={pos_state_data[1]}, ceiling={pos_state_data[2]}")
-print(f"is_on_ice={pos_state[3]}, is_in_snow={pos_state[4]}, wind_velocity={pos_state[5]}")
-print(f"can_bounce_left={pos_state[-2]}, can_bounce_right={pos_state[-1]}")
-print(f"sectors: {sector_state_data}")
+# print(f"x={gamedata['x']:.1f}, y={gamedata['y']:.1f}, screen={gamedata['current_screen']}")
+# print(f"left_wall={pos_state_data[0]}, right_wall={pos_state_data[1]}, ceiling={pos_state_data[2]}")
+# print(f"is_on_ice={pos_state[3]}, is_in_snow={pos_state[4]}, wind_velocity={pos_state[5]}")
+# print(f"can_bounce_left={pos_state[-2]}, can_bounce_right={pos_state[-1]}")
+# print(f"sectors: {sector_state_data}")
 
 
 # #ray info debugging
