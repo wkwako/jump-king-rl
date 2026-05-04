@@ -25,9 +25,9 @@ class BCPolicy(nn.Module):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
-            nn.ReLU(),
+            nn.Tanh(),
             nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
+            nn.Tanh(),
             nn.Linear(hidden_dim, output_dim)
         )
 
@@ -57,6 +57,25 @@ class BehavioralCloning:
             probs = torch.softmax(logits, dim=1)
             action_idx = torch.multinomial(probs, 1).item()
         return action_idx
+    
+    def transfer_weights_to_ppo(self, ppo_model, model_path):
+        """Transfers BC policy weights into PPO's policy network."""
+        # load BC model
+        bc_state = torch.load(model_path)
+        ppo_policy = ppo_model.policy
+
+        # transfer hidden layers to policy_net
+        ppo_policy.mlp_extractor.policy_net[0].weight.data = bc_state["net.0.weight"]
+        ppo_policy.mlp_extractor.policy_net[0].bias.data = bc_state["net.0.bias"]
+        ppo_policy.mlp_extractor.policy_net[2].weight.data = bc_state["net.2.weight"]
+        ppo_policy.mlp_extractor.policy_net[2].bias.data = bc_state["net.2.bias"]
+
+        # transfer output layer
+        ppo_policy.action_net.weight.data = bc_state["net.4.weight"]
+        ppo_policy.action_net.bias.data = bc_state["net.4.bias"]
+
+        print("BC weights transferred to PPO policy network.")
+        return ppo_model
         
     def train(self, X, y, action_dim, model_path, 
           epochs=100, batch_size=64, lr=1e-3, hidden_dim=256):
@@ -123,28 +142,36 @@ class BehavioralCloning:
         return model
 
     def generate_state(self, state_dict):
-        """Generates full state vector from a recording state dict."""
+        """Generates full 25-value state vector from a recording state dict."""
         x = state_dict["x"]
         y = state_dict["y"]
-        current_screen = state_dict["current_screen"]
+        current_screen = int(state_dict["current_screen"])
         is_on_ice = float(state_dict["is_on_ice"])
         is_in_snow = float(state_dict["is_in_snow"])
-        wind_velocity = state_dict["wind_velocity"]
+        wind_velocity = float(state_dict["wind_velocity"])
 
-        # get tile data for current and next screen
+        # get platform data
         self.platform_parser.parse_result = self.platform_parser.read_platform_data(
             (x, y), current_screen
         )
 
-        # build ray state
-        self.ray_caster.build_ray_collision_index(
-            self.platform_parser.current_tiles,
-            self.platform_parser.next_tiles
-        )
-        ray_state = self.ray_caster.build_ray_states(num_angles=36)
+        if self.platform_parser.parse_result is not None:
+            pos_state_data = list(self.platform_parser.parse_result[0])
+        else:
+            pos_state_data = [-9999, 9999, 9999, -9999, 9999]
 
-        pos_state = [x, y, current_screen, is_on_ice, is_in_snow, wind_velocity]
-        return np.array(pos_state + ray_state, dtype=np.float32)
+        # get sector data
+        sector_state_data = self.platform_parser.process_registry(current_screen, (x, y))
+
+        # get rebound state
+        can_bounce_right, can_bounce_left = self.platform_parser.set_rebound_state(
+            (x, y), current_screen
+        )
+
+        pos_state = [x, y, current_screen, is_on_ice, is_in_snow, wind_velocity, 
+                    can_bounce_right, can_bounce_left]
+
+        return np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
     
     def generate_dataset(self, records, action_indices):
         """Generates full state vectors for all records."""
