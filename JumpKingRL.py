@@ -11,6 +11,8 @@ from datetime import datetime
 from PlatformParser import PlatformParser
 from JumpKingEnv import JumpKingEnv
 from BehavioralCloning import BehavioralCloning
+import torch
+import torch.nn as nn
 
 import sys
 sys.path.append("C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL")
@@ -100,6 +102,60 @@ class JumpKingRL:
             "PPO": PPO_PARAMS,
             "DQN": DQN_PARAMS
         }
+
+    def pretrain_value_function(self, ppo_model, X, epochs=50):
+        """Pretrain value function on heuristic values before RL."""
+        optimizer = torch.optim.Adam(
+            ppo_model.policy.value_net.parameters(), lr=1e-3
+        )
+
+        states = torch.FloatTensor(X)
+
+        # state indices:
+        # 1 = y coordinate
+        # 8 = upper_left_angle, 9 = upper_left_dist
+        # 10 = upper_right_angle, 11 = upper_right_dist
+        # 20 = next_upper_left_angle, 21 = next_upper_left_dist
+        # 22 = next_upper_right_angle, 23 = next_upper_right_dist
+
+        y_values = states[:, 1]
+        upper_left_dist = states[:, 9]
+        upper_right_dist = states[:, 11]
+        next_upper_left_dist = states[:, 21]
+        next_upper_right_dist = states[:, 23]
+
+        # normalize y to reasonable range
+        y_norm = (y_values - y_values.mean()) / y_values.std()
+
+        # bonus for each visible upper platform — closer = bigger bonus
+        def platform_bonus(dist, max_dist=400):
+            # returns 0 if sentinel, scales from 0-1 based on proximity
+            visible = (dist != -9999).float()
+            proximity = visible * (1 - dist.clamp(0, max_dist) / max_dist)
+            return proximity
+
+        heuristic_values = (
+            y_norm
+            + platform_bonus(upper_left_dist) * 0.5
+            + platform_bonus(upper_right_dist) * 0.5
+            + platform_bonus(next_upper_left_dist) * 0.75  # next screen worth more
+            + platform_bonus(next_upper_right_dist) * 0.75
+        )
+
+        for epoch in range(epochs):
+            optimizer.zero_grad()
+            # get value features from shared trunk
+            with torch.no_grad():
+                features = ppo_model.policy.mlp_extractor(states)[1]
+            predicted_values = ppo_model.policy.value_net(features).squeeze()
+            loss = nn.MSELoss()(predicted_values, heuristic_values)
+            loss.backward()
+            optimizer.step()
+
+            if (epoch + 1) % 10 == 0:
+                print(f"Value pretrain epoch {epoch+1}/{epochs} | Loss: {loss.item():.4f}")
+
+        print("Value function pretraining complete.")
 
     def to_json_safe(self, value):
         if isinstance(value, (int, float, str, bool)) or value is None:
@@ -285,29 +341,28 @@ bc = BehavioralCloning()
 #         done = terminated or truncated
 #     print(f"Episode {episode+1}: screen={env.current_screen}")
 
+# bc set up
+bc = BehavioralCloning()
+env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=8)
 
-# bc = BehavioralCloning()
-# env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=8)
+records = bc.load_recording()
+states, actions = bc.separate_actions_and_state(records)
+actions = bc.equalize_actions(actions)
+actions = bc.cap_actions(actions)
+actions = bc.snap_to_increment(actions, increment=0.05)
+action_indices = bc.convert_to_discretized_actions(actions, env.action_map)
 
-# # load and process recording data
-# records = bc.load_recording()
-# states, actions = bc.separate_actions_and_state(records)
-# actions = bc.equalize_actions(actions)
-# actions = bc.cap_actions(actions)
-# actions = bc.snap_to_increment(actions, increment=0.05)
-# action_indices = bc.convert_to_discretized_actions(actions, env.action_map)
+# check action distribution
+print(f"Total records: {len(records)}")
+action_counts = np.bincount(action_indices, minlength=len(env.action_map))
+for i, count in enumerate(action_counts):
+    print(f"Action {i} {env.action_map[i]}: {count}")
 
-# # check action distribution
-# print(f"Total records: {len(records)}")
-# action_counts = np.bincount(action_indices, minlength=len(env.action_map))
-# for i, count in enumerate(action_counts):
-#     print(f"Action {i} {env.action_map[i]}: {count}")
+# generate dataset
+X, y_labels = bc.generate_dataset(records, action_indices)
+print(f"Dataset shape: {X.shape}")
 
-# # generate dataset
-# X, y_labels = bc.generate_dataset(records, action_indices)
-# print(f"Dataset shape: {X.shape}")
-
-# # train
+# training BC model - only need to run this again if new env or more data
 # model = bc.train(
 #     X, y_labels,
 #     action_dim=28,
@@ -318,24 +373,23 @@ bc = BehavioralCloning()
 #     hidden_dim=256
 # )
 
+#transferring BC model to PPO weights
 JK = JumpKingRL()
 callback = JumpKingCallback()
 env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=8)
 
-model = JK.create_model("jk_bc_ppo5", env, "PPO", verbose=1,
-                         n_steps=2048, ent_coef=0.001, learning_rate=0.00003,
+model = JK.create_model("jk_bc_ppo_valuepretraining", env, "PPO", verbose=1,
+                         n_steps=2048, ent_coef=0.005, learning_rate=0.00003,
                          policy_kwargs={"net_arch": [256, 256]})
 
 bc.transfer_weights_to_ppo(model, "models/bc_policy_sectors_tanh.pth")
-#model = JK.load_model("jk_bc_ppo4")
-
+JK.pretrain_value_function(model, X)
+#model = JK.load_model("jk_bc_ppo_valuepretraining")
 #freezing callback
 freeze_callback = FreezePolicyCallback(freeze_updates=20)
 jk_callback = JumpKingCallback()
 callbacks = CallbackList([freeze_callback, jk_callback])
-
-JK.train_model("jk_bc_ppo5", model, total_timesteps=100000, callback=callbacks)
-
+JK.train_model("jk_bc_ppo_valuepretraining", model, total_timesteps=100000, callback=callbacks)
 
 # BC model testing, no RL
 #bc.load_model("models/bc_policy.pth")
@@ -360,7 +414,7 @@ JK.train_model("jk_bc_ppo5", model, total_timesteps=100000, callback=callbacks)
 #     total_reward += episode_reward
 # print(f"Average reward: {total_reward/num_episodes:.2f}")
 
-#environment setup
+#regular PPO
 # JK = JumpKingRL()
 # max_episode_actions = 8
 # env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=max_episode_actions)
@@ -371,6 +425,7 @@ JK.train_model("jk_bc_ppo5", model, total_timesteps=100000, callback=callbacks)
 # #model = JK.create_model("jk_ppo_dummy", env, "PPO", verbose=1, n_steps=n_steps)
 # model = JK.load_model("jk_ppo_dummy")
 # JK.train_model("jk_ppo_dummy", model, total_timesteps=10000, callback=callback) #default is 2k
+
 # #sector information debugging
 # gamedata = env.get_gamedata_old()
 # platform_parser.parse_result = platform_parser.read_platform_data((gamedata["x"], gamedata["y"]), gamedata["current_screen"])

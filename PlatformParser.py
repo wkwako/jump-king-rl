@@ -193,7 +193,7 @@ class PlatformParser:
             abs_x_start, abs_y, abs_x_end, _, center_x, length = platform
             angle, distance, rel_x, rel_y = self.get_angle_and_distance(player_x, player_y, platform)
 
-            if rel_y > 170:
+            if rel_y > 155:
                 continue
             if abs(rel_x) > 350:
                 continue
