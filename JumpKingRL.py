@@ -20,7 +20,39 @@ from stable_baselines3 import PPO, DQN
 from stable_baselines3.common.logger import configure
 
 from Ray import Ray
-from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.callbacks import BaseCallback, CallbackList
+
+class FreezePolicyCallback(BaseCallback):
+    def __init__(self, freeze_updates=20, verbose=0):
+        super().__init__(verbose)
+        self.freeze_updates = freeze_updates
+        self.frozen = True
+
+    def _on_training_start(self):
+        """Freeze policy layers at the start of training."""
+        self._freeze_policy()
+
+    def _on_rollout_end(self):
+        """Unfreeze policy after n updates."""
+        if self.frozen and self.model.n_updates >= self.freeze_updates:
+            self._unfreeze_policy()
+            print(f"Policy unfrozen after {self.freeze_updates} updates")
+            self.frozen = False
+
+    def _freeze_policy(self):
+        """Freeze all policy network parameters except value function."""
+        for name, param in self.model.policy.named_parameters():
+            if "value_net" not in name:
+                param.requires_grad = False
+        print("Policy frozen — training value function only")
+
+    def _unfreeze_policy(self):
+        """Unfreeze all parameters."""
+        for name, param in self.model.policy.named_parameters():
+            param.requires_grad = True
+
+    def _on_step(self):
+        return True
 
 class JumpKingCallback(BaseCallback):
     def __init__(self, verbose=0):
@@ -253,16 +285,57 @@ bc = BehavioralCloning()
 #         done = terminated or truncated
 #     print(f"Episode {episode+1}: screen={env.current_screen}")
 
+
+# bc = BehavioralCloning()
+# env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=8)
+
+# # load and process recording data
+# records = bc.load_recording()
+# states, actions = bc.separate_actions_and_state(records)
+# actions = bc.equalize_actions(actions)
+# actions = bc.cap_actions(actions)
+# actions = bc.snap_to_increment(actions, increment=0.05)
+# action_indices = bc.convert_to_discretized_actions(actions, env.action_map)
+
+# # check action distribution
+# print(f"Total records: {len(records)}")
+# action_counts = np.bincount(action_indices, minlength=len(env.action_map))
+# for i, count in enumerate(action_counts):
+#     print(f"Action {i} {env.action_map[i]}: {count}")
+
+# # generate dataset
+# X, y_labels = bc.generate_dataset(records, action_indices)
+# print(f"Dataset shape: {X.shape}")
+
+# # train
+# model = bc.train(
+#     X, y_labels,
+#     action_dim=28,
+#     model_path="models/bc_policy_sectors_tanh.pth",
+#     epochs=100,
+#     batch_size=64,
+#     lr=1e-3,
+#     hidden_dim=256
+# )
+
 JK = JumpKingRL()
 callback = JumpKingCallback()
+env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=8)
 
-model = JK.create_model("jk_bc_ppo4", env, "PPO", verbose=1,
+model = JK.create_model("jk_bc_ppo5", env, "PPO", verbose=1,
                          n_steps=2048, ent_coef=0.001, learning_rate=0.00003,
                          policy_kwargs={"net_arch": [256, 256]})
 
 bc.transfer_weights_to_ppo(model, "models/bc_policy_sectors_tanh.pth")
 #model = JK.load_model("jk_bc_ppo4")
-JK.train_model("jk_bc_ppo4", model, total_timesteps=50000, callback=callback)
+
+#freezing callback
+freeze_callback = FreezePolicyCallback(freeze_updates=20)
+jk_callback = JumpKingCallback()
+callbacks = CallbackList([freeze_callback, jk_callback])
+
+JK.train_model("jk_bc_ppo5", model, total_timesteps=100000, callback=callbacks)
+
 
 # BC model testing, no RL
 #bc.load_model("models/bc_policy.pth")
