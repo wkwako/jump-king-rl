@@ -87,8 +87,9 @@ namespace JumpKingDataMod
         private void WriteRecord(string stateSnapshot, float leftDuration, float rightDuration, float spaceDuration)
         {
             // collapse to single line for easy parsing
+            string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
             string compactState = System.Text.RegularExpressions.Regex.Replace(stateSnapshot, @"\s+", "");
-            string record = $"{compactState}|{leftDuration:F3},{rightDuration:F3},{spaceDuration:F3}\n";
+            string record = $"{timestamp}|{compactState}|{leftDuration:F3},{rightDuration:F3},{spaceDuration:F3}\n";
             try
             {
                 File.AppendAllText(_recordingPath, record);

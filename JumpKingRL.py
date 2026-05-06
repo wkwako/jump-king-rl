@@ -36,7 +36,7 @@ class FreezePolicyCallback(BaseCallback):
 
     def _on_rollout_end(self):
         """Unfreeze policy after n updates."""
-        if self.frozen and self.model.n_updates >= self.freeze_updates:
+        if self.frozen and self.model._n_updates >= self.freeze_updates:
             self._unfreeze_policy()
             print(f"Policy unfrozen after {self.freeze_updates} updates")
             self.frozen = False
@@ -103,20 +103,20 @@ class JumpKingRL:
             "DQN": DQN_PARAMS
         }
 
+    def train_per_screen_agents(self):
+        pass
+
     def pretrain_value_function(self, ppo_model, X, epochs=50):
-        """Pretrain value function on heuristic values before RL."""
+        # freeze policy stream to protect BC weights
+        for name, param in ppo_model.policy.named_parameters():
+            if "action_net" in name or "policy_net" in name:
+                param.requires_grad = False
+
         optimizer = torch.optim.Adam(
-            ppo_model.policy.value_net.parameters(), lr=1e-3
+            filter(lambda p: p.requires_grad, ppo_model.policy.parameters()), lr=1e-3
         )
 
         states = torch.FloatTensor(X)
-
-        # state indices:
-        # 1 = y coordinate
-        # 8 = upper_left_angle, 9 = upper_left_dist
-        # 10 = upper_right_angle, 11 = upper_right_dist
-        # 20 = next_upper_left_angle, 21 = next_upper_left_dist
-        # 22 = next_upper_right_angle, 23 = next_upper_right_dist
 
         y_values = states[:, 1]
         upper_left_dist = states[:, 9]
@@ -124,12 +124,9 @@ class JumpKingRL:
         next_upper_left_dist = states[:, 21]
         next_upper_right_dist = states[:, 23]
 
-        # normalize y to reasonable range
         y_norm = (y_values - y_values.mean()) / y_values.std()
 
-        # bonus for each visible upper platform — closer = bigger bonus
         def platform_bonus(dist, max_dist=400):
-            # returns 0 if sentinel, scales from 0-1 based on proximity
             visible = (dist != -9999).float()
             proximity = visible * (1 - dist.clamp(0, max_dist) / max_dist)
             return proximity
@@ -138,15 +135,13 @@ class JumpKingRL:
             y_norm
             + platform_bonus(upper_left_dist) * 0.5
             + platform_bonus(upper_right_dist) * 0.5
-            + platform_bonus(next_upper_left_dist) * 0.75  # next screen worth more
+            + platform_bonus(next_upper_left_dist) * 0.75
             + platform_bonus(next_upper_right_dist) * 0.75
         )
 
         for epoch in range(epochs):
             optimizer.zero_grad()
-            # get value features from shared trunk
-            with torch.no_grad():
-                features = ppo_model.policy.mlp_extractor(states)[1]
+            features = ppo_model.policy.mlp_extractor(states)[1]
             predicted_values = ppo_model.policy.value_net(features).squeeze()
             loss = nn.MSELoss()(predicted_values, heuristic_values)
             loss.backward()
@@ -154,6 +149,10 @@ class JumpKingRL:
 
             if (epoch + 1) % 10 == 0:
                 print(f"Value pretrain epoch {epoch+1}/{epochs} | Loss: {loss.item():.4f}")
+
+        # restore all parameters before RL starts
+        for name, param in ppo_model.policy.named_parameters():
+            param.requires_grad = True
 
         print("Value function pretraining complete.")
 

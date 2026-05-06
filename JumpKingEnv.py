@@ -14,6 +14,9 @@ from gymnasium.error import DependencyNotInstalled
 from PlatformParser import PlatformParser
 from Ray import Ray
 
+class ScreenTransitionException(Exception):
+    pass
+
 class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
     def __init__(self, episode_mode, max_episode_actions=10, curriculum_screens=5, spacing=0.05):
@@ -23,7 +26,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.action_space = spaces.Discrete(len(self.action_map))
         self.state = None
         self.gamedata = None
-        self.gamedata_prev = None
+        #self.gamedata_prev = None
         self.new_screen_reward = 10
         self.jumped = False
         self.sleep_time = 0.1
@@ -76,7 +79,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         reward = 0
 
         #duplicate gamedata so we have previous info after action
-        self.gamedata_prev = list(self.gamedata)
+        #self.gamedata_prev = list(self.gamedata)
 
         #executes action. pauses here until the action is complete (we finish walking or release the jump button)
         self.execute_action(action)
@@ -89,7 +92,6 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         #set game data into individual variables
         self.load_game_attributes()
-        self.load_game_attributes_prev()
 
         #ray state building
         # self.platform_parser.parse_result = self.platform_parser.read_platform_data((self.x, self.y), self.current_screen)
@@ -165,9 +167,6 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #self.visited_cells.clear()
         self.action_counter = 0
         #self.gamedata_start_of_episode = list(self.gamedata)
-
-        #x, y, vel_x, vel_y, is_on_ground, current_screen = self.gamedata[:6]
-        self.load_game_attributes()
 
         # reuse last state if available, otherwise use sentinels
         if self.state is not None:
