@@ -100,14 +100,13 @@ class RecordingParser:
             states.append(state)
         return np.array(states), np.array(action_indices)
 
-    def tally_actions(self, records, threshold=0):
-        """Tallies action durations by category. threshold bins values into groups of that width."""
+    def tally_actions(self, actions, threshold=0):
+        """Tallies action durations by category. Accepts plain list of (left, right, space) tuples."""
         left_counts = {}
         right_counts = {}
         space_counts = {}
 
-        for _, (left, right, space) in records:
-            # bin the value
+        for left, right, space in actions:
             if threshold > 0:
                 left = round(round(left / threshold) * threshold, 3)
                 right = round(round(right / threshold) * threshold, 3)
@@ -120,7 +119,6 @@ class RecordingParser:
             if space > 0:
                 space_counts[space] = space_counts.get(space, 0) + 1
 
-        # sort by duration
         left_counts = dict(sorted(left_counts.items()))
         right_counts = dict(sorted(right_counts.items()))
         space_counts = dict(sorted(space_counts.items()))
@@ -133,21 +131,18 @@ class RecordingParser:
         actions = [r[1] for r in records]
         return states, actions
     
-    def get_screen_action_map(self, screen_records, env, top_n=6):
+    def get_screen_action_map(self, screen_records, env, min_pct=0.05):
         """Returns a reduced action map based on most used actions on this screen."""
         _, actions = self.separate_actions_and_state(screen_records)
-        actions = self.equalize_actions(actions)
-        actions = self.cap_actions(actions)
-        actions = self.snap_to_increment(actions)
+        actions = [a for _, a in self.clean_actions(list(zip([None]*len(actions), actions)))]
         
-        # get full action indices against complete action map
         indices = self.convert_to_discretized_actions(actions, env.action_map)
-        
-        # count and pick top N
         counts = np.bincount(indices, minlength=len(env.action_map))
-        top_indices = np.argsort(counts)[::-1][:top_n]
         
-        return [env.action_map[i] for i in sorted(top_indices)]
+        total = sum(counts)
+        valid_indices = [i for i, count in enumerate(counts) if count / total >= min_pct]
+        
+        return [env.action_map[i] for i in valid_indices]
     
     def load_recording(self):
         """Reads recording.txt and returns list of (state_dict, (left, right, space)) tuples."""
@@ -173,16 +168,63 @@ class RecordingParser:
                     state = json.loads(state_str)
                     left, right, space = map(float, durations_str.split(","))
                     records.append((state, (left, right, space)))
+                    if len(records) % 500 == 0:
+                        print(f"Loaded {len(records)} records...")
                 except:
                     continue
         return records
     
+    def clean_actions(self, records, max_raw=2.0, max_jump=0.6, max_walk=0.2, increment=0.05):
+        """Filters malformed records, then equalizes, caps, and snaps actions in one pass."""
+        cleaned = []
+        filtered_count = 0
+        
+        for state_dict, action in records:
+            left, right, space = action
+            # drop implausible values
+            if left > max_raw or right > max_raw or space > max_raw:
+                filtered_count += 1
+                continue
+            # drop walks with both directions held
+            if space == 0 and left > 0 and right > 0:
+                filtered_count += 1
+                continue
+
+            # equalize
+            if space > 0:
+                left = space if left > 0 else 0
+                right = space if right > 0 else 0
+
+            # cap
+            if space > 0:
+                space = min(space, max_jump)
+                left = min(left, max_jump) if left > 0 else 0
+                right = min(right, max_jump) if right > 0 else 0
+            else:
+                left = min(left, max_walk) if left > 0 else 0
+                right = min(right, max_walk) if right > 0 else 0
+
+            # snap
+            left = round(round(left / increment) * increment, 2)
+            right = round(round(right / increment) * increment, 2)
+            space = round(round(space / increment) * increment, 2)
+
+            cleaned.append((state_dict, (left, right, space)))
+
+        print(f"Filtered {filtered_count} malformed records, {len(cleaned)} remaining.")
+        return cleaned
+    
     def split_recording_by_screen(self, records):
         """Groups records by current_screen."""
+        records = list(records)
         by_screen = {}
-        for state_dict, action in records:
+        for i, (state_dict, action) in enumerate(records):
+            if i % 500 == 0:
+                print(f"Processing record {i}/{len(records)}...")
             screen = int(state_dict["current_screen"])
             if screen not in by_screen:
                 by_screen[screen] = []
             by_screen[screen].append((state_dict, action))
+        
+        print(f"Done. Found {len(by_screen)} screens, {len(records)} total records.")
         return by_screen

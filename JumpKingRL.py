@@ -11,6 +11,7 @@ from datetime import datetime
 from PlatformParser import PlatformParser
 from JumpKingEnv import JumpKingEnv
 from BehavioralCloning import BehavioralCloning
+from RecordingParser import RecordingParser
 import torch
 import torch.nn as nn
 
@@ -306,9 +307,22 @@ class JumpKingRL:
             env.jump_counter_metadata = 0
             env.reset_keys()
 
-#behavioral cloning test
 env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)
 bc = BehavioralCloning()
+parser = RecordingParser()
+records = parser.load_recording()
+records = parser.clean_actions(records)
+by_screen = parser.split_recording_by_screen(records)
+
+_, actions = parser.separate_actions_and_state(by_screen[1])
+left_counts, right_counts, space_counts = parser.tally_actions(actions)
+print (f"left counts: {left_counts}")
+print (f"right counts: {right_counts}")
+print (f"space counts: {space_counts}")
+
+#behavioral cloning test
+# env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)
+# bc = BehavioralCloning()
 
 # records = bc.load_recording()
 # states, actions = bc.separate_actions_and_state(records)
@@ -342,25 +356,25 @@ bc = BehavioralCloning()
 #     print(f"Episode {episode+1}: screen={env.current_screen}")
 
 # bc set up
-bc = BehavioralCloning()
-env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=8)
+# bc = BehavioralCloning()
+# env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=8)
 
-records = bc.load_recording()
-states, actions = bc.separate_actions_and_state(records)
-actions = bc.equalize_actions(actions)
-actions = bc.cap_actions(actions)
-actions = bc.snap_to_increment(actions, increment=0.05)
-action_indices = bc.convert_to_discretized_actions(actions, env.action_map)
+# records = bc.load_recording()
+# states, actions = bc.separate_actions_and_state(records)
+# actions = bc.equalize_actions(actions)
+# actions = bc.cap_actions(actions)
+# actions = bc.snap_to_increment(actions, increment=0.05)
+# action_indices = bc.convert_to_discretized_actions(actions, env.action_map)
 
-# check action distribution
-print(f"Total records: {len(records)}")
-action_counts = np.bincount(action_indices, minlength=len(env.action_map))
-for i, count in enumerate(action_counts):
-    print(f"Action {i} {env.action_map[i]}: {count}")
+# # check action distribution
+# print(f"Total records: {len(records)}")
+# action_counts = np.bincount(action_indices, minlength=len(env.action_map))
+# for i, count in enumerate(action_counts):
+#     print(f"Action {i} {env.action_map[i]}: {count}")
 
-# generate dataset
-X, y_labels = bc.generate_dataset(records, action_indices)
-print(f"Dataset shape: {X.shape}")
+# # generate dataset
+# X, y_labels = bc.generate_dataset(records, action_indices)
+# print(f"Dataset shape: {X.shape}")
 
 # training BC model - only need to run this again if new env or more data
 # model = bc.train(
@@ -374,22 +388,22 @@ print(f"Dataset shape: {X.shape}")
 # )
 
 #transferring BC model to PPO weights
-JK = JumpKingRL()
-callback = JumpKingCallback()
-env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=8)
+# JK = JumpKingRL()
+# callback = JumpKingCallback()
+# env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=8)
 
-model = JK.create_model("jk_bc_ppo_valuepretraining", env, "PPO", verbose=1,
-                         n_steps=2048, ent_coef=0.005, learning_rate=0.00003,
-                         policy_kwargs={"net_arch": [256, 256]})
+# model = JK.create_model("jk_bc_ppo_valuepretraining", env, "PPO", verbose=1,
+#                          n_steps=2048, ent_coef=0.005, learning_rate=0.00003,
+#                          policy_kwargs={"net_arch": [256, 256]})
 
-bc.transfer_weights_to_ppo(model, "models/bc_policy_sectors_tanh.pth")
-JK.pretrain_value_function(model, X)
-#model = JK.load_model("jk_bc_ppo_valuepretraining")
-#freezing callback
-freeze_callback = FreezePolicyCallback(freeze_updates=20)
-jk_callback = JumpKingCallback()
-callbacks = CallbackList([freeze_callback, jk_callback])
-JK.train_model("jk_bc_ppo_valuepretraining", model, total_timesteps=100000, callback=callbacks)
+# bc.transfer_weights_to_ppo(model, "models/bc_policy_sectors_tanh.pth")
+# JK.pretrain_value_function(model, X)
+# #model = JK.load_model("jk_bc_ppo_valuepretraining")
+# #freezing callback
+# freeze_callback = FreezePolicyCallback(freeze_updates=20)
+# jk_callback = JumpKingCallback()
+# callbacks = CallbackList([freeze_callback, jk_callback])
+# JK.train_model("jk_bc_ppo_valuepretraining", model, total_timesteps=100000, callback=callbacks)
 
 # BC model testing, no RL
 #bc.load_model("models/bc_policy.pth")
