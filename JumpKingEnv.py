@@ -20,7 +20,7 @@ class ScreenTransitionException(Exception):
 
 class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
-    def __init__(self, episode_mode, max_episode_actions=10, curriculum_screens=5, spacing=0.05, per_screen=0):
+    def __init__(self, episode_mode, max_episode_actions=10, curriculum_screens=5, spacing=0.05, per_screen=False, action_map=None):
         self.teleport_path = "C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/teleport.txt"
         self.spacing = spacing
         self.action_map = self.init_action_map()
@@ -60,6 +60,12 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.stuck_threshold = 10  # pixels — how close counts as "same spot"
         self.per_screen = per_screen
 
+        #is action_map is passed in, it's a per-screen agent. otherwise, normal agent
+        if action_map is not None:
+            self.action_map = action_map
+        else:
+            self.action_map = self.init_action_map()
+
         #sector observation space
         self.observation_space = spaces.Box(
             low=np.array([-np.inf] * 25, dtype=np.float32),
@@ -77,14 +83,6 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #     high=np.array([np.inf] * 42, dtype=np.float32),
         #     dtype=np.float32
         # )
-
-    def get_state_size(self, screen):
-        if screen in static_variables.WIND_SCREENS:
-            return 3  # x, y, wind_velocity
-        elif screen in static_variables.ICE_SCREENS:
-            return 3  # x, y, vel_x
-        else:
-            return 2  # x, y
 
     def build_state_per_screen(self):
         if self.current_screen in static_variables.WIND_SCREENS:

@@ -7,6 +7,14 @@ class RecordingParser:
     def __init__(self):
         self.filepath = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/recording.txt"
 
+    def get_state_size(self, screen):
+        if screen in static_variables.WIND_SCREENS:
+            return 3  # x, y, wind_velocity
+        elif screen in static_variables.ICE_SCREENS:
+            return 3  # x, y, vel_x
+        else:
+            return 2  # x, y
+
     def equalize_actions(self, actions):
         """For jump actions, sets arrow key duration equal to spacebar duration."""
         equalized = []
@@ -99,6 +107,30 @@ class RecordingParser:
             if i % 100 == 0:
                 print(f"Generating state {i}/{len(records)}...")
             state = self.generate_state(state_dict)
+            states.append(state)
+        return np.array(states), np.array(action_indices)
+    
+    def generate_state_per_screen(self, state_dict, screen):
+        """Generates minimal state vector for per-screen agent."""
+        x = float(state_dict["x"])
+        y = float(state_dict["y"])
+        
+        if screen in static_variables.WIND_SCREENS:
+            wind_velocity = float(state_dict["wind_velocity"])
+            return np.array([x, y, wind_velocity], dtype=np.float32)
+        elif screen in static_variables.ICE_SCREENS:
+            vel_x = float(state_dict["vel_x"])
+            return np.array([x, y, vel_x], dtype=np.float32)
+        else:
+            return np.array([x, y], dtype=np.float32)
+
+    def generate_dataset_per_screen(self, records, action_indices, screen):
+        """Generates minimal state vectors for all records on a given screen."""
+        states = []
+        for i, (state_dict, _) in enumerate(records):
+            if i % 100 == 0:
+                print(f"Generating state {i}/{len(records)}...")
+            state = self.generate_state_per_screen(state_dict, screen)
             states.append(state)
         return np.array(states), np.array(action_indices)
 

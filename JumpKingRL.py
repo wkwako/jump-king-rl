@@ -78,6 +78,7 @@ class EpisodeMode:
 class JumpKingRL:
 
     def __init__(self):
+        self.X_by_screen = {}
         self.model_direc = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/models/"
         #self.model_direc = "C:/Users/wkwak/Documents/CodingWork/PythonStuff/jump-king-rl/models/"
 
@@ -311,13 +312,89 @@ class JumpKingRL:
         #kicks off training. if we receive Exception of type ScreenTransitionException, change models. if Exception of type KeyboardInterrupt, quit
         pass
 
-    def gen_BC_bulk(self, name):
-        #generates BC in bulk. creates folder of 'name', then trains all per screen agents and puts them in the folder by name_currentscreen naming convention
-        pass
+    def gen_BC_bulk(self, folder_name, records):
+        """Trains BC models for all screens and saves them to folder."""
+        os.makedirs(self.model_direc + folder_name, exist_ok=True)
+        
+        parser = RecordingParser()
+        records = parser.clean_actions(records)
+        by_screen = parser.split_recording_by_screen(records)
+        
+        for screen, screen_records in sorted(by_screen.items()):
+            print(f"\n--- Screen {screen} ({len(screen_records)} records) ---")
+            
+            if len(screen_records) < 10:
+                print(f"Skipping screen {screen} — insufficient data")
+                continue
+            
+            action_map = parser.get_screen_action_map(screen)
+            
+            _, actions = parser.separate_actions_and_state(screen_records)
+            action_indices = parser.convert_to_discretized_actions(actions, action_map)
+            
+            X, y_labels = parser.generate_dataset_per_screen(screen_records, action_indices, screen)
+            
+            # store for gen_RL_bulk
+            self.X_by_screen[screen] = X
+            
+            model_path = f"{self.model_direc}{folder_name}/bc_screen_{screen}.pth"
+            bc = BehavioralCloning()
+            bc.train(
+                X, y_labels,
+                action_dim=len(action_map),
+                model_path=model_path,
+                input_dim=parser.get_state_size(screen),
+                hidden_dim=256,
+                epochs=100,
+                batch_size=32,
+                lr=1e-3
+            )
+            print(f"Screen {screen} BC model saved to {model_path}")
+        
+        print("\nBC bulk training complete.")
 
-    def gen_RL_bulk(self, name):
-        #generates RL in bulk. creates folder of 'name', then trains all per screen agents and puts them in the folder by name_currentscreen naming convention
-        pass
+    def gen_RL_bulk(self, folder_name):
+        """Creates PPO models for all screens with BC weight transfer and value pretraining."""
+        os.makedirs(self.model_direc + folder_name, exist_ok=True)
+        
+        parser = RecordingParser()
+        bc = BehavioralCloning()
+        
+        for screen in sorted(self.X_by_screen.keys()):
+            print(f"\n--- Screen {screen} ---")
+            
+            bc_model_path = f"{self.model_direc}{folder_name}/bc_screen_{screen}.pth"
+            if not os.path.exists(bc_model_path):
+                print(f"Skipping screen {screen} — no BC model found")
+                continue
+            
+            action_map = parser.get_screen_action_map(screen)
+            state_size = parser.get_state_size(screen)
+            
+            env = JumpKingEnv(
+                episode_mode=EpisodeMode.ACTION_HEIGHT,
+                max_episode_actions=8,
+                per_screen=True,
+                action_map=action_map
+            )
+            
+            model_name = f"{folder_name}/ppo_screen_{screen}"
+            model = self.create_model(
+                model_name, env, "PPO",
+                verbose=1,
+                n_steps=2048,
+                ent_coef=0.01,
+                learning_rate=0.00003,
+                policy_kwargs={"net_arch": [256, 256]}
+            )
+            
+            bc.transfer_weights_to_ppo(model, bc_model_path)
+            self.pretrain_value_function(model, self.X_by_screen[screen])
+            
+            self.overwrite_model(model_name, model)
+            print(f"Screen {screen} PPO model saved.")
+        
+        print("\nRL bulk generation complete.")
 
 env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)
 bc = BehavioralCloning()
