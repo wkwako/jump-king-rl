@@ -196,5 +196,4 @@ SCREEN_ACTION_MAPS = {
         "walks": [0.1, 0.2],
         "jumps": [0.23, 0.6],
     },
-
 }

@@ -307,6 +307,15 @@ class JumpKingRL:
             env.jump_counter_metadata = 0
             env.reset_keys()
 
+    def train_model_per_screen(self, name, total_timesteps, callback):
+        pass
+
+    def gen_BC_bulk(self, name):
+        pass
+
+    def gen_RL_bulk(self, name):
+        pass
+
 env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)
 bc = BehavioralCloning()
 parser = RecordingParser()

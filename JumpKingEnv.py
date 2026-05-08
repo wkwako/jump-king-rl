@@ -19,7 +19,7 @@ class ScreenTransitionException(Exception):
 
 class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
-    def __init__(self, episode_mode, max_episode_actions=10, curriculum_screens=5, spacing=0.05):
+    def __init__(self, episode_mode, max_episode_actions=10, curriculum_screens=5, spacing=0.05, per_screen=0):
         self.teleport_path = "C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/teleport.txt"
         self.spacing = spacing
         self.action_map = self.init_action_map()
@@ -57,6 +57,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.landing_memory = 5  # how many recent landings to remember
         self.stuck_penalty = -3
         self.stuck_threshold = 10  # pixels — how close counts as "same spot"
+        self.per_screen = per_screen
 
         #sector observation space
         self.observation_space = spaces.Box(
@@ -64,6 +65,10 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             high=np.array([np.inf] * 25, dtype=np.float32),
             dtype=np.float32
         )
+
+        if self.per_screen:
+            #call build_observation_space()
+            pass
 
         #ray observation space
         # self.observation_space = spaces.Box(
@@ -99,6 +104,10 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         # ray_state_data = self.ray_caster.build_ray_states(num_angles=36)
         # pos_state = [self.x, self.y, self.current_screen, self.is_on_ice, self.is_in_snow, self.wind_velocity]
         # self.state = np.array(pos_state + ray_state_data, dtype=np.float32)
+
+        if self.per_screen:
+            if self.current_screen != self.current_screen_prev:
+                raise ScreenTransitionException(Exception)
 
         #sector state building
         self.platform_parser.parse_result = self.platform_parser.read_platform_data((self.x, self.y), self.current_screen)
@@ -151,10 +160,6 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         #set terminated bool based on episode_mode
         terminated = self.set_terminated()
-
-        # if terminated:
-        #     y_start = self.gamedata_start_of_episode[1]
-        #     reward += (y - y_start) / 5
 
         return self.state, reward, terminated, False, {}
 
