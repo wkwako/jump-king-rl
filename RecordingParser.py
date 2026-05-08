@@ -6,6 +6,7 @@ import static_variables
 class RecordingParser:
     def __init__(self):
         self.filepath = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/recording.txt"
+        #self.filepath = "C:/Users/wkwak/Documents/CodingWork/PythonStuff/jump-king-rl/models/"
 
     def get_state_size(self, screen):
         if screen in static_variables.WIND_SCREENS:

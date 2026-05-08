@@ -10,6 +10,7 @@ class PlatformParser:
     def __init__(self):
         self.platform_path = "C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/platformdata.txt"
         self.registry_path = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/registry.txt"
+        #self.registry_path = "C:/Users/wkwak/Documents/CodingWork/PythonStuff/jump-king-rl/models/"
         self.registry = self.load_registry()
         self.parse_result = None
         self.sleep_time = 0.1

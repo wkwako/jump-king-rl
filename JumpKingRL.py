@@ -331,7 +331,7 @@ class JumpKingRL:
             env.jump_counter_metadata = 0
             env.reset_keys()
 
-    def train_model_per_screen(self, folder_name, start_screen=0, total_timesteps=100000, callback=None):
+    def train_model_per_screen(self, folder_name, start_screen=0, total_timesteps=999999):
         """Kicks off per-screen training. Handles screen transitions and keyboard interrupts."""
         current_screen = start_screen
         
@@ -346,6 +346,10 @@ class JumpKingRL:
             try:
                 model = self.load_model(folder_name, screen=current_screen)
                 
+                freeze_callback = FreezePolicyCallback(freeze_updates=20)
+                jk_callback = JumpKingCallback()
+                callbacks = CallbackList([freeze_callback, jk_callback])
+                
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 log_path = f"{self.model_direc}{folder_name}/ppo_screen_{current_screen}_log/{timestamp}/"
                 logger = configure(log_path, ["stdout", "csv"])
@@ -354,7 +358,7 @@ class JumpKingRL:
                 model.learn(
                     total_timesteps=total_timesteps,
                     reset_num_timesteps=False,
-                    callback=callback
+                    callback=callbacks
                 )
                 print(f"Screen {current_screen} training complete.")
                 self.overwrite_model(f"{folder_name}/ppo_screen_{current_screen}", model)
@@ -497,7 +501,7 @@ parser = RecordingParser()
 #JK.gen_RL_bulk("dummy_test")
 
 callbacks = CallbackList([JumpKingCallback()])
-JK.train_model_per_screen("dummy_test", start_screen=0, callback=callbacks)
+JK.train_model_per_screen("dummy_test", start_screen=0)
 
 # env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)
 # bc = BehavioralCloning()
