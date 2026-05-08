@@ -345,10 +345,12 @@ class JumpKingRL:
             
             try:
                 model = self.load_model(folder_name, screen=current_screen)
+                model.env.envs[0].env.total_screen_actions = 0
                 
-                freeze_callback = FreezePolicyCallback(freeze_updates=20)
+                #freeze_callback = FreezePolicyCallback(freeze_updates=20)
                 jk_callback = JumpKingCallback()
-                callbacks = CallbackList([freeze_callback, jk_callback])
+                #callbacks = CallbackList([freeze_callback, jk_callback])
+                callbacks = CallbackList([jk_callback])
                 
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 log_path = f"{self.model_direc}{folder_name}/ppo_screen_{current_screen}_log/{timestamp}/"
@@ -495,10 +497,9 @@ class JumpKingRL:
 JK = JumpKingRL()
 parser = RecordingParser()
 
-#records = parser.load_recording()
-#JK.gen_BC_bulk("dummy_test", records)
-
-#JK.gen_RL_bulk("dummy_test")
+# records = parser.load_recording()
+# JK.gen_BC_bulk("dummy_test", records)
+# JK.gen_RL_bulk("dummy_test")
 
 callbacks = CallbackList([JumpKingCallback()])
 JK.train_model_per_screen("dummy_test", start_screen=0)

@@ -45,6 +45,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.platform_parser = PlatformParser()
         self.ray_caster = Ray(max_distance=400, step_size=8)
         self.recording_parser = RecordingParser()
+        self.total_screen_actions = 0
 
         self.x = self.y = self.vel_x = self.vel_y = None
         self.is_on_ground = self.current_screen = self.total_screens = None
@@ -118,6 +119,9 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         #executes action. pauses here until the action is complete (we finish walking or release the jump button)
         self.execute_action(action)
+
+        if self.per_screen:
+            self.total_screen_actions += 1
 
         #reads gamedata. pauses here until the character lands
         self.gamedata = self.read_gamedata()
@@ -258,7 +262,11 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #check for termination based on episode type
 
         #terminate after a certain number of actions
-        if self.episode_mode == "action":
+
+        if self.per_screen:
+            result = self.terminate_per_screen_episode()
+
+        elif self.episode_mode == "action":
             result = self.terminate_action_episode()
         
         #terminate after reaching a new screen and landing there
@@ -281,6 +289,24 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
                 result = self.terminate_screen_episode()
 
         return result
+    
+    def terminate_per_screen_episode(self):
+        self.action_counter += 1
+        
+        if self.total_screen_actions < 5:
+            # early phase: terminate after 2 actions
+            if self.action_counter >= 2:
+                self.action_counter = 0
+                return True
+        else:
+            # late phase: terminate on height gain
+            if self.y > self.y_prev:
+                return True
+            if self.action_counter >= 4:
+                self.action_counter = 0
+                return True
+    
+        return False
     
     def reset_keys(self):
         #stops pressing all keys
