@@ -13,6 +13,7 @@ from gymnasium.error import DependencyNotInstalled
 
 from PlatformParser import PlatformParser
 from Ray import Ray
+import static_variables
 
 class ScreenTransitionException(Exception):
     pass
@@ -77,7 +78,36 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #     dtype=np.float32
         # )
 
+    def get_state_size(self, screen):
+        if screen in static_variables.WIND_SCREENS:
+            return 3  # x, y, wind_velocity
+        elif screen in static_variables.ICE_SCREENS:
+            return 3  # x, y, vel_x
+        else:
+            return 2  # x, y
 
+    def build_state_per_screen(self):
+        if self.current_screen in static_variables.WIND_SCREENS:
+            return np.array([self.x, self.y, self.wind_velocity], dtype=np.float32)
+        elif self.current_screen in static_variables.ICE_SCREENS:
+            return np.array([self.x, self.y, self.vel_x], dtype=np.float32)
+        else:
+            return np.array([self.x, self.y], dtype=np.float32)
+
+    def build_observation_space(self):
+        if self.per_screen:
+            size = self.get_state_size(self.current_screen)
+            return spaces.Box(
+                low=np.array([-np.inf] * size, dtype=np.float32),
+                high=np.array([np.inf] * size, dtype=np.float32),
+                dtype=np.float32
+            )
+        else:
+            return spaces.Box(
+                low=np.array([-np.inf] * 25, dtype=np.float32),
+                high=np.array([np.inf] * 25, dtype=np.float32),
+                dtype=np.float32
+            )
 
     def step(self, action):
         #set reward to 0 for this step
@@ -107,26 +137,10 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         if self.per_screen:
             if self.current_screen != self.current_screen_prev:
-                raise ScreenTransitionException(Exception)
-
-        #sector state building
-        self.platform_parser.parse_result = self.platform_parser.read_platform_data((self.x, self.y), self.current_screen)
-        # build state
-        if self.platform_parser.parse_result is not None:
-            pos_state_data = list(self.platform_parser.parse_result[0])
-            #pos_state_data[2] += -50  # ceiling offset
+                raise ScreenTransitionException(self.current_screen)
+            self.state = self.build_state_per_screen()
         else:
-            pos_state_data = [-9999, 9999, 9999, -9999, 9999]
-        sector_state_data = self.platform_parser.process_registry(self.current_screen, (self.x, self.y))
-        #pos_state = [self.x, self.y, self.current_screen]
-
-        can_bounce_right, can_bounce_left = self.platform_parser.set_rebound_state(
-            (self.x, self.y), self.current_screen
-        )
-
-        pos_state = [self.x, self.y, self.current_screen, self.is_on_ice, self.is_in_snow, self.wind_velocity, can_bounce_right, can_bounce_left]
-
-        self.state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
+            self.state = self.build_state()
         #print (f"state: {self.state}")
         #time.sleep(1)
 
@@ -191,6 +205,40 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             # self.state = np.array([self.x, self.y, self.current_screen, 0, 0, 0] + ray_state_data, dtype=np.float32)
 
         return self.state, {}
+    
+    def build_state(self):
+        """Builds full 25-value state vector for monolithic agent."""
+        self.platform_parser.parse_result = self.platform_parser.read_platform_data(
+            (self.x, self.y), self.current_screen
+        )
+
+        if self.platform_parser.parse_result is not None:
+            pos_state_data = list(self.platform_parser.parse_result[0])
+        else:
+            pos_state_data = [-9999, 9999, 9999, -9999, 9999]
+
+        sector_state_data = self.platform_parser.process_registry(
+            self.current_screen, (self.x, self.y)
+        )
+
+        can_bounce_right, can_bounce_left = self.platform_parser.set_rebound_state(
+            (self.x, self.y), self.current_screen
+        )
+
+        pos_state = [self.x, self.y, self.current_screen, self.is_on_ice, 
+                    self.is_in_snow, self.wind_velocity, can_bounce_right, can_bounce_left]
+
+        return np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
+
+
+    def build_state_per_screen(self):
+        """Builds minimal state vector for per-screen agent."""
+        if self.is_on_ice:
+            return np.array([self.x, self.y, self.vel_x], dtype=np.float32)
+        elif self.wind_velocity != 0:
+            return np.array([self.x, self.y, self.wind_velocity], dtype=np.float32)
+        else:
+            return np.array([self.x, self.y], dtype=np.float32)
     
     def add_landing(self):
         if not self.jumped:

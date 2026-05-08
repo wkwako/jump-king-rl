@@ -308,12 +308,15 @@ class JumpKingRL:
             env.reset_keys()
 
     def train_model_per_screen(self, name, total_timesteps, callback):
+        #kicks off training. if we receive Exception of type ScreenTransitionException, change models. if Exception of type KeyboardInterrupt, quit
         pass
 
     def gen_BC_bulk(self, name):
+        #generates BC in bulk. creates folder of 'name', then trains all per screen agents and puts them in the folder by name_currentscreen naming convention
         pass
 
     def gen_RL_bulk(self, name):
+        #generates RL in bulk. creates folder of 'name', then trains all per screen agents and puts them in the folder by name_currentscreen naming convention
         pass
 
 env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)

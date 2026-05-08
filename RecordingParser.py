@@ -138,19 +138,20 @@ class RecordingParser:
         config = static_variables.SCREEN_ACTION_MAPS[screen]
         action_map = []
 
-        # walk actions: (duration, 0, 0) for left and right
         for duration in config.get("walks", []):
-            action_map.append((duration, 0, 0))   # walk left
-            action_map.append((0, duration, 0))   # walk right
+            action_map.append((duration, 0, 0))
+            action_map.append((0, duration, 0))
 
-        # jump actions: paired with both arrow keys
         for duration in config.get("jumps", []):
-            action_map.append((duration, 0, duration))   # jump left
-            action_map.append((0, duration, duration))   # jump right
+            action_map.append((duration, 0, duration))
+            action_map.append((0, duration, duration))
 
-        # only_jump actions: spacebar only, no arrow keys
         for duration in config.get("only_jump", []):
             action_map.append((0, 0, duration))
+
+        # add no-op for wind screens
+        if screen in static_variables.WIND_SCREENS:
+            action_map.append((0, 0, 0))
 
         return action_map
     
