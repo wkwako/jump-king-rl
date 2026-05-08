@@ -54,6 +54,7 @@ namespace JumpKingDataMod
         private bool _isActive = true;
         private bool _reflectionInitialized = false;
         private bool _prevAnyKeyDown = false;
+        private int _prevScreen = -1;
 
         private Type _jumpChargeCalcType;
         private PropertyInfo _jumpFramesProp;
@@ -218,15 +219,21 @@ namespace JumpKingDataMod
                                   keyState.IsKeyDown(Keys.Right) ||
                                   keyState.IsKeyDown(Keys.Space);
 
+                // write immediately on screen transition
+                if (currentScreen != _prevScreen && _prevScreen != -1)
+                {
+                    WriteStateSafe(state);
+                }
+                _prevScreen = currentScreen;
+
                 if (isOnGround && !_wasOnGround)
                 {
                     // landing
                     WriteStateSafe(state);
-                    //PlatformScanner.ScanAndWrite(currentScreen, totalScreens);
                 }
                 else if (!anyKeyDown && _prevAnyKeyDown && isOnGround)
                 {
-                    // all keys released while on ground — covers post-walk
+                    // all keys released while on ground
                     WriteStateSafe(state);
                 }
 

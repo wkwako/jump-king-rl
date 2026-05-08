@@ -360,14 +360,17 @@ class JumpKingRL:
                 self.overwrite_model(f"{folder_name}/ppo_screen_{current_screen}", model)
 
             except ScreenTransitionException as e:
-                new_screen = e.args[0]
-                print(f"Screen transition: {current_screen} -> {new_screen}, saving...")
+                print(f"Screen transition detected, saving...")
                 self.overwrite_model(f"{folder_name}/ppo_screen_{current_screen}", model)
-                current_screen = new_screen
-                # ensure clean state before loading next model
                 model.env.envs[0].env.reset_keys()
+                
+                # read fresh gamedata to get actual current screen
                 model.env.envs[0].env.gamedata = model.env.envs[0].env.read_gamedata()
                 model.env.envs[0].env.load_game_attributes()
+                actual_screen = model.env.envs[0].env.current_screen
+                
+                print(f"Actual screen after transition: {actual_screen}")
+                current_screen = actual_screen
 
             except KeyboardInterrupt:
                 print(f"Interrupted on screen {current_screen}, saving...")
@@ -488,13 +491,13 @@ class JumpKingRL:
 JK = JumpKingRL()
 parser = RecordingParser()
 
-records = parser.load_recording()
-JK.gen_BC_bulk("per_screen1", records)
+#records = parser.load_recording()
+#JK.gen_BC_bulk("dummy_test", records)
 
-JK.gen_RL_bulk("per_screen1")
+#JK.gen_RL_bulk("dummy_test")
 
 callbacks = CallbackList([JumpKingCallback()])
-JK.train_model_per_screen("per_screen1", start_screen=1, callback=callbacks)
+JK.train_model_per_screen("dummy_test", start_screen=0, callback=callbacks)
 
 # env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)
 # bc = BehavioralCloning()

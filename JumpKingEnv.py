@@ -109,6 +109,13 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #set reward to 0 for this step
         reward = 0
 
+        # peek at current screen before acting
+        temp_gamedata = self.read_gamedata()
+        temp_screen = temp_gamedata["current_screen"]
+        if self.per_screen and temp_screen != self.current_screen_prev:
+            self.reset_keys()
+            raise ScreenTransitionException(temp_screen)
+
         #executes action. pauses here until the action is complete (we finish walking or release the jump button)
         self.execute_action(action)
 
@@ -124,6 +131,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #build different states depending on if we're using a per-screen agent
         if self.per_screen:
             if self.current_screen != self.current_screen_prev:
+                self.reset_keys()
                 raise ScreenTransitionException(self.current_screen)
             self.state = self.build_state_per_screen()
         else:
