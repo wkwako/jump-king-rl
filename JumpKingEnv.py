@@ -12,6 +12,7 @@ from gymnasium.envs.classic_control import utils
 from gymnasium.error import DependencyNotInstalled
 
 from PlatformParser import PlatformParser
+from RecordingParser import RecordingParser
 from Ray import Ray
 import static_variables
 
@@ -20,11 +21,10 @@ class ScreenTransitionException(Exception):
 
 class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
-    def __init__(self, episode_mode, max_episode_actions=10, curriculum_screens=5, spacing=0.05, per_screen=False, action_map=None):
+    def __init__(self, episode_mode, max_episode_actions=10, curriculum_screens=5, spacing=0.05, per_screen=False, action_map=None, current_screen=None):
         self.teleport_path = "C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/teleport.txt"
         self.spacing = spacing
-        self.action_map = self.init_action_map()
-        self.action_space = spaces.Discrete(len(self.action_map))
+        #self.action_map = self.init_action_map()
         self.state = None
         self.gamedata = None
         #self.gamedata_prev = None
@@ -44,6 +44,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.gamedata_start_of_episode = None
         self.platform_parser = PlatformParser()
         self.ray_caster = Ray(max_distance=400, step_size=8)
+        self.recording_parser = RecordingParser()
 
         self.x = self.y = self.vel_x = self.vel_y = None
         self.is_on_ground = self.current_screen = self.total_screens = None
@@ -60,16 +61,19 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.stuck_threshold = 10  # pixels — how close counts as "same spot"
         self.per_screen = per_screen
 
+        self.current_screen = current_screen if current_screen is not None else 0
+
         #is action_map is passed in, it's a per-screen agent. otherwise, normal agent
-        
         if action_map is not None:
             self.action_map = action_map
         else:
             self.action_map = self.init_action_map()
 
+        self.action_space = spaces.Discrete(len(self.action_map))
+
         #build dynamic observation space if per-screen agent
         if self.per_screen:
-            self.build_observation_space()
+            self.observation_space = self.build_observation_space()
         
         else:
             #sector observation space
@@ -88,7 +92,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
     def build_observation_space(self):
         if self.per_screen:
-            size = self.get_state_size(self.current_screen)
+            size = self.recording_parser.get_state_size(self.current_screen)
             return spaces.Box(
                 low=np.array([-np.inf] * size, dtype=np.float32),
                 high=np.array([np.inf] * size, dtype=np.float32),

@@ -105,42 +105,42 @@ class JumpKingRL:
             "DQN": DQN_PARAMS
         }
 
-    def train_per_screen_agents(self):
-        
-        pass
-
-    def pretrain_value_function(self, ppo_model, X, epochs=50):
-        # freeze policy stream to protect BC weights
-        for name, param in ppo_model.policy.named_parameters():
-            if "action_net" in name or "policy_net" in name:
-                param.requires_grad = False
-
+    def pretrain_value_function(self, ppo_model, X, epochs=50, per_screen=False):
         optimizer = torch.optim.Adam(
             filter(lambda p: p.requires_grad, ppo_model.policy.parameters()), lr=1e-3
         )
 
+        # freeze policy stream
+        for name, param in ppo_model.policy.named_parameters():
+            if "action_net" in name or "policy_net" in name:
+                param.requires_grad = False
+
         states = torch.FloatTensor(X)
-
         y_values = states[:, 1]
-        upper_left_dist = states[:, 9]
-        upper_right_dist = states[:, 11]
-        next_upper_left_dist = states[:, 21]
-        next_upper_right_dist = states[:, 23]
+        y_norm = (y_values - y_values.mean()) / (y_values.std() + 1e-8)
 
-        y_norm = (y_values - y_values.mean()) / y_values.std()
+        if not per_screen:
+            # full heuristic with platform bonuses
+            upper_left_dist = states[:, 9]
+            upper_right_dist = states[:, 11]
+            next_upper_left_dist = states[:, 21]
+            next_upper_right_dist = states[:, 23]
 
-        def platform_bonus(dist, max_dist=400):
-            visible = (dist != -9999).float()
-            proximity = visible * (1 - dist.clamp(0, max_dist) / max_dist)
-            return proximity
+            def platform_bonus(dist, max_dist=400):
+                visible = (dist != -9999).float()
+                proximity = visible * (1 - dist.clamp(0, max_dist) / max_dist)
+                return proximity
 
-        heuristic_values = (
-            y_norm
-            + platform_bonus(upper_left_dist) * 0.5
-            + platform_bonus(upper_right_dist) * 0.5
-            + platform_bonus(next_upper_left_dist) * 0.75
-            + platform_bonus(next_upper_right_dist) * 0.75
-        )
+            heuristic_values = (
+                y_norm
+                + platform_bonus(upper_left_dist) * 0.5
+                + platform_bonus(upper_right_dist) * 0.5
+                + platform_bonus(next_upper_left_dist) * 0.75
+                + platform_bonus(next_upper_right_dist) * 0.75
+            )
+        else:
+            # per-screen: just normalized y
+            heuristic_values = y_norm
 
         for epoch in range(epochs):
             optimizer.zero_grad()
@@ -153,7 +153,7 @@ class JumpKingRL:
             if (epoch + 1) % 10 == 0:
                 print(f"Value pretrain epoch {epoch+1}/{epochs} | Loss: {loss.item():.4f}")
 
-        # restore all parameters before RL starts
+        # restore all parameters
         for name, param in ppo_model.policy.named_parameters():
             param.requires_grad = True
 
@@ -201,11 +201,9 @@ class JumpKingRL:
 
     def load_model(self, name, screen=None):
         if screen is not None:
-            # per-screen model
             model_path = f"{self.model_direc}{name}/ppo_screen_{screen}"
             metadata_path = f"{self.model_direc}{name}/ppo_screen_{screen}_metadata.json"
         else:
-            # monolithic model
             model_path = f"{self.model_direc}{name}"
             metadata_path = f"{self.model_direc}{name}_metadata.json"
 
@@ -219,11 +217,24 @@ class JumpKingRL:
             episode_mode=self.metadata["episode_mode"],
             max_episode_actions=self.metadata["hyperparameters"]["max_episode_actions"],
             per_screen=screen is not None,
-            action_map=action_map
+            action_map=action_map,
+            current_screen=screen if screen is not None else 0
         )
 
+        # print(f"Action map being used: {action_map}")
+        # print(f"Env action space: {env.action_space}")
+        # print(f"Env action map: {env.action_map}")
+        # print(f"Env action map length: {len(env.action_map)}")
+
         model_class = self.MODEL_CONFIGS[self.metadata["model_type"]]["class"]
-        model = model_class.load(model_path, env=env)
+        model = model_class.load(
+            model_path,
+            env=env,
+            custom_objects={
+                "action_space": env.action_space,
+                "observation_space": env.observation_space
+            }
+        )
 
         logger = configure(model_path + "_log/", ["stdout", "csv"])
         model.set_logger(logger)
@@ -258,7 +269,6 @@ class JumpKingRL:
         return metadata
 
     def create_model(self, name, env, model_type, verbose, **kwargs):
-        #creates a new model. will throw an error if model_name already exists
         model_path = self.model_direc + name
         if os.path.exists(model_path + ".zip"):
             raise FileExistsError("This model already exists. Please use a different name, delete it, or use the overwrite_model() function.")
@@ -266,17 +276,19 @@ class JumpKingRL:
         config = self.MODEL_CONFIGS[model_type]
         params = {**config["defaults"], **kwargs}
 
-        print ("Creating new model...")
+        print("Creating new model...")
         model = config["class"]("MlpPolicy", env, verbose=verbose, **params)
 
+        os.makedirs(model_path + "_log/", exist_ok=True)
         logger = configure(model_path + "_log/", ["stdout", "csv"])
-        #logger = configure(model_path + "_log/", ["csv"])
         model.set_logger(logger)
 
         model.save(model_path)
+        print(f"Model saved to {model_path}.zip")
 
-        print ("Creating new metadata file...")
+        print("Creating new metadata file...")
         self.save_metadata(name, model, None, True)
+        print(f"Metadata saved.")
 
         return model
 
@@ -352,6 +364,10 @@ class JumpKingRL:
                 print(f"Screen transition: {current_screen} -> {new_screen}, saving...")
                 self.overwrite_model(f"{folder_name}/ppo_screen_{current_screen}", model)
                 current_screen = new_screen
+                # ensure clean state before loading next model
+                model.env.envs[0].env.reset_keys()
+                model.env.envs[0].env.gamedata = model.env.envs[0].env.read_gamedata()
+                model.env.envs[0].env.load_game_attributes()
 
             except KeyboardInterrupt:
                 print(f"Interrupted on screen {current_screen}, saving...")
@@ -364,7 +380,11 @@ class JumpKingRL:
 
     def gen_BC_bulk(self, folder_name, records):
         """Trains BC models for all screens and saves them to folder."""
-        os.makedirs(self.model_direc + folder_name, exist_ok=True)
+        folder_path = self.model_direc + folder_name
+        if os.path.exists(folder_path):
+            raise FileExistsError(f"Folder '{folder_name}' already exists. Please use a different name or delete it first.")
+        os.makedirs(folder_path)
+        #os.makedirs(self.model_direc + folder_name, exist_ok=True)
         
         parser = RecordingParser()
         records = parser.clean_actions(records)
@@ -410,7 +430,6 @@ class JumpKingRL:
                 X, y_labels,
                 action_dim=len(action_map),
                 model_path=model_path,
-                input_dim=state_size,
                 hidden_dim=256,
                 epochs=100,
                 batch_size=32,
@@ -444,7 +463,8 @@ class JumpKingRL:
                 episode_mode=EpisodeMode.ACTION_HEIGHT,
                 max_episode_actions=8,
                 per_screen=True,
-                action_map=action_map
+                action_map=action_map,
+                current_screen=screen
             )
             
             model_name = f"{folder_name}/ppo_screen_{screen}"
@@ -458,7 +478,7 @@ class JumpKingRL:
             )
             
             bc.transfer_weights_to_ppo(model, bc_model_path)
-            self.pretrain_value_function(model, self.X_by_screen[screen])
+            self.pretrain_value_function(model, self.X_by_screen[screen], per_screen=True)
             
             self.overwrite_model(model_name, model)
             print(f"Screen {screen} PPO model saved.")
@@ -469,7 +489,12 @@ JK = JumpKingRL()
 parser = RecordingParser()
 
 records = parser.load_recording()
-JK.gen_BC_bulk("dummy_test", records)
+JK.gen_BC_bulk("per_screen1", records)
+
+JK.gen_RL_bulk("per_screen1")
+
+callbacks = CallbackList([JumpKingCallback()])
+JK.train_model_per_screen("per_screen1", start_screen=1, callback=callbacks)
 
 # env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)
 # bc = BehavioralCloning()
