@@ -9,7 +9,7 @@ import os
 import json
 from datetime import datetime
 from PlatformParser import PlatformParser
-from JumpKingEnv import JumpKingEnv
+from JumpKingEnv import JumpKingEnv, ScreenTransitionException
 from BehavioralCloning import BehavioralCloning
 from RecordingParser import RecordingParser
 import torch
@@ -199,24 +199,35 @@ class JumpKingRL:
         }
         return metadata
 
-    def load_model(self, name):
-        # load metadata
-        with open(self.model_direc + name + "_metadata.json") as f:
+    def load_model(self, name, screen=None):
+        if screen is not None:
+            # per-screen model
+            model_path = f"{self.model_direc}{name}/ppo_screen_{screen}"
+            metadata_path = f"{self.model_direc}{name}/ppo_screen_{screen}_metadata.json"
+        else:
+            # monolithic model
+            model_path = f"{self.model_direc}{name}"
+            metadata_path = f"{self.model_direc}{name}_metadata.json"
+
+        with open(metadata_path) as f:
             self.metadata = json.load(f)
-        
-        # recreate env from metadata
+
+        parser = RecordingParser()
+        action_map = parser.get_screen_action_map(screen) if screen is not None else None
+
         env = JumpKingEnv(
             episode_mode=self.metadata["episode_mode"],
-            max_episode_actions=self.metadata["hyperparameters"]["max_episode_actions"]
+            max_episode_actions=self.metadata["hyperparameters"]["max_episode_actions"],
+            per_screen=screen is not None,
+            action_map=action_map
         )
-        
-        model_type = self.metadata["model_type"]
-        model_class = self.MODEL_CONFIGS[model_type]["class"]
 
-        # load model
-        print ("Loading existing model...")
-        model = model_class.load(self.model_direc + name, env=env)
-        
+        model_class = self.MODEL_CONFIGS[self.metadata["model_type"]]["class"]
+        model = model_class.load(model_path, env=env)
+
+        logger = configure(model_path + "_log/", ["stdout", "csv"])
+        model.set_logger(logger)
+
         return model
 
     def save_metadata(self, name, model, metadata, new=False):
@@ -308,9 +319,48 @@ class JumpKingRL:
             env.jump_counter_metadata = 0
             env.reset_keys()
 
-    def train_model_per_screen(self, name, total_timesteps, callback):
-        #kicks off training. if we receive Exception of type ScreenTransitionException, change models. if Exception of type KeyboardInterrupt, quit
-        pass
+    def train_model_per_screen(self, folder_name, start_screen=0, total_timesteps=100000, callback=None):
+        """Kicks off per-screen training. Handles screen transitions and keyboard interrupts."""
+        current_screen = start_screen
+        
+        while True:
+            print(f"\n--- Loading model for screen {current_screen} ---")
+            
+            model_path = f"{self.model_direc}{folder_name}/ppo_screen_{current_screen}"
+            if not os.path.exists(model_path + ".zip"):
+                print(f"No model found for screen {current_screen}, stopping.")
+                break
+            
+            try:
+                model = self.load_model(folder_name, screen=current_screen)
+                
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                log_path = f"{self.model_direc}{folder_name}/ppo_screen_{current_screen}_log/{timestamp}/"
+                logger = configure(log_path, ["stdout", "csv"])
+                model.set_logger(logger)
+                
+                model.learn(
+                    total_timesteps=total_timesteps,
+                    reset_num_timesteps=False,
+                    callback=callback
+                )
+                print(f"Screen {current_screen} training complete.")
+                self.overwrite_model(f"{folder_name}/ppo_screen_{current_screen}", model)
+
+            except ScreenTransitionException as e:
+                new_screen = e.args[0]
+                print(f"Screen transition: {current_screen} -> {new_screen}, saving...")
+                self.overwrite_model(f"{folder_name}/ppo_screen_{current_screen}", model)
+                current_screen = new_screen
+
+            except KeyboardInterrupt:
+                print(f"Interrupted on screen {current_screen}, saving...")
+                self.overwrite_model(f"{folder_name}/ppo_screen_{current_screen}", model)
+                model.env.envs[0].env.reset_keys()
+                break
+
+            finally:
+                model.env.envs[0].env.reset_keys()
 
     def gen_BC_bulk(self, folder_name, records):
         """Trains BC models for all screens and saves them to folder."""
@@ -320,21 +370,38 @@ class JumpKingRL:
         records = parser.clean_actions(records)
         by_screen = parser.split_recording_by_screen(records)
         
+        print(f"\n{'='*50}")
+        print(f"Total screens with data: {len(by_screen)}")
+        print(f"Total records: {sum(len(v) for v in by_screen.values())}")
+        print(f"{'='*50}")
+        
         for screen, screen_records in sorted(by_screen.items()):
             print(f"\n--- Screen {screen} ({len(screen_records)} records) ---")
             
             if len(screen_records) < 10:
-                print(f"Skipping screen {screen} — insufficient data")
+                print(f"Skipping — insufficient data")
                 continue
             
             action_map = parser.get_screen_action_map(screen)
+            state_size = parser.get_state_size(screen)
+            
+            print(f"State size: {state_size}")
+            print(f"Action map ({len(action_map)} actions):")
+            for i, action in enumerate(action_map):
+                print(f"  {i}: left={action[0]}, right={action[1]}, space={action[2]}")
             
             _, actions = parser.separate_actions_and_state(screen_records)
             action_indices = parser.convert_to_discretized_actions(actions, action_map)
             
-            X, y_labels = parser.generate_dataset_per_screen(screen_records, action_indices, screen)
+            counts = np.bincount(action_indices, minlength=len(action_map))
+            print(f"Action distribution:")
+            for i, count in enumerate(counts):
+                pct = count / len(action_indices) * 100
+                print(f"  action {i}: {count} ({pct:.1f}%)")
             
-            # store for gen_RL_bulk
+            X, y_labels = parser.generate_dataset_per_screen(screen_records, action_indices, screen)
+            print(f"Dataset shape: {X.shape}")
+            
             self.X_by_screen[screen] = X
             
             model_path = f"{self.model_direc}{folder_name}/bc_screen_{screen}.pth"
@@ -343,15 +410,17 @@ class JumpKingRL:
                 X, y_labels,
                 action_dim=len(action_map),
                 model_path=model_path,
-                input_dim=parser.get_state_size(screen),
+                input_dim=state_size,
                 hidden_dim=256,
                 epochs=100,
                 batch_size=32,
                 lr=1e-3
             )
-            print(f"Screen {screen} BC model saved to {model_path}")
+            print(f"Saved to {model_path}")
         
-        print("\nBC bulk training complete.")
+        print(f"\n{'='*50}")
+        print("BC bulk training complete.")
+        print(f"{'='*50}")
 
     def gen_RL_bulk(self, folder_name):
         """Creates PPO models for all screens with BC weight transfer and value pretraining."""
@@ -396,18 +465,24 @@ class JumpKingRL:
         
         print("\nRL bulk generation complete.")
 
-env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)
-bc = BehavioralCloning()
+JK = JumpKingRL()
 parser = RecordingParser()
-records = parser.load_recording()
-records = parser.clean_actions(records, increment=0.025)
-by_screen = parser.split_recording_by_screen(records)
 
-_, actions = parser.separate_actions_and_state(by_screen[42])
-left_counts, right_counts, space_counts = parser.tally_actions(actions)
-print (f"left counts: {left_counts}")
-print (f"right counts: {right_counts}")
-print (f"space counts: {space_counts}")
+records = parser.load_recording()
+JK.gen_BC_bulk("dummy_test", records)
+
+# env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)
+# bc = BehavioralCloning()
+# parser = RecordingParser()
+# records = parser.load_recording()
+# records = parser.clean_actions(records, increment=0.025)
+# by_screen = parser.split_recording_by_screen(records)
+
+# _, actions = parser.separate_actions_and_state(by_screen[42])
+# left_counts, right_counts, space_counts = parser.tally_actions(actions)
+# print (f"left counts: {left_counts}")
+# print (f"right counts: {right_counts}")
+# print (f"space counts: {space_counts}")
 
 #behavioral cloning test
 # env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)

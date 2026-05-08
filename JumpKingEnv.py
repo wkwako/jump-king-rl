@@ -61,21 +61,23 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.per_screen = per_screen
 
         #is action_map is passed in, it's a per-screen agent. otherwise, normal agent
+        
         if action_map is not None:
             self.action_map = action_map
         else:
             self.action_map = self.init_action_map()
 
-        #sector observation space
-        self.observation_space = spaces.Box(
-            low=np.array([-np.inf] * 25, dtype=np.float32),
-            high=np.array([np.inf] * 25, dtype=np.float32),
-            dtype=np.float32
-        )
-
+        #build dynamic observation space if per-screen agent
         if self.per_screen:
-            #call build_observation_space()
-            pass
+            self.build_observation_space()
+        
+        else:
+            #sector observation space
+            self.observation_space = spaces.Box(
+                low=np.array([-np.inf] * 25, dtype=np.float32),
+                high=np.array([np.inf] * 25, dtype=np.float32),
+                dtype=np.float32
+            )
 
         #ray observation space
         # self.observation_space = spaces.Box(
@@ -83,14 +85,6 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #     high=np.array([np.inf] * 42, dtype=np.float32),
         #     dtype=np.float32
         # )
-
-    def build_state_per_screen(self):
-        if self.current_screen in static_variables.WIND_SCREENS:
-            return np.array([self.x, self.y, self.wind_velocity], dtype=np.float32)
-        elif self.current_screen in static_variables.ICE_SCREENS:
-            return np.array([self.x, self.y, self.vel_x], dtype=np.float32)
-        else:
-            return np.array([self.x, self.y], dtype=np.float32)
 
     def build_observation_space(self):
         if self.per_screen:
@@ -111,9 +105,6 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #set reward to 0 for this step
         reward = 0
 
-        #duplicate gamedata so we have previous info after action
-        #self.gamedata_prev = list(self.gamedata)
-
         #executes action. pauses here until the action is complete (we finish walking or release the jump button)
         self.execute_action(action)
 
@@ -126,21 +117,13 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #set game data into individual variables
         self.load_game_attributes()
 
-        #ray state building
-        # self.platform_parser.parse_result = self.platform_parser.read_platform_data((self.x, self.y), self.current_screen)
-        # self.ray_caster.build_ray_collision_index(self.platform_parser.current_tiles, self.platform_parser.next_tiles)
-        # ray_state_data = self.ray_caster.build_ray_states(num_angles=36)
-        # pos_state = [self.x, self.y, self.current_screen, self.is_on_ice, self.is_in_snow, self.wind_velocity]
-        # self.state = np.array(pos_state + ray_state_data, dtype=np.float32)
-
+        #build different states depending on if we're using a per-screen agent
         if self.per_screen:
             if self.current_screen != self.current_screen_prev:
                 raise ScreenTransitionException(self.current_screen)
             self.state = self.build_state_per_screen()
         else:
             self.state = self.build_state()
-        #print (f"state: {self.state}")
-        #time.sleep(1)
 
         #reward calculation
         if self.current_screen > self.current_screen_prev:
@@ -176,31 +159,27 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         return self.state, reward, terminated, False, {}
 
     def reset(self, seed=None, options=None):
-        #time.sleep(2)
         self.gamedata = self.read_gamedata()
         self.load_game_attributes()
         self.load_game_attributes_prev()
-        #self.gamedata_prev = list(self.gamedata)
-        #self.visited_cells.clear()
         self.action_counter = 0
-        #self.gamedata_start_of_episode = list(self.gamedata)
 
-        # reuse last state if available, otherwise use sentinels
-        if self.state is not None:
-            # update just x, y, current_screen in the existing state
-            self.state[0] = self.x
-            self.state[1] = self.y
-            self.state[2] = self.current_screen
+        if self.per_screen:
+            self.state = self.build_state_per_screen()
         else:
-            #sector sentinels
-            pos_state_data = [-9999, 9999, 9999, -9999, 9999]
-            sector_state_data = [-9999] * 12
-            pos_state = [self.x, self.y, self.current_screen, 0, 0, 0, 0, 0]
-            self.state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
+            if self.state is not None:
+                self.state[0] = self.x
+                self.state[1] = self.y
+                self.state[2] = self.current_screen
+            else:
+                pos_state_data = [-9999, 9999, 9999, -9999, 9999]
+                sector_state_data = [-9999] * 12
+                pos_state = [self.x, self.y, self.current_screen, 0, 0, 0, 0, 0]
+                self.state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
 
-            #ray sentinels
-            # ray_state_data = [400] * 36
-            # self.state = np.array([self.x, self.y, self.current_screen, 0, 0, 0] + ray_state_data, dtype=np.float32)
+                #ray sentinels
+                # ray_state_data = [400] * 36
+                # self.state = np.array([self.x, self.y, self.current_screen, 0, 0, 0] + ray_state_data, dtype=np.float32)
 
         return self.state, {}
     
@@ -227,17 +206,24 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
                     self.is_in_snow, self.wind_velocity, can_bounce_right, can_bounce_left]
 
         return np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
-
-
+    
     def build_state_per_screen(self):
-        """Builds minimal state vector for per-screen agent."""
-        if self.is_on_ice:
-            return np.array([self.x, self.y, self.vel_x], dtype=np.float32)
-        elif self.wind_velocity != 0:
+        if self.current_screen in static_variables.WIND_SCREENS:
             return np.array([self.x, self.y, self.wind_velocity], dtype=np.float32)
+        elif self.current_screen in static_variables.ICE_SCREENS:
+            return np.array([self.x, self.y, self.vel_x], dtype=np.float32)
         else:
             return np.array([self.x, self.y], dtype=np.float32)
-    
+
+    def build_state_ray(self):
+        #ray state building
+        # self.platform_parser.parse_result = self.platform_parser.read_platform_data((self.x, self.y), self.current_screen)
+        # self.ray_caster.build_ray_collision_index(self.platform_parser.current_tiles, self.platform_parser.next_tiles)
+        # ray_state_data = self.ray_caster.build_ray_states(num_angles=36)
+        # pos_state = [self.x, self.y, self.current_screen, self.is_on_ice, self.is_in_snow, self.wind_velocity]
+        # self.state = np.array(pos_state + ray_state_data, dtype=np.float32)
+        pass
+
     def add_landing(self):
         if not self.jumped:
             return
