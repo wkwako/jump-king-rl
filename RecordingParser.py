@@ -1,6 +1,8 @@
 import numpy as np
 import json
 
+import static_variables
+
 class RecordingParser:
     def __init__(self):
         self.filepath = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/recording.txt"
@@ -131,18 +133,26 @@ class RecordingParser:
         actions = [r[1] for r in records]
         return states, actions
     
-    def get_screen_action_map(self, screen_records, env, min_pct=0.05):
-        """Returns a reduced action map based on most used actions on this screen."""
-        _, actions = self.separate_actions_and_state(screen_records)
-        actions = [a for _, a in self.clean_actions(list(zip([None]*len(actions), actions)))]
-        
-        indices = self.convert_to_discretized_actions(actions, env.action_map)
-        counts = np.bincount(indices, minlength=len(env.action_map))
-        
-        total = sum(counts)
-        valid_indices = [i for i, count in enumerate(counts) if count / total >= min_pct]
-        
-        return [env.action_map[i] for i in valid_indices]
+    def get_screen_action_map(self, screen):
+        """Generates action map tuples for a given screen from SCREEN_ACTION_MAPS config."""
+        config = static_variables.SCREEN_ACTION_MAPS[screen]
+        action_map = []
+
+        # walk actions: (duration, 0, 0) for left and right
+        for duration in config.get("walks", []):
+            action_map.append((duration, 0, 0))   # walk left
+            action_map.append((0, duration, 0))   # walk right
+
+        # jump actions: paired with both arrow keys
+        for duration in config.get("jumps", []):
+            action_map.append((duration, 0, duration))   # jump left
+            action_map.append((0, duration, duration))   # jump right
+
+        # only_jump actions: spacebar only, no arrow keys
+        for duration in config.get("only_jump", []):
+            action_map.append((0, 0, duration))
+
+        return action_map
     
     def load_recording(self):
         """Reads recording.txt and returns list of (state_dict, (left, right, space)) tuples."""
