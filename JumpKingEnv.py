@@ -109,17 +109,17 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     def step(self, action):
         reward = 0
         
-        # if self.per_screen:
-        #     try:
-        #         with open(self.gamestate_path) as f:
-        #             current_data = json.loads(f.read())
-        #         if current_data.get("is_on_ground") and current_data["current_screen"] != self.current_screen_prev:
-        #             self.reset_keys()
-        #             raise ScreenTransitionException(current_data["current_screen"])
-        #     except ScreenTransitionException:
-        #         raise
-        #     except:
-        #         pass
+        if self.per_screen:
+            try:
+                with open(self.gamestate_path) as f:
+                    current_data = json.loads(f.read())
+                if current_data.get("is_on_ground") and current_data["current_screen"] != self.current_screen_prev:
+                    self.reset_keys()
+                    raise ScreenTransitionException(current_data["current_screen"])
+            except ScreenTransitionException:
+                raise
+            except:
+                pass
 
         #executes action. pauses here until the action is complete (we finish walking or release the jump button)
         self.execute_action(action)

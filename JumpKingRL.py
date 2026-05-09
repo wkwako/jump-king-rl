@@ -346,12 +346,27 @@ class JumpKingRL:
             model = self.load_model(folder_name, screen=current_screen)
             model.env.envs[0].env.total_screen_actions = 0
 
-            # verify we're on the right screen before training
             actual_gamedata = model.env.envs[0].env.read_gamedata()
             actual_screen = actual_gamedata["current_screen"]
 
+            # wait and confirm screen is stable
+            time.sleep(1.0)
+            model.env.envs[0].env.gamedata = model.env.envs[0].env.read_gamedata()
+            model.env.envs[0].env.load_game_attributes()
+            stable_screen = model.env.envs[0].env.current_screen
+
+            if stable_screen != actual_screen:
+                print(f"Screen unstable, fell from {actual_screen} to {stable_screen}")
+                actual_screen = stable_screen
+
+            current_screen = actual_screen
+
+            print(f"Loaded model for screen: {current_screen}")
+            print(f"Actual screen from gamedata: {actual_screen}")
+            print(f"Match: {actual_screen == current_screen}")
+
             if actual_screen != current_screen:
-                print(f"Screen mismatch — loaded screen {current_screen} but player is on screen {actual_screen}. Reloading...")
+                print(f"Screen mismatch — reloading...")
                 current_screen = actual_screen
                 continue
             
@@ -387,16 +402,16 @@ class JumpKingRL:
                 self.overwrite_model(f"{folder_name}/ppo_screen_{current_screen}", model)
 
             except ScreenTransitionException as e:
-                print(f"Screen transition detected, saving...")
+                print(f"ScreenTransitionException caught")
                 self.overwrite_model(f"{folder_name}/ppo_screen_{current_screen}", model)
                 model.env.envs[0].env.reset_keys()
                 
-                # read fresh gamedata to get actual current screen
                 model.env.envs[0].env.gamedata = model.env.envs[0].env.read_gamedata()
                 model.env.envs[0].env.load_game_attributes()
                 actual_screen = model.env.envs[0].env.current_screen
                 
-                print(f"Actual screen after transition: {actual_screen}")
+                print(f"current_screen variable was: {current_screen}")
+                print(f"actual_screen after transition: {actual_screen}")
                 current_screen = actual_screen
 
             except KeyboardInterrupt:
@@ -518,12 +533,12 @@ class JumpKingRL:
 JK = JumpKingRL()
 parser = RecordingParser()
  
-records = parser.load_recording()
-JK.gen_BC_bulk("dummy_test", records)
-JK.gen_RL_bulk("dummy_test")
+# records = parser.load_recording()
+# JK.gen_BC_bulk("dummy_test", records)
+# JK.gen_RL_bulk("dummy_test")
 
 callbacks = CallbackList([JumpKingCallback()])
-JK.train_model_per_screen("dummy_test", start_screen=0)
+JK.train_model_per_screen("dummy_test", start_screen=2)
 
 # env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)
 # bc = BehavioralCloning()
