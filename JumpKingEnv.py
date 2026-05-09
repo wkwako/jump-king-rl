@@ -48,6 +48,10 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.total_screen_actions = 0
         self.expected_screen = None
 
+        self.recent_walk_actions = []
+        self.recent_jump_actions = []
+        self.action_repeat_penalty = -5
+
         self.x = self.y = self.vel_x = self.vel_y = None
         self.is_on_ground = self.current_screen = self.total_screens = None
         self.jump_frames = self.jump_percentage = self.max_height_this_jump = None
@@ -62,6 +66,10 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.stuck_penalty = -3
         self.stuck_threshold = 10  # pixels — how close counts as "same spot"
         self.per_screen = per_screen
+        self.step_counter = 0
+
+        self.pending_transition = False
+        self.pending_transition_screen = None
 
         self.current_screen = current_screen if current_screen is not None else 0
 
@@ -110,79 +118,79 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     def step(self, action):
         reward = 0
 
-        
-        # if self.per_screen:
-        #     try:
-        #         with open(self.gamestate_path) as f:
-        #             current_data = json.loads(f.read())
-        #         if current_data.get("is_on_ground") and current_data["current_screen"] != self.current_screen_prev:
-        #             self.reset_keys()
-        #             raise ScreenTransitionException(current_data["current_screen"])
-        #     except ScreenTransitionException:
-        #         raise
-        #     except:
-        #         pass
+        self.step_counter += 1
+        print(f"--- Step {self.step_counter} ---")
 
-        if self.per_screen and self.expected_screen is not None:
+        if self.per_screen:
+            # check for pending transition from previous step
+            if self.pending_transition:
+                self.pending_transition = False
+                raise ScreenTransitionException(self.pending_transition_screen)
+            
+            # check if we're already on wrong screen before acting
             if self.current_screen != self.expected_screen:
-                self.reset_keys()
                 raise ScreenTransitionException(self.current_screen)
 
-        #executes action. pauses here until the action is complete (we finish walking or release the jump button)
+        # snapshot prev values BEFORE action
+        self.load_game_attributes_prev()
+
+        # executes action
         self.execute_action(action)
 
         if self.per_screen:
             self.total_screen_actions += 1
 
-        #reads gamedata. pauses here until the character lands
+        # reads gamedata — pauses until character lands
         self.gamedata = self.read_gamedata()
 
-        #release spacebar if it's being held before we choose another action
+        # release spacebar if held
         self.reset_keys()
 
-        #set game data into individual variables
+        # set game data into individual variables
         self.load_game_attributes()
 
-        #build different states depending on if we're using a per-screen agent
-        if self.per_screen:
-            if self.current_screen != self.current_screen_prev:
-                self.reset_keys()
-                raise ScreenTransitionException(self.current_screen)
-            self.state = self.build_state_per_screen()
+        # build state and handle screen transitions for per-screen agents
+        if self.current_screen != self.current_screen_prev:
+            self.reset_keys()
+            height_reward = self.new_height_reward()
+            print (f"reward for height on new screen: {height_reward}")
+            reward += height_reward
+            if self.current_screen > self.current_screen_prev:
+                print (f"reward for new screen: {self.new_screen_reward}")
+                reward += self.new_screen_reward
+            self.pending_transition = True
+            self.pending_transition_screen = self.current_screen
+            self.state = self.build_state_per_screen() if self.per_screen else self.build_state()
+            return self.state, reward, True, False, {}
         else:
-            self.state = self.build_state()
+            self.state = self.build_state_per_screen() if self.per_screen else self.build_state()
+            if not self.per_screen and self.current_screen > self.current_screen_prev:
+                reward += self.new_screen_reward
 
-        #reward calculation
-        if self.current_screen > self.current_screen_prev:
-            reward += self.new_screen_reward
+        # height reward for all agents
+        height_reward = self.new_height_reward()
+        if height_reward != 0:
+            print(f"Height reward/penalty: {height_reward:.2f}")
+            reward += height_reward
 
-        #if we landed higher, reward. if we landed lower, penalty
-        if self.y != self.y_prev:
-            #print (f"Reward for landing at new altitude: {self.new_height_reward(y, y_prev, jump_percentage)}")
-            reward += self.new_height_reward()
+        # per-screen specific penalties
+        if self.per_screen:
+            reward += self.check_tent_penalty()
+            reward += self.check_alternating_walk_penalty(action)
+            reward += self.check_repeated_jump_penalty(action)
 
-        reward += self.check_tent_penalty()
-
-        #penalty for repeated jumps that land in the same spot
+        # stuck penalty
         self.add_landing()
         if self.check_landing_cluster():
             reward += self.stuck_penalty
 
-        #reward exploring unexplored grid cells this episode
-        # cell = self.get_grid_cell(x, y)
-        # if cell not in self.visited_cells:
-        #     self.visited_cells.add(cell)
-        #     reward += self.exploration_reward
-
-        #increment jump count metadata
+        # jump penalty/metadata
         if self.jumped:
             reward += self.jump_penalty
             self.jump_counter_metadata += 1
-
-            #reset jump boolean after every action if it was true
             self.jumped = False
 
-        #set terminated bool based on episode_mode
+        # termination
         terminated = self.set_terminated()
 
         return self.state, reward, terminated, False, {}
@@ -192,6 +200,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.load_game_attributes()
         self.load_game_attributes_prev()
         self.action_counter = 0
+        self.recent_walk_actions = []
+        self.recent_jump_actions = []
 
         if self.per_screen:
             self.state = self.build_state_per_screen()
@@ -212,6 +222,45 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         return self.state, {}
     
+    def check_alternating_walk_penalty(self, action):
+        left_walks = {(t, 0, 0) for t in [0.1, 0.2]}
+        right_walks = {(0, t, 0) for t in [0.1, 0.2]}
+        
+        current = tuple(self.action_map[action])
+        is_walk = current in left_walks or current in right_walks
+        
+        if not is_walk:
+            self.recent_walk_actions = []
+            return 0
+        
+        self.recent_walk_actions.append(current)
+        if len(self.recent_walk_actions) > 6:
+            self.recent_walk_actions.pop(0)
+        
+        if len(self.recent_walk_actions) == 6:
+            # check alternating pattern
+            if all(self.recent_walk_actions[i] != self.recent_walk_actions[i+1] for i in range(5)):
+                print (f"penalty for alternating walks: {self.action_repeat_penalty}")
+                return self.action_repeat_penalty
+        return 0
+    
+    def check_repeated_jump_penalty(self, action):
+        current = tuple(self.action_map[action])
+        is_jump = current[2] > 0  # space > 0 means it's a jump
+        
+        if not is_jump:
+            return 0
+        
+        self.recent_jump_actions.append(current)
+        if len(self.recent_jump_actions) > 5:
+            self.recent_jump_actions.pop(0)
+        
+        if len(self.recent_jump_actions) == 5:
+            if len(set(self.recent_jump_actions)) == 1:
+                print (f"penalty for repeated jumps in same direction: {self.action_repeat_penalty}")
+                return self.action_repeat_penalty
+        return 0
+
     def check_tent_penalty(self):
         if self.current_screen in static_variables.TENT_BOUNDS:
             bounds = static_variables.TENT_BOUNDS[self.current_screen]
@@ -360,14 +409,22 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     def get_grid_cell(self, x, y):
         return (int(x // self.grid_size), int(y // self.grid_size))
 
+    # def new_height_reward(self):
+    #     #if jump was max height, increase reward by 20%
+
+    #     reward = (self.y - self.y_prev) / 5
+
+    #     if self.jump_percentage == 1 and self.y > self.y_prev:
+    #         reward *= self.max_jump_bonus
+
+    #     return reward
+
     def new_height_reward(self):
-        #if jump was max height, increase reward by 20%
-
+        if self.y == self.y_prev:
+            return 0
         reward = (self.y - self.y_prev) / 5
-
         if self.jump_percentage == 1 and self.y > self.y_prev:
             reward *= self.max_jump_bonus
-
         return reward
 
     def read_gamedata(self):
@@ -389,32 +446,33 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         return self.gamedata
                 
     def execute_action(self, action):
-        #map action index to keypresses
         left, right, jump = self.action_map[action]
 
-        #walking
         if not jump:
             if left:
                 self.key_press("left", left)
             elif right:
                 self.key_press("right", right)
-
-        #jumping
+            time.sleep(0.5)
         else:
             self.jumped = True
-            #jumping straight up - removed for now
-            #if not left and not right:
-                #self.key_press("space", jump)
-
-            #jumping left
             if left:
                 self.key_press("space", jump, "left")
-
-            #jumping right
             else:
-                #very small sleep timer to ensure space is released first
                 time.sleep(0.05)
                 self.key_press("space", jump, "right")
+            time.sleep(1)
+        
+        # wait until agent is on the ground before returning
+        while True:
+            try:
+                with open("C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/gamestate.txt") as f:
+                    data = json.loads(f.read())
+                if data.get("is_on_ground"):
+                    break
+            except:
+                pass
+            time.sleep(self.sleep_time)
 
     
     def key_press(self, key, duration, key2=None):

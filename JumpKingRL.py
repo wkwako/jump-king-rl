@@ -399,7 +399,7 @@ class JumpKingRL:
         print("BC bulk training complete.")
         print(f"{'='*50}")
 
-    def gen_RL_bulk(self, folder_name):
+    def gen_RL_bulk(self, folder_name, n_steps):
         """Creates PPO models for all screens with BC weight transfer and value pretraining."""
         os.makedirs(self.model_direc + folder_name, exist_ok=True)
         
@@ -429,7 +429,7 @@ class JumpKingRL:
             model = self.create_model(
                 model_name, env, "PPO",
                 verbose=1,
-                n_steps=2048,
+                n_steps=n_steps,
                 ent_coef=0.01,
                 learning_rate=0.00003,
                 policy_kwargs={"net_arch": [256, 256]}
@@ -487,12 +487,12 @@ class JumpKingRL:
                 self.overwrite_model(f"{folder_name}/ppo_screen_{current_screen}", model)
 
             except ScreenTransitionException as e:
-                print(f"ScreenTransitionException caught")
+                #print(f"ScreenTransitionException caught")
                 self.reset_keys()
                 self.overwrite_model(f"{folder_name}/ppo_screen_{current_screen}", model)
                 model.env.envs[0].env.reset_keys()
                 
-                time.sleep(1.0)
+                time.sleep(0.75)
                 model.env.envs[0].env.gamedata = model.env.envs[0].env.read_gamedata()
                 model.env.envs[0].env.load_game_attributes()
                 current_screen = model.env.envs[0].env.current_screen
@@ -511,12 +511,12 @@ class JumpKingRL:
 JK = JumpKingRL()
 parser = RecordingParser()
 
-#records = parser.load_recording()
-#JK.gen_BC_bulk("dummy_test", records)
-#JK.gen_RL_bulk("dummy_test")
+# records = parser.load_recording()
+# JK.gen_BC_bulk("per_screen3", records)
+# JK.gen_RL_bulk("per_screen3", n_steps=64)
 
 callbacks = CallbackList([JumpKingCallback()])
-JK.train_model_per_screen("dummy_test", start_screen=0)
+JK.train_model_per_screen("per_screen3", start_screen=0)
 
 # env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)
 # bc = BehavioralCloning()
