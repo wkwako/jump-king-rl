@@ -343,9 +343,30 @@ class JumpKingRL:
                 print(f"No model found for screen {current_screen}, stopping.")
                 break
             
+            model = self.load_model(folder_name, screen=current_screen)
+            model.env.envs[0].env.total_screen_actions = 0
+
+            # verify we're on the right screen before training
+            actual_gamedata = model.env.envs[0].env.read_gamedata()
+            actual_screen = actual_gamedata["current_screen"]
+
+            if actual_screen != current_screen:
+                print(f"Screen mismatch — loaded screen {current_screen} but player is on screen {actual_screen}. Reloading...")
+                current_screen = actual_screen
+                continue
+            
             try:
                 model = self.load_model(folder_name, screen=current_screen)
                 model.env.envs[0].env.total_screen_actions = 0
+
+                # verify we're on the right screen before training
+                actual_gamedata = model.env.envs[0].env.read_gamedata()
+                actual_screen = actual_gamedata["current_screen"]
+
+                if actual_screen != current_screen:
+                    print(f"Screen mismatch — loaded screen {current_screen} but player is on screen {actual_screen}. Reloading...")
+                    current_screen = actual_screen
+                    continue  # loop back to load the correct model
                 
                 #freeze_callback = FreezePolicyCallback(freeze_updates=20)
                 jk_callback = JumpKingCallback()
@@ -496,7 +517,7 @@ class JumpKingRL:
 
 JK = JumpKingRL()
 parser = RecordingParser()
-
+ 
 records = parser.load_recording()
 JK.gen_BC_bulk("dummy_test", records)
 JK.gen_RL_bulk("dummy_test")
