@@ -105,6 +105,11 @@ class JumpKingRL:
             "DQN": DQN_PARAMS
         }
 
+    def reset_keys(self):
+        pydirectinput.keyUp("space")
+        pydirectinput.keyUp("right")
+        pydirectinput.keyUp("left")
+
     def pretrain_value_function(self, ppo_model, X, epochs=50, per_screen=False):
         optimizer = torch.optim.Adam(
             filter(lambda p: p.requires_grad, ppo_model.policy.parameters()), lr=1e-3
@@ -331,98 +336,6 @@ class JumpKingRL:
             env.jump_counter_metadata = 0
             env.reset_keys()
 
-    def train_model_per_screen(self, folder_name, start_screen=0, total_timesteps=999999):
-        """Kicks off per-screen training. Handles screen transitions and keyboard interrupts."""
-        current_screen = start_screen
-        
-        while True:
-            print(f"\n--- Loading model for screen {current_screen} ---")
-            
-            model_path = f"{self.model_direc}{folder_name}/ppo_screen_{current_screen}"
-            if not os.path.exists(model_path + ".zip"):
-                print(f"No model found for screen {current_screen}, stopping.")
-                break
-            
-            model = self.load_model(folder_name, screen=current_screen)
-            model.env.envs[0].env.total_screen_actions = 0
-
-            actual_gamedata = model.env.envs[0].env.read_gamedata()
-            actual_screen = actual_gamedata["current_screen"]
-
-            # wait and confirm screen is stable
-            time.sleep(1.0)
-            model.env.envs[0].env.gamedata = model.env.envs[0].env.read_gamedata()
-            model.env.envs[0].env.load_game_attributes()
-            stable_screen = model.env.envs[0].env.current_screen
-
-            if stable_screen != actual_screen:
-                print(f"Screen unstable, fell from {actual_screen} to {stable_screen}")
-                actual_screen = stable_screen
-
-            current_screen = actual_screen
-
-            print(f"Loaded model for screen: {current_screen}")
-            print(f"Actual screen from gamedata: {actual_screen}")
-            print(f"Match: {actual_screen == current_screen}")
-
-            if actual_screen != current_screen:
-                print(f"Screen mismatch — reloading...")
-                current_screen = actual_screen
-                continue
-            
-            try:
-                model = self.load_model(folder_name, screen=current_screen)
-                model.env.envs[0].env.total_screen_actions = 0
-
-                # verify we're on the right screen before training
-                actual_gamedata = model.env.envs[0].env.read_gamedata()
-                actual_screen = actual_gamedata["current_screen"]
-
-                if actual_screen != current_screen:
-                    print(f"Screen mismatch — loaded screen {current_screen} but player is on screen {actual_screen}. Reloading...")
-                    current_screen = actual_screen
-                    continue  # loop back to load the correct model
-                
-                #freeze_callback = FreezePolicyCallback(freeze_updates=20)
-                jk_callback = JumpKingCallback()
-                #callbacks = CallbackList([freeze_callback, jk_callback])
-                callbacks = CallbackList([jk_callback])
-                
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                log_path = f"{self.model_direc}{folder_name}/ppo_screen_{current_screen}_log/{timestamp}/"
-                logger = configure(log_path, ["stdout", "csv"])
-                model.set_logger(logger)
-                
-                model.learn(
-                    total_timesteps=total_timesteps,
-                    reset_num_timesteps=False,
-                    callback=callbacks
-                )
-                print(f"Screen {current_screen} training complete.")
-                self.overwrite_model(f"{folder_name}/ppo_screen_{current_screen}", model)
-
-            except ScreenTransitionException as e:
-                print(f"ScreenTransitionException caught")
-                self.overwrite_model(f"{folder_name}/ppo_screen_{current_screen}", model)
-                model.env.envs[0].env.reset_keys()
-                
-                model.env.envs[0].env.gamedata = model.env.envs[0].env.read_gamedata()
-                model.env.envs[0].env.load_game_attributes()
-                actual_screen = model.env.envs[0].env.current_screen
-                
-                print(f"current_screen variable was: {current_screen}")
-                print(f"actual_screen after transition: {actual_screen}")
-                current_screen = actual_screen
-
-            except KeyboardInterrupt:
-                print(f"Interrupted on screen {current_screen}, saving...")
-                self.overwrite_model(f"{folder_name}/ppo_screen_{current_screen}", model)
-                model.env.envs[0].env.reset_keys()
-                break
-
-            finally:
-                model.env.envs[0].env.reset_keys()
-
     def gen_BC_bulk(self, folder_name, records):
         """Trains BC models for all screens and saves them to folder."""
         folder_path = self.model_direc + folder_name
@@ -530,15 +443,80 @@ class JumpKingRL:
         
         print("\nRL bulk generation complete.")
 
+    def train_model_per_screen(self, folder_name, start_screen=0, total_timesteps=999999):
+        """Kicks off per-screen training. Handles screen transitions and keyboard interrupts."""
+        current_screen = start_screen
+        
+        while True:
+            print(f"\n--- Loading model for screen {current_screen} ---")
+            
+            model_path = f"{self.model_direc}{folder_name}/ppo_screen_{current_screen}"
+            if not os.path.exists(model_path + ".zip"):
+                print(f"No model found for screen {current_screen}, stopping.")
+                break
+
+            # get stable screen reading
+            time.sleep(0.3)
+            model = self.load_model(folder_name, screen=current_screen)
+            model.env.envs[0].env.expected_screen = current_screen
+            model.env.envs[0].env.total_screen_actions = 0
+
+            actual_screen = model.env.envs[0].env.read_gamedata()["current_screen"]
+            print(f"Loaded model for screen: {current_screen}, actual screen: {actual_screen}")
+
+            if actual_screen != current_screen:
+                print(f"Screen mismatch — switching to screen {actual_screen}")
+                current_screen = actual_screen
+                continue
+
+            try:
+                jk_callback = JumpKingCallback()
+                callbacks = CallbackList([jk_callback])
+                
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                log_path = f"{self.model_direc}{folder_name}/ppo_screen_{current_screen}_log/{timestamp}/"
+                logger = configure(log_path, ["stdout", "csv"])
+                model.set_logger(logger)
+                
+                model.learn(
+                    total_timesteps=total_timesteps,
+                    reset_num_timesteps=False,
+                    callback=callbacks
+                )
+                print(f"Screen {current_screen} training complete.")
+                self.overwrite_model(f"{folder_name}/ppo_screen_{current_screen}", model)
+
+            except ScreenTransitionException as e:
+                print(f"ScreenTransitionException caught")
+                self.reset_keys()
+                self.overwrite_model(f"{folder_name}/ppo_screen_{current_screen}", model)
+                model.env.envs[0].env.reset_keys()
+                
+                time.sleep(1.0)
+                model.env.envs[0].env.gamedata = model.env.envs[0].env.read_gamedata()
+                model.env.envs[0].env.load_game_attributes()
+                current_screen = model.env.envs[0].env.current_screen
+                print(f"Transitioning to screen {current_screen}")
+
+            except KeyboardInterrupt:
+                self.reset_keys()
+                print(f"Interrupted on screen {current_screen}, saving...")
+                self.overwrite_model(f"{folder_name}/ppo_screen_{current_screen}", model)
+                model.env.envs[0].env.reset_keys()
+                break
+
+            finally:
+                model.env.envs[0].env.reset_keys()
+
 JK = JumpKingRL()
 parser = RecordingParser()
- 
-# records = parser.load_recording()
-# JK.gen_BC_bulk("dummy_test", records)
-# JK.gen_RL_bulk("dummy_test")
+
+#records = parser.load_recording()
+#JK.gen_BC_bulk("dummy_test", records)
+#JK.gen_RL_bulk("dummy_test")
 
 callbacks = CallbackList([JumpKingCallback()])
-JK.train_model_per_screen("dummy_test", start_screen=2)
+JK.train_model_per_screen("dummy_test", start_screen=0)
 
 # env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)
 # bc = BehavioralCloning()
