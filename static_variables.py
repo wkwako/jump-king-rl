@@ -1,6 +1,10 @@
 WIND_SCREENS = {25, 26, 27, 28, 29, 30, 31}
 ICE_SCREENS = {36, 37, 38}
 
+TENT_BOUNDS = {
+    0: {"x_min": 72, "x_max": 120, "y_min": -302, "y_max": -200}  # adjust these
+}
+
 SCREEN_ACTION_MAPS = {
     #Redcrown Woods
     0: {

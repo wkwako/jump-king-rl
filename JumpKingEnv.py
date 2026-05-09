@@ -107,15 +107,19 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             )
 
     def step(self, action):
-        #set reward to 0 for this step
         reward = 0
-
-        # peek at current screen before acting
-        temp_gamedata = self.read_gamedata()
-        temp_screen = temp_gamedata["current_screen"]
-        if self.per_screen and temp_screen != self.current_screen_prev:
-            self.reset_keys()
-            raise ScreenTransitionException(temp_screen)
+        
+        if self.per_screen:
+            try:
+                with open(self.gamestate_path) as f:
+                    current_data = json.loads(f.read())
+                if current_data.get("is_on_ground") and current_data["current_screen"] != self.current_screen_prev:
+                    self.reset_keys()
+                    raise ScreenTransitionException(current_data["current_screen"])
+            except ScreenTransitionException:
+                raise
+            except:
+                pass
 
         #executes action. pauses here until the action is complete (we finish walking or release the jump button)
         self.execute_action(action)
@@ -149,6 +153,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         if self.y != self.y_prev:
             #print (f"Reward for landing at new altitude: {self.new_height_reward(y, y_prev, jump_percentage)}")
             reward += self.new_height_reward()
+
+        reward += self.check_tent_penalty()
 
         #penalty for repeated jumps that land in the same spot
         self.add_landing()
@@ -199,6 +205,15 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         return self.state, {}
     
+    def check_tent_penalty(self):
+        if self.current_screen in static_variables.TENT_BOUNDS:
+            bounds = static_variables.TENT_BOUNDS[self.current_screen]
+            if (bounds["x_min"] <= self.x <= bounds["x_max"] and 
+                bounds["y_min"] <= self.y <= bounds["y_max"]):
+                print ("tent penalty")
+                return -20
+        return 0
+
     def build_state(self):
         """Builds full 25-value state vector for monolithic agent."""
         self.platform_parser.parse_result = self.platform_parser.read_platform_data(

@@ -497,9 +497,9 @@ class JumpKingRL:
 JK = JumpKingRL()
 parser = RecordingParser()
 
-# records = parser.load_recording()
-# JK.gen_BC_bulk("dummy_test", records)
-# JK.gen_RL_bulk("dummy_test")
+records = parser.load_recording()
+JK.gen_BC_bulk("dummy_test", records)
+JK.gen_RL_bulk("dummy_test")
 
 callbacks = CallbackList([JumpKingCallback()])
 JK.train_model_per_screen("dummy_test", start_screen=0)
