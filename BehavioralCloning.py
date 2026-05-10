@@ -78,6 +78,24 @@ class BehavioralCloning:
 
         print("BC weights transferred to PPO policy network.")
         return ppo_model
+    
+    def transfer_weights_to_dqn(self, dqn_model, model_path):
+        """Transfers BC policy weights into DQN's Q-network."""
+        bc_state = torch.load(model_path)
+        q_net = dqn_model.policy.q_net
+
+        # transfer hidden layers
+        q_net.q_net[0].weight.data = bc_state["net.0.weight"]
+        q_net.q_net[0].bias.data = bc_state["net.0.bias"]
+        q_net.q_net[2].weight.data = bc_state["net.2.weight"]
+        q_net.q_net[2].bias.data = bc_state["net.2.bias"]
+
+        # transfer output layer
+        q_net.q_net[4].weight.data = bc_state["net.4.weight"]
+        q_net.q_net[4].bias.data = bc_state["net.4.bias"]
+
+        print("BC weights transferred to DQN Q-network.")
+        return dqn_model
         
     def train(self, X, y, action_dim, model_path, 
           epochs=100, batch_size=64, lr=1e-3, hidden_dim=256):

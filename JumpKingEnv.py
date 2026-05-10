@@ -47,6 +47,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.recording_parser = RecordingParser()
         self.total_screen_actions = 0
         self.expected_screen = None
+        self.direction_reward = 0.01
 
         self.recent_walk_actions = []
         self.recent_jump_actions = []
@@ -167,6 +168,9 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             if not self.per_screen and self.current_screen > self.current_screen_prev:
                 reward += self.new_screen_reward
 
+        #provides a small bonus in direction of progress. calculated per screen
+        reward += self.get_direction_reward()
+
         # height reward for all agents
         height_reward = self.new_height_reward()
         if height_reward != 0:
@@ -202,6 +206,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.action_counter = 0
         self.recent_walk_actions = []
         self.recent_jump_actions = []
+        self.pending_transition = False
+        self.pending_transition_screen = None
 
         if self.per_screen:
             self.state = self.build_state_per_screen()
@@ -221,6 +227,19 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
                 # self.state = np.array([self.x, self.y, self.current_screen, 0, 0, 0] + ray_state_data, dtype=np.float32)
 
         return self.state, {}
+    
+    def get_direction_reward(self):
+        direction = static_variables.SCREEN_PROGRESS_DIRECTION.get(self.current_screen, None)
+        if direction is None:
+            return 0
+        
+        dx = self.x - self.x_prev
+        
+        if direction == "right" and dx > 0:
+            return dx * self.direction_reward
+        elif direction == "left" and dx < 0:
+            return abs(dx) * self.direction_reward
+        return 0
     
     def check_alternating_walk_penalty(self, action):
         left_walks = {(t, 0, 0) for t in [0.1, 0.2]}
@@ -334,8 +353,11 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         #terminate after a certain number of actions
 
-        if self.per_screen:
-            result = self.terminate_per_screen_episode()
+        # if self.per_screen:
+        #     result = self.terminate_per_screen_episode()
+
+        if self.episode_mode == "action_height":
+            result = self.terminate_action_episode() or self.terminate_height_episode()
 
         elif self.episode_mode == "action":
             result = self.terminate_action_episode()
@@ -347,9 +369,6 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #terminate after landing with a positive height gain
         elif self.episode_mode == "height":
             result = self.terminate_height_episode()
-
-        elif self.episode_mode == "action_height":
-            result = self.terminate_action_episode() or self.terminate_height_episode()
 
         #combines multiple episode types. type1 for first n/2 screens, type2 for second n/2 screens
         elif self.episode_mode == "curriculum":

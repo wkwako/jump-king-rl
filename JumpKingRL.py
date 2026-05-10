@@ -14,6 +14,7 @@ from BehavioralCloning import BehavioralCloning
 from RecordingParser import RecordingParser
 import torch
 import torch.nn as nn
+from stable_baselines3.common.utils import obs_as_tensor
 
 import sys
 sys.path.append("C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL")
@@ -204,10 +205,10 @@ class JumpKingRL:
         }
         return metadata
 
-    def load_model(self, name, screen=None):
+    def load_model(self, name, screen=None, model_prefix="ppo"):
         if screen is not None:
-            model_path = f"{self.model_direc}{name}/ppo_screen_{screen}"
-            metadata_path = f"{self.model_direc}{name}/ppo_screen_{screen}_metadata.json"
+            model_path = f"{self.model_direc}{name}/{model_prefix}_screen_{screen}"
+            metadata_path = f"{self.model_direc}{name}/{model_prefix}_screen_{screen}_metadata.json"
         else:
             model_path = f"{self.model_direc}{name}"
             metadata_path = f"{self.model_direc}{name}_metadata.json"
@@ -225,11 +226,6 @@ class JumpKingRL:
             action_map=action_map,
             current_screen=screen if screen is not None else 0
         )
-
-        # print(f"Action map being used: {action_map}")
-        # print(f"Env action space: {env.action_space}")
-        # print(f"Env action map: {env.action_map}")
-        # print(f"Env action map length: {len(env.action_map)}")
 
         model_class = self.MODEL_CONFIGS[self.metadata["model_type"]]["class"]
         model = model_class.load(
@@ -399,7 +395,7 @@ class JumpKingRL:
         print("BC bulk training complete.")
         print(f"{'='*50}")
 
-    def gen_RL_bulk(self, folder_name, n_steps):
+    def gen_RL_bulk(self, folder_name, n_steps=128):
         """Creates PPO models for all screens with BC weight transfer and value pretraining."""
         os.makedirs(self.model_direc + folder_name, exist_ok=True)
         
@@ -419,22 +415,31 @@ class JumpKingRL:
             
             env = JumpKingEnv(
                 episode_mode=EpisodeMode.ACTION_HEIGHT,
-                max_episode_actions=8,
+                max_episode_actions=12,
                 per_screen=True,
                 action_map=action_map,
                 current_screen=screen
             )
             
             model_name = f"{folder_name}/ppo_screen_{screen}"
+            # model = self.create_model(
+            #     model_name, env, "PPO",
+            #     verbose=1,
+            #     n_steps=n_steps,
+            #     ent_coef=0.01,
+            #     learning_rate=0.00003,
+            #     policy_kwargs={"net_arch": [256, 256]}
+            # )
             model = self.create_model(
                 model_name, env, "PPO",
                 verbose=1,
-                n_steps=n_steps,
+                n_steps=4,
+                batch_size=4,
+                n_epochs=5,
                 ent_coef=0.01,
                 learning_rate=0.00003,
                 policy_kwargs={"net_arch": [256, 256]}
             )
-            
             bc.transfer_weights_to_ppo(model, bc_model_path)
             self.pretrain_value_function(model, self.X_by_screen[screen], per_screen=True)
             
@@ -442,6 +447,192 @@ class JumpKingRL:
             print(f"Screen {screen} PPO model saved.")
         
         print("\nRL bulk generation complete.")
+
+    def gen_DQN_bulk(self, folder_name):
+        """Creates DQN models for all screens with BC weight transfer."""
+        os.makedirs(self.model_direc + folder_name, exist_ok=True)
+        
+        parser = RecordingParser()
+        bc = BehavioralCloning()
+        
+        for screen in sorted(self.X_by_screen.keys()):
+            print(f"\n--- Screen {screen} ---")
+            
+            bc_model_path = f"{self.model_direc}{folder_name}/bc_screen_{screen}.pth"
+            if not os.path.exists(bc_model_path):
+                print(f"Skipping screen {screen} — no BC model found")
+                continue
+            
+            action_map = parser.get_screen_action_map(screen)
+            
+            env = JumpKingEnv(
+                episode_mode=EpisodeMode.ACTION_HEIGHT,
+                max_episode_actions=12,
+                per_screen=True,
+                action_map=action_map,
+                current_screen=screen
+            )
+            
+            model_name = f"{folder_name}/dqn_screen_{screen}"
+            model = self.create_model(
+                model_name, env, "DQN",
+                verbose=1,
+                learning_rate=0.00003,
+                batch_size=32,
+                learning_starts=50,
+                exploration_fraction=0.03,
+                exploration_final_eps=0.1,
+                policy_kwargs={"net_arch": [256, 256]}
+            )
+            
+            bc.transfer_weights_to_dqn(model, bc_model_path)
+            
+            self.overwrite_model(model_name, model)
+            print(f"Screen {screen} DQN model saved.")
+        
+        print("\nDQN bulk generation complete.")
+
+    def save_rollout_buffer(self, model, folder_name, screen):
+        buffer = model.rollout_buffer
+        path = f"{self.model_direc}{folder_name}/rollout_buffer_screen_{screen}.npz"
+        np.savez(path,
+            observations=buffer.observations,
+            actions=buffer.actions,
+            rewards=buffer.rewards,
+            episode_starts=buffer.episode_starts,
+            log_probs=buffer.log_probs,
+            values=buffer.values,
+            pos=np.array([buffer.pos]),
+            full=np.array([buffer.full])
+        )
+        print(f"Rollout buffer saved: {buffer.pos} steps")
+
+    def load_rollout_buffer(self, model, folder_name, screen):
+        path = f"{self.model_direc}{folder_name}/rollout_buffer_screen_{screen}.npz"
+        if not os.path.exists(path):
+            print("No rollout buffer found, starting fresh")
+            return model
+        
+        data = np.load(path)
+        buffer = model.rollout_buffer
+        buffer.observations = data["observations"]
+        buffer.actions = data["actions"]
+        buffer.rewards = data["rewards"]
+        buffer.episode_starts = data["episode_starts"]
+        buffer.log_probs = data["log_probs"]
+        buffer.values = data["values"]
+        buffer.pos = int(data["pos"][0])
+        buffer.full = bool(data["full"][0])
+        print(f"Rollout buffer loaded: {buffer.pos} steps")
+        return model
+
+    def train_model_per_screen_PPO_buffer(self, folder_name, start_screen=0, total_timesteps=999999):
+        """Kicks off per-screen training. Handles screen transitions and keyboard interrupts."""
+        current_screen = start_screen
+        
+        while True:
+            print(f"\n--- Loading model for screen {current_screen} ---")
+            
+            model_path = f"{self.model_direc}{folder_name}/ppo_screen_{current_screen}"
+            if not os.path.exists(model_path + ".zip"):
+                print(f"No model found for screen {current_screen}, stopping.")
+                break
+
+            time.sleep(0.3)
+            model = self.load_model(folder_name, screen=current_screen)
+            model = self.load_rollout_buffer(model, folder_name, current_screen)
+            model.env.envs[0].env.expected_screen = current_screen
+            model.env.envs[0].env.total_screen_actions = 0
+
+            actual_screen = model.env.envs[0].env.read_gamedata()["current_screen"]
+            print(f"Loaded model for screen: {current_screen}, actual screen: {actual_screen}")
+
+            if actual_screen != current_screen:
+                print(f"Screen mismatch — switching to screen {actual_screen}")
+                current_screen = actual_screen
+                continue
+
+            prev_n_updates = model._n_updates
+
+            try:
+                jk_callback = JumpKingCallback()
+                callbacks = CallbackList([jk_callback])
+                
+                log_path = f"{self.model_direc}{folder_name}/ppo_screen_{current_screen}_log/"
+                logger = configure(log_path, ["stdout", "csv"])
+                model.set_logger(logger)
+                
+                model.learn(
+                    total_timesteps=total_timesteps,
+                    reset_num_timesteps=False,
+                    callback=callbacks
+                )
+                print(f"Screen {current_screen} training complete.")
+                self.save_rollout_buffer(model, folder_name, current_screen)
+                self.overwrite_model(f"{folder_name}/ppo_screen_{current_screen}", model)
+
+            except ScreenTransitionException as e:
+                self.reset_keys()
+                
+                # manually trigger PPO update if buffer is full
+                if model.rollout_buffer.pos >= model.n_steps or model.rollout_buffer.full:
+                    print(f"Buffer full — triggering manual PPO update")
+                    try:
+                        last_obs = obs_as_tensor(model.env.buf_obs, model.device)
+                        last_values = model.policy.predict_values(last_obs)
+                        model.rollout_buffer.compute_returns_and_advantage(
+                            last_values=last_values,
+                            dones=model.env.buf_dones
+                        )
+                        model.train()
+                        model.rollout_buffer.reset()
+                        print(f"PPO update complete, n_updates={model._n_updates}")
+                    except Exception as ex:
+                        print(f"Manual PPO update failed: {ex}")
+                elif model._n_updates > prev_n_updates:
+                    print(f"Policy updated — wiping buffer")
+                    model.rollout_buffer.reset()
+                
+                self.save_rollout_buffer(model, folder_name, current_screen)
+                self.overwrite_model(f"{folder_name}/ppo_screen_{current_screen}", model)
+                model.env.envs[0].env.reset_keys()
+                
+                time.sleep(0.75)
+                model.env.envs[0].env.gamedata = model.env.envs[0].env.read_gamedata()
+                model.env.envs[0].env.load_game_attributes()
+                current_screen = model.env.envs[0].env.current_screen
+                print(f"Transitioning to screen {current_screen}")
+
+            except KeyboardInterrupt:
+                self.reset_keys()
+                print(f"Interrupted on screen {current_screen}, saving...")
+                
+                # manually trigger PPO update if buffer is full
+                if model.rollout_buffer.pos >= model.n_steps or model.rollout_buffer.full:
+                    print(f"Buffer full — triggering manual PPO update")
+                    try:
+                        last_obs = obs_as_tensor(model.env.buf_obs, model.device)
+                        last_values = model.policy.predict_values(last_obs)
+                        model.rollout_buffer.compute_returns_and_advantage(
+                            last_values=last_values,
+                            dones=model.env.buf_dones
+                        )
+                        model.train()
+                        model.rollout_buffer.reset()
+                        print(f"PPO update complete, n_updates={model._n_updates}")
+                    except Exception as ex:
+                        print(f"Manual PPO update failed: {ex}")
+                elif model._n_updates > prev_n_updates:
+                    print(f"Policy updated — wiping buffer")
+                    model.rollout_buffer.reset()
+                
+                self.save_rollout_buffer(model, folder_name, current_screen)
+                self.overwrite_model(f"{folder_name}/ppo_screen_{current_screen}", model)
+                model.env.envs[0].env.reset_keys()
+                break
+
+            finally:
+                model.env.envs[0].env.reset_keys()
 
     def train_model_per_screen(self, folder_name, start_screen=0, total_timesteps=999999):
         """Kicks off per-screen training. Handles screen transitions and keyboard interrupts."""
@@ -473,9 +664,9 @@ class JumpKingRL:
                 jk_callback = JumpKingCallback()
                 callbacks = CallbackList([jk_callback])
                 
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                log_path = f"{self.model_direc}{folder_name}/ppo_screen_{current_screen}_log/{timestamp}/"
-                logger = configure(log_path, ["stdout", "csv"])
+                log_path = f"{self.model_direc}{folder_name}/ppo_screen_{current_screen}_log/"
+                os.makedirs(log_path, exist_ok=True)
+                logger = configure(log_path, ["csv"])  # remove "stdout" if too noisy
                 model.set_logger(logger)
                 
                 model.learn(
@@ -508,15 +699,77 @@ class JumpKingRL:
             finally:
                 model.env.envs[0].env.reset_keys()
 
+    def train_DQN_per_screen(self, folder_name, start_screen=0, total_timesteps=999999):
+        """Kicks off per-screen DQN training. Handles screen transitions and keyboard interrupts."""
+        current_screen = start_screen
+        
+        while True:
+            print(f"\n--- Loading DQN model for screen {current_screen} ---")
+            
+            model_path = f"{self.model_direc}{folder_name}/dqn_screen_{current_screen}"
+            if not os.path.exists(model_path + ".zip"):
+                print(f"No model found for screen {current_screen}, stopping.")
+                break
+
+            time.sleep(0.3)
+            model = self.load_model(folder_name, screen=current_screen, model_prefix="dqn")
+            model.env.envs[0].env.expected_screen = current_screen
+            model.env.envs[0].env.total_screen_actions = 0
+
+            actual_screen = model.env.envs[0].env.read_gamedata()["current_screen"]
+            print(f"Loaded model for screen: {current_screen}, actual screen: {actual_screen}")
+
+            if actual_screen != current_screen:
+                print(f"Screen mismatch — switching to screen {actual_screen}")
+                current_screen = actual_screen
+                continue
+
+            try:
+                jk_callback = JumpKingCallback()
+                callbacks = CallbackList([jk_callback])
+                
+                log_path = f"{self.model_direc}{folder_name}/dqn_screen_{current_screen}_log/"
+                logger = configure(log_path, ["stdout", "csv"])
+                model.set_logger(logger)
+                
+                model.learn(
+                    total_timesteps=total_timesteps,
+                    reset_num_timesteps=False,
+                    callback=callbacks
+                )
+                print(f"Screen {current_screen} training complete.")
+                self.overwrite_model(f"{folder_name}/dqn_screen_{current_screen}", model)
+
+            except ScreenTransitionException as e:
+                self.reset_keys()
+                self.overwrite_model(f"{folder_name}/dqn_screen_{current_screen}", model)
+                model.env.envs[0].env.reset_keys()
+                
+                time.sleep(0.75)
+                model.env.envs[0].env.gamedata = model.env.envs[0].env.read_gamedata()
+                model.env.envs[0].env.load_game_attributes()
+                current_screen = model.env.envs[0].env.current_screen
+                print(f"Transitioning to screen {current_screen}")
+
+            except KeyboardInterrupt:
+                self.reset_keys()
+                print(f"Interrupted on screen {current_screen}, saving...")
+                self.overwrite_model(f"{folder_name}/dqn_screen_{current_screen}", model)
+                model.env.envs[0].env.reset_keys()
+                break
+
+            finally:
+                model.env.envs[0].env.reset_keys()
+
 JK = JumpKingRL()
 parser = RecordingParser()
 
-# records = parser.load_recording()
-# JK.gen_BC_bulk("per_screen3", records)
-# JK.gen_RL_bulk("per_screen3", n_steps=64)
+records = parser.load_recording()
+JK.gen_BC_bulk("per_screen6", records)
+JK.gen_RL_bulk("per_screen6")
 
 callbacks = CallbackList([JumpKingCallback()])
-JK.train_model_per_screen("per_screen3", start_screen=0)
+JK.train_model_per_screen("per_screen6", start_screen=0)
 
 # env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)
 # bc = BehavioralCloning()

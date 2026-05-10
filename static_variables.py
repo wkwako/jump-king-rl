@@ -5,6 +5,68 @@ TENT_BOUNDS = {
     0: {"x_min": 72, "x_max": 120, "y_min": -302, "y_max": -200}  # adjust these
 }
 
+SCREEN_PROGRESS_DIRECTION = {
+    #Redcrown Woods
+    0: "up",
+    1: "left",
+    2: "right",
+    3: "right",
+    4: "left",
+    #Colossal Drain
+    5: "right",
+    6: "left",
+    7: "right", #might need to bisect this one
+    8: "right",
+    9: "up",
+
+    #False Kings' Keep
+    10: "up",
+    11: "up",
+    12: "up",
+    13: "up",
+
+    #Bargainburg
+    14: "up",
+    15: "right",
+    16: "left",
+    17: "right",
+    18: "up",
+
+    #Great Frontier
+    19: "right",
+    20: "up",
+    21: "up",
+    22: "up",
+    23: "up",
+    24: "right",
+
+    #Windswept Bluff/Stormwall Pass
+    25: "up",
+    26: "up",
+    27: "right",
+    28: "up",
+    29: "up",
+    30: "up",
+    31: "right",
+
+    #Chapel Perilous
+    32: "left", #switch to right if entering from left
+    33: "up",
+    34: "up",
+    35: "right",
+
+    #Blue Ruin
+    36: "left", #kind of need both here
+    37: "left",
+    38: "up",
+
+    #The Tower
+    39: "up",
+    40: "right",
+    41: "up",
+    42: "right"
+}
+
 SCREEN_ACTION_MAPS = {
     #Redcrown Woods
     0: {
