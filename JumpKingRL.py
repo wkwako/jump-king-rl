@@ -819,12 +819,12 @@ class JumpKingRL:
 JK = JumpKingRL()
 parser = RecordingParser()
  
-records = parser.load_recording()
-JK.gen_BC_bulk("dummytest", records)
-JK.gen_RL_bulk("dummytest", n_steps=4)
+#records = parser.load_recording()
+#JK.gen_BC_bulk("dummytest", records)
+#JK.gen_RL_bulk("dummytest", n_steps=4)
 
 callbacks = CallbackList([JumpKingCallback()]) 
-JK.train_model_one_screen("dummytest", screen=0)
+JK.train_model_one_screen("dummytest", screen=1)
 
 # env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)
 # bc = BehavioralCloning()

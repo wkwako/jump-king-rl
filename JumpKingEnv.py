@@ -170,8 +170,9 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             if not self.per_screen and self.current_screen > self.current_screen_prev:
                 reward += self.new_screen_reward
 
-        #provides a small bonus in direction of progress. calculated per screen
+        #provides a small bonus in direction of progress
         reward += self.get_direction_reward()
+        reward += self.get_goal_proximity_reward()
 
         # height reward for all agents
         height_reward = self.new_height_reward()
@@ -198,6 +199,9 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         # termination
         terminated = self.set_terminated()
+
+        if terminated:
+            print ("--- EPISODE END ---")
 
         return self.state, reward, terminated, False, {}
 
@@ -232,6 +236,25 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
                 self.state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
 
         return self.state, {}
+    
+    def get_goal_proximity_reward(self):
+        next_screen = self.expected_screen + 1
+        if next_screen not in static_variables.SCREEN_START_POSITIONS:
+            return 0
+        
+        goal_x, goal_y, _ = static_variables.SCREEN_START_POSITIONS[next_screen]
+        
+        # distance to goal in current and previous position
+        curr_dist = math.sqrt((self.x - goal_x)**2 + (-self.y - goal_y)**2)
+        prev_dist = math.sqrt((self.x_prev - goal_x)**2 + (-self.y_prev - goal_y)**2)
+        
+        # reward reduction in distance, don't punish increase
+        improvement = prev_dist - curr_dist
+        if improvement > 0:
+            goal_proximity_reward = improvement * 0.02
+            #print (f"goal proximity reward: {goal_proximity_reward}")
+            return goal_proximity_reward
+        return 0
     
     def teleport(self, screen):
         x, y, radius = static_variables.SCREEN_START_POSITIONS[screen]
@@ -383,6 +406,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         if self.per_screen:
             return self.terminate_per_screen_episode()
+        
         elif self.episode_mode == "action_height":
             return self.terminate_action_episode() or self.terminate_height_episode()
 
@@ -408,28 +432,39 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         return result
     
     def terminate_per_screen_episode(self):
-        # end episode if fell to different screen
         if self.current_screen != self.expected_screen:
             return True
+        
+        # skip drop termination for screens that require large drops
+        if self.current_screen not in static_variables.NO_DROP_TERMINATION_SCREENS:
+            if self.y_prev - self.y > 50:
+                return True
+        
         return self.terminate_action_episode() or self.terminate_height_episode()
     
-    def terminate_per_screen_episode(self):
-        self.action_counter += 1
-        
-        if self.total_screen_actions < 5:
-            # early phase: terminate after 2 actions
-            if self.action_counter >= 2:
-                self.action_counter = 0
-                return True
-        else:
-            # late phase: terminate on height gain
-            if self.y > self.y_prev:
-                return True
-            if self.action_counter >= 4:
-                self.action_counter = 0
-                return True
+    # def terminate_per_screen_episode(self):
+    #     # end episode if fell to different screen
+    #     if self.current_screen != self.expected_screen:
+    #         return True
+    #     return self.terminate_action_episode() or self.terminate_height_episode()
     
-        return False
+    # def terminate_per_screen_episode(self):
+    #     self.action_counter += 1
+        
+    #     if self.total_screen_actions < 5:
+    #         # early phase: terminate after 2 actions
+    #         if self.action_counter >= 2:
+    #             self.action_counter = 0
+    #             return True
+    #     else:
+    #         # late phase: terminate on height gain
+    #         if self.y > self.y_prev:
+    #             return True
+    #         if self.action_counter >= 4:
+    #             self.action_counter = 0
+    #             return True
+    
+    #     return False
     
     def reset_keys(self):
         #stops pressing all keys

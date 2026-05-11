@@ -5,6 +5,8 @@ TENT_BOUNDS = {
     0: {"x_min": 72, "x_max": 120, "y_min": -302, "y_max": -200}
 }
 
+NO_DROP_TERMINATION_SCREENS = {8, 16, 17}
+
 SCREEN_START_POSITIONS = {
     #Redcrown Woods
     0: (231,302, 0),
