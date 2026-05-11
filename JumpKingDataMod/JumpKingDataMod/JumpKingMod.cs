@@ -55,6 +55,7 @@ namespace JumpKingDataMod
         private bool _reflectionInitialized = false;
         private bool _prevAnyKeyDown = false;
         private int _prevScreen = -1;
+        private int _writeCount = 0;
 
         private Type _jumpChargeCalcType;
         private PropertyInfo _jumpFramesProp;
@@ -116,6 +117,7 @@ namespace JumpKingDataMod
 
         private void WriteStateSafe(string state)
         {
+            _writeCount++;
             int attempts = 0;
             while (attempts < 5)
             {
@@ -207,7 +209,8 @@ namespace JumpKingDataMod
                     ""is_on_ice"": {isOnIce.ToString().ToLower()},
                     ""is_in_snow"": {isInSnow.ToString().ToLower()},
                     ""is_in_water"": {isInWater.ToString().ToLower()},
-                    ""wind_velocity"": {windVelocity:F4}
+                    ""wind_velocity"": {windVelocity:F4},
+                    ""write_count"": {_writeCount}
                 }}";
 
                 // keylogger runs every frame

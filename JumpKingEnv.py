@@ -25,12 +25,13 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
     def __init__(self, episode_mode, max_episode_actions=10, curriculum_screens=5, spacing=0.05, per_screen=False, action_map=None, current_screen=None):
         self.teleport_path = "C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/teleport.txt"
+        self.gamestate_path = "C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/gamestate.txt"
         self.spacing = spacing
         #self.action_map = self.init_action_map()
         self.state = None
         self.gamedata = None
         #self.gamedata_prev = None
-        self.new_screen_reward = 150
+        self.new_screen_reward_val = 150
         self.jumped = False
         self.sleep_time = 0.1
         self.jump_counter_metadata = 0
@@ -124,24 +125,18 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.step_counter += 1
         print(f"--- Step {self.step_counter} ---")
 
-        # if self.per_screen:
-        #     # check for pending transition from previous step
-        #     if self.pending_transition:
-        #         self.pending_transition = False
-        #         raise ScreenTransitionException(self.pending_transition_screen)
-            
-        #     # check if we're already on wrong screen before acting
-        #     if self.current_screen != self.expected_screen:
-        #         raise ScreenTransitionException(self.current_screen)
-
         # snapshot prev values BEFORE action
         self.load_game_attributes_prev()
 
         # executes action
-        self.execute_action(action)
+        time.sleep(1.5)
+
+        prev_write_count = self.execute_action(action)
 
         if self.per_screen:
             self.total_screen_actions += 1
+
+        self.wait_for_landing(prev_write_count)
 
         # reads gamedata — pauses until character lands
         self.gamedata = self.read_gamedata()
@@ -152,23 +147,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         # set game data into individual variables
         self.load_game_attributes()
 
-        # build state and handle screen transitions for per-screen agents
-        if self.current_screen != self.current_screen_prev:
-            self.reset_keys()
-            height_reward = self.new_height_reward()
-            print (f"reward for height on new screen: {height_reward}")
-            reward += height_reward
-            if self.current_screen > self.current_screen_prev:
-                print (f"reward for new screen: {self.new_screen_reward}")
-                reward += self.new_screen_reward
-            self.pending_transition = True
-            self.pending_transition_screen = self.current_screen
-            self.state = self.build_state_per_screen() if self.per_screen else self.build_state()
-            return self.state, reward, True, False, {}
-        else:
-            self.state = self.build_state_per_screen() if self.per_screen else self.build_state()
-            if not self.per_screen and self.current_screen > self.current_screen_prev:
-                reward += self.new_screen_reward
+        self.state = self.build_state_per_screen() if self.per_screen else self.build_state()
 
         #provides a small bonus in direction of progress
         reward += self.get_direction_reward()
@@ -180,11 +159,12 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             print(f"Height reward/penalty: {height_reward:.2f}")
             reward += height_reward
 
-        # per-screen specific penalties
-        if self.per_screen:
-            reward += self.check_tent_penalty()
-            reward += self.check_alternating_walk_penalty(action)
-            reward += self.check_repeated_jump_penalty(action)
+        reward += self.new_screen_reward()
+
+        # penalties
+        reward += self.check_tent_penalty()
+        reward += self.check_alternating_walk_penalty(action)
+        reward += self.check_repeated_jump_penalty(action)
 
         # stuck penalty
         self.add_landing()
@@ -236,6 +216,13 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
                 self.state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
 
         return self.state, {}
+    
+    def new_screen_reward(self):
+        if self.current_screen > self.current_screen_prev:
+            return self.new_screen_reward_val
+        elif self.current_screen < self.current_screen_prev:
+            return -50
+        return 0
     
     def get_goal_proximity_reward(self):
         next_screen = self.expected_screen + 1
@@ -465,6 +452,23 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     #             return True
     
     #     return False
+
+    def wait_for_landing(self, prev_write_count):
+        while True:
+            try:
+                with open(self.gamestate_path) as f:
+                    content = f.read()
+                if not content or content.isspace():
+                    time.sleep(self.sleep_time)
+                    continue
+                data = json.loads(content)
+                if data.get("is_on_ground") and data.get("write_count", 0) > prev_write_count:
+                    return
+            except (json.JSONDecodeError, KeyError):
+                pass
+            except Exception as e:
+                print(f"wait_for_landing error: {e}")
+            time.sleep(self.sleep_time)
     
     def reset_keys(self):
         #stops pressing all keys
@@ -533,6 +537,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         return self.gamedata
                 
     def execute_action(self, action):
+        prev_write_count = self.gamedata.get("write_count", 0) if self.gamedata else 0
+        
         left, right, jump = self.action_map[action]
 
         if not jump:
@@ -540,7 +546,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
                 self.key_press("left", left)
             elif right:
                 self.key_press("right", right)
-            time.sleep(0.5)
+            time.sleep(0.3)
         else:
             self.jumped = True
             if left:
@@ -550,16 +556,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
                 self.key_press("space", jump, "right")
             time.sleep(1)
         
-        # wait until agent is on the ground before returning
-        while True:
-            try:
-                with open("C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/gamestate.txt") as f:
-                    data = json.loads(f.read())
-                if data.get("is_on_ground"):
-                    break
-            except:
-                pass
-            time.sleep(self.sleep_time)
+        return prev_write_count
 
     
     def key_press(self, key, duration, key2=None):

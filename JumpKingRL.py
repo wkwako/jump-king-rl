@@ -783,6 +783,9 @@ class JumpKingRL:
         model = self.load_model(folder_name, screen=screen)
         model.env.envs[0].env.expected_screen = screen
         model.env.envs[0].env.total_screen_actions = 0
+        # print(f"episode_mode from metadata: {self.metadata['episode_mode']}")
+        # print(f"per_screen: {model.env.envs[0].env.per_screen}")
+        # print(f"expected_screen: {model.env.envs[0].env.expected_screen}")
 
         # verify we're on the right screen before starting
         actual_screen = model.env.envs[0].env.read_gamedata()["current_screen"]
