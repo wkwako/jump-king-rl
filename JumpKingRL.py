@@ -237,9 +237,6 @@ class JumpKingRL:
             }
         )
 
-        logger = configure(model_path + "_log/", ["stdout", "csv"])
-        model.set_logger(logger)
-
         return model
 
     def save_metadata(self, name, model, metadata, new=False):
@@ -269,6 +266,30 @@ class JumpKingRL:
 
         return metadata
 
+    # def create_model(self, name, env, model_type, verbose, **kwargs):
+    #     model_path = self.model_direc + name
+    #     if os.path.exists(model_path + ".zip"):
+    #         raise FileExistsError("This model already exists. Please use a different name, delete it, or use the overwrite_model() function.")
+        
+    #     config = self.MODEL_CONFIGS[model_type]
+    #     params = {**config["defaults"], **kwargs}
+
+    #     print("Creating new model...")
+    #     model = config["class"]("MlpPolicy", env, verbose=verbose, **params)
+
+    #     os.makedirs(model_path + "_log/", exist_ok=True)
+    #     logger = configure(model_path + "_log/", ["stdout", "csv"])
+    #     model.set_logger(logger)
+
+    #     model.save(model_path)
+    #     print(f"Model saved to {model_path}.zip")
+
+    #     print("Creating new metadata file...")
+    #     self.save_metadata(name, model, None, True)
+    #     print(f"Metadata saved.")
+
+    #     return model
+
     def create_model(self, name, env, model_type, verbose, **kwargs):
         model_path = self.model_direc + name
         if os.path.exists(model_path + ".zip"):
@@ -279,10 +300,6 @@ class JumpKingRL:
 
         print("Creating new model...")
         model = config["class"]("MlpPolicy", env, verbose=verbose, **params)
-
-        os.makedirs(model_path + "_log/", exist_ok=True)
-        logger = configure(model_path + "_log/", ["stdout", "csv"])
-        model.set_logger(logger)
 
         model.save(model_path)
         print(f"Model saved to {model_path}.zip")
@@ -422,24 +439,18 @@ class JumpKingRL:
             )
             
             model_name = f"{folder_name}/ppo_screen_{screen}"
-            # model = self.create_model(
-            #     model_name, env, "PPO",
-            #     verbose=1,
-            #     n_steps=n_steps,
-            #     ent_coef=0.01,
-            #     learning_rate=0.00003,
-            #     policy_kwargs={"net_arch": [256, 256]}
-            # )
+
             model = self.create_model(
                 model_name, env, "PPO",
                 verbose=1,
-                n_steps=4,
-                batch_size=4,
-                n_epochs=5,
-                ent_coef=0.01,
+                n_steps=n_steps,
+                batch_size=64,
+                n_epochs=10,
+                ent_coef=0.005,
                 learning_rate=0.00003,
                 policy_kwargs={"net_arch": [256, 256]}
             )
+
             bc.transfer_weights_to_ppo(model, bc_model_path)
             self.pretrain_value_function(model, self.X_by_screen[screen], per_screen=True)
             
@@ -761,15 +772,59 @@ class JumpKingRL:
             finally:
                 model.env.envs[0].env.reset_keys()
 
+    def train_model_one_screen(self, folder_name, screen, total_timesteps=500000):
+        """Trains a single per-screen model using teleporter for resets."""
+        
+        model_path = f"{self.model_direc}{folder_name}/ppo_screen_{screen}"
+        if not os.path.exists(model_path + ".zip"):
+            print(f"No model found for screen {screen}, stopping.")
+            return
+
+        model = self.load_model(folder_name, screen=screen)
+        model.env.envs[0].env.expected_screen = screen
+        model.env.envs[0].env.total_screen_actions = 0
+
+        # verify we're on the right screen before starting
+        actual_screen = model.env.envs[0].env.read_gamedata()["current_screen"]
+        if actual_screen != screen:
+            print(f"Warning: expected screen {screen}, got {actual_screen}. Teleporting...")
+            model.env.envs[0].env.teleport(screen)
+
+        try:
+            freeze_callback = FreezePolicyCallback(freeze_updates=5)
+            jk_callback = JumpKingCallback()
+            callbacks = CallbackList([freeze_callback, jk_callback])
+
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            log_path = f"{self.model_direc}{folder_name}/ppo_screen_{screen}_log/{timestamp}/"
+            logger = configure(log_path, ["stdout", "csv"])
+            model.set_logger(logger)
+
+            model.learn(
+                total_timesteps=total_timesteps,
+                reset_num_timesteps=True,
+                callback=callbacks
+            )
+            print(f"Screen {screen} training complete.")
+
+        except KeyboardInterrupt:
+            print(f"Interrupted on screen {screen}, saving...")
+
+        finally:
+            self.reset_keys()
+            model.env.envs[0].env.reset_keys()
+            self.overwrite_model(f"{folder_name}/ppo_screen_{screen}", model)
+            print(f"Screen {screen} model saved.")
+
 JK = JumpKingRL()
 parser = RecordingParser()
-
+ 
 records = parser.load_recording()
-JK.gen_BC_bulk("per_screen6", records)
-JK.gen_RL_bulk("per_screen6")
+JK.gen_BC_bulk("dummytest", records)
+JK.gen_RL_bulk("dummytest", n_steps=4)
 
-callbacks = CallbackList([JumpKingCallback()])
-JK.train_model_per_screen("per_screen6", start_screen=0)
+callbacks = CallbackList([JumpKingCallback()]) 
+JK.train_model_one_screen("dummytest", screen=0)
 
 # env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)
 # bc = BehavioralCloning()

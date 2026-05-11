@@ -5,6 +5,8 @@ import keyboard
 import pydirectinput
 import numpy as np
 import json
+import os
+import random
 
 import gymnasium as gym
 from gymnasium import logger, spaces
@@ -28,7 +30,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.state = None
         self.gamedata = None
         #self.gamedata_prev = None
-        self.new_screen_reward = 10
+        self.new_screen_reward = 150
         self.jumped = False
         self.sleep_time = 0.1
         self.jump_counter_metadata = 0
@@ -122,15 +124,15 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.step_counter += 1
         print(f"--- Step {self.step_counter} ---")
 
-        if self.per_screen:
-            # check for pending transition from previous step
-            if self.pending_transition:
-                self.pending_transition = False
-                raise ScreenTransitionException(self.pending_transition_screen)
+        # if self.per_screen:
+        #     # check for pending transition from previous step
+        #     if self.pending_transition:
+        #         self.pending_transition = False
+        #         raise ScreenTransitionException(self.pending_transition_screen)
             
-            # check if we're already on wrong screen before acting
-            if self.current_screen != self.expected_screen:
-                raise ScreenTransitionException(self.current_screen)
+        #     # check if we're already on wrong screen before acting
+        #     if self.current_screen != self.expected_screen:
+        #         raise ScreenTransitionException(self.current_screen)
 
         # snapshot prev values BEFORE action
         self.load_game_attributes_prev()
@@ -202,6 +204,13 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     def reset(self, seed=None, options=None):
         self.gamedata = self.read_gamedata()
         self.load_game_attributes()
+        
+        # only teleport if we're on the wrong screen
+        if self.per_screen and self.current_screen != self.expected_screen:
+            self.teleport(self.expected_screen)
+            self.gamedata = self.read_gamedata()
+            self.load_game_attributes()
+        
         self.load_game_attributes_prev()
         self.action_counter = 0
         self.recent_walk_actions = []
@@ -222,12 +231,24 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
                 pos_state = [self.x, self.y, self.current_screen, 0, 0, 0, 0, 0]
                 self.state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
 
-                #ray sentinels
-                # ray_state_data = [400] * 36
-                # self.state = np.array([self.x, self.y, self.current_screen, 0, 0, 0] + ray_state_data, dtype=np.float32)
-
         return self.state, {}
     
+    def teleport(self, screen):
+        x, y, radius = static_variables.SCREEN_START_POSITIONS[screen]
+        x += random.randint(-radius, radius)
+        
+        temp_path = self.teleport_path + ".tmp"
+        with open(temp_path, 'w') as f:
+            f.write(f"{x},{y}")
+        os.replace(temp_path, self.teleport_path)
+        
+        time.sleep(0.5)
+        self.gamedata = self.read_gamedata()
+        self.load_game_attributes()
+        
+        if self.current_screen != screen:
+            print(f"Teleport warning: expected screen {screen}, got {self.current_screen}")
+        
     def get_direction_reward(self):
         direction = static_variables.SCREEN_PROGRESS_DIRECTION.get(self.current_screen, None)
         if direction is None:
@@ -351,13 +372,10 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     def set_terminated(self):
         #check for termination based on episode type
 
-        #terminate after a certain number of actions
-
-        # if self.per_screen:
-        #     result = self.terminate_per_screen_episode()
-
-        if self.episode_mode == "action_height":
-            result = self.terminate_action_episode() or self.terminate_height_episode()
+        if self.per_screen:
+            return self.terminate_per_screen_episode()
+        elif self.episode_mode == "action_height":
+            return self.terminate_action_episode() or self.terminate_height_episode()
 
         elif self.episode_mode == "action":
             result = self.terminate_action_episode()
@@ -379,6 +397,12 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
                 result = self.terminate_screen_episode()
 
         return result
+    
+    def terminate_per_screen_episode(self):
+        # end episode if fell to different screen
+        if self.current_screen != self.expected_screen:
+            return True
+        return self.terminate_action_episode() or self.terminate_height_episode()
     
     def terminate_per_screen_episode(self):
         self.action_counter += 1
