@@ -238,9 +238,18 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         x += random.randint(-radius, radius)
         
         temp_path = self.teleport_path + ".tmp"
+        
+        # write to temp file
         with open(temp_path, 'w') as f:
             f.write(f"{x},{y}")
-        os.replace(temp_path, self.teleport_path)
+        
+        # retry rename if access denied
+        for attempt in range(50):
+            try:
+                os.replace(temp_path, self.teleport_path)
+                break
+            except PermissionError:
+                time.sleep(0.1)
         
         time.sleep(0.5)
         self.gamedata = self.read_gamedata()
