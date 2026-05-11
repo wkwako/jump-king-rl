@@ -129,7 +129,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.load_game_attributes_prev()
 
         # executes action
-        time.sleep(1.5)
+        #time.sleep(1.5)
 
         prev_write_count = self.execute_action(action)
 
