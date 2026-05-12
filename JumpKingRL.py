@@ -75,6 +75,7 @@ class EpisodeMode:
     HEIGHT = "height"
     ACTION_HEIGHT = "action_height"
     CURRICULUM = "curriculum"
+    PER_SCREEN = "per_screen"
 
 class JumpKingRL:
 
@@ -189,7 +190,6 @@ class JumpKingRL:
             "episode_mode": env.episode_mode,
             "hyperparameters": {
                 "max_episode_actions": env.max_episode_actions,
-                "new_screen_reward": env.new_screen_reward,
                 "jump_penalty": env.jump_penalty,
                 "max_jump_bonus": env.max_jump_bonus,
                 "grid_size": env.grid_size,
@@ -412,7 +412,7 @@ class JumpKingRL:
         print("BC bulk training complete.")
         print(f"{'='*50}")
 
-    def gen_RL_bulk(self, folder_name, n_steps=128):
+    def gen_RL_bulk(self, folder_name, n_steps=128, episode_mode=EpisodeMode.ACTION_HEIGHT):
         """Creates PPO models for all screens with BC weight transfer and value pretraining."""
         os.makedirs(self.model_direc + folder_name, exist_ok=True)
         
@@ -431,7 +431,7 @@ class JumpKingRL:
             state_size = parser.get_state_size(screen)
             
             env = JumpKingEnv(
-                episode_mode=EpisodeMode.ACTION_HEIGHT,
+                episode_mode=episode_mode,
                 max_episode_actions=12,
                 per_screen=True,
                 action_map=action_map,
@@ -794,7 +794,7 @@ class JumpKingRL:
             model.env.envs[0].env.teleport(screen)
 
         try:
-            freeze_callback = FreezePolicyCallback(freeze_updates=5)
+            freeze_callback = FreezePolicyCallback(freeze_updates=1)
             jk_callback = JumpKingCallback()
             callbacks = CallbackList([freeze_callback, jk_callback])
 
@@ -821,10 +821,10 @@ class JumpKingRL:
 
 JK = JumpKingRL()
 parser = RecordingParser()
- 
-#records = parser.load_recording()
-#JK.gen_BC_bulk("dummytest", records)
-#JK.gen_RL_bulk("dummytest", n_steps=4)
+
+records = parser.load_recording()
+JK.gen_BC_bulk("dummytest", records) 
+JK.gen_RL_bulk("dummytest", n_steps=2048, episode_mode=EpisodeMode.SCREEN)
 
 callbacks = CallbackList([JumpKingCallback()]) 
 JK.train_model_one_screen("dummytest", screen=1)

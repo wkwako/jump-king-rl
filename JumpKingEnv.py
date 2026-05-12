@@ -391,7 +391,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     def set_terminated(self):
         #check for termination based on episode type
 
-        if self.per_screen:
+        if self.episode_mode == "per_screen":
             return self.terminate_per_screen_episode()
         
         elif self.episode_mode == "action_height":
@@ -492,7 +492,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
     def terminate_screen_episode(self):
         #returns True if we should terminate the episode (based on screens). False otherwise
-        if self.current_screen > self.current_screen_prev:
+        if self.current_screen != self.current_screen_prev:
             return True
 
         return False
