@@ -52,11 +52,11 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.total_screen_actions = 0
         self.expected_screen = None
         self.direction_reward = 0.01
-        self.speed_reward = 50
+        self.speed_reward = 100
 
         self.recent_walk_actions = []
         self.recent_jump_actions = []
-        self.action_repeat_penalty = -5
+        self.action_repeat_penalty = -10
 
         self.x = self.y = self.vel_x = self.vel_y = None
         self.is_on_ground = self.current_screen = self.total_screens = None
@@ -320,10 +320,10 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             return 0
         
         self.recent_jump_actions.append(current)
-        if len(self.recent_jump_actions) > 5:
+        if len(self.recent_jump_actions) > 4:
             self.recent_jump_actions.pop(0)
         
-        if len(self.recent_jump_actions) == 5:
+        if len(self.recent_jump_actions) == 4:
             if len(set(self.recent_jump_actions)) == 1:
                 print (f"penalty for repeated jumps in same direction: {self.action_repeat_penalty}")
                 return self.action_repeat_penalty
