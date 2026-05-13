@@ -51,6 +51,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.total_screen_actions = 0
         self.expected_screen = None
         self.direction_reward = 0.01
+        self.speed_reward = 50
 
         self.recent_walk_actions = []
         self.recent_jump_actions = []
@@ -182,6 +183,12 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         if terminated:
             print ("--- EPISODE END ---")
+
+        #test this. gives bonus reward for faster screen completion
+        self.action_counter += 1
+        if terminated and self.episode_mode == "screen" and self.current_screen > self.current_screen_prev:
+            reward += self.speed_reward / self.action_counter
+            print(f"Speed bonus: {self.speed_reward / self.action_counter:.2f} ({self.action_counter} actions)")
 
         return self.state, reward, terminated, False, {}
 
@@ -354,12 +361,21 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         return np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
     
     def build_state_per_screen(self):
-        if self.current_screen in static_variables.WIND_SCREENS:
-            return np.array([self.x, self.y, self.wind_velocity], dtype=np.float32)
-        elif self.current_screen in static_variables.ICE_SCREENS:
-            return np.array([self.x, self.y, self.vel_x], dtype=np.float32)
+        self.platform_parser.parse_result = self.platform_parser.read_platform_data(
+            (self.x, self.y), self.current_screen
+        )
+        
+        if self.platform_parser.parse_result is not None:
+            ceiling = self.platform_parser.parse_result[0][2]  # ceiling distance
         else:
-            return np.array([self.x, self.y], dtype=np.float32)
+            ceiling = 9999
+        
+        if self.current_screen in static_variables.WIND_SCREENS:
+            return np.array([self.x, self.y, self.wind_velocity, ceiling], dtype=np.float32)
+        elif self.current_screen in static_variables.ICE_SCREENS:
+            return np.array([self.x, self.y, self.vel_x, ceiling], dtype=np.float32)
+        else:
+            return np.array([self.x, self.y, ceiling], dtype=np.float32)
 
     def build_state_ray(self):
         #ray state building
@@ -483,7 +499,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
     def terminate_action_episode(self):
         #returns True if we should terminate the episode (based on jumps). False otherwise
-        self.action_counter += 1
+        #self.action_counter += 1
         if self.action_counter >= self.max_episode_actions:
             self.action_counter = 0
             return True

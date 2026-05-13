@@ -3,18 +3,21 @@ import json
 
 import static_variables
 
+from PlatformParser import PlatformParser
+
 class RecordingParser:
     def __init__(self):
         self.filepath = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/recording.txt"
         #self.filepath = "C:/Users/wkwak/Documents/CodingWork/PythonStuff/jump-king-rl/recording.txt"
+        self.platform_parser = PlatformParser()
 
     def get_state_size(self, screen):
         if screen in static_variables.WIND_SCREENS:
-            return 3  # x, y, wind_velocity
+            return 4  # x, y, wind_velocity, ceiling
         elif screen in static_variables.ICE_SCREENS:
-            return 3  # x, y, vel_x
+            return 4  # x, y, vel_x, ceiling
         else:
-            return 2  # x, y
+            return 3  # x, y, ceiling
 
     def equalize_actions(self, actions):
         """For jump actions, sets arrow key duration equal to spacebar duration."""
@@ -116,14 +119,24 @@ class RecordingParser:
         x = float(state_dict["x"])
         y = float(state_dict["y"])
         
+        # get ceiling distance from platform parser
+        self.platform_parser.parse_result = self.platform_parser.read_platform_data(
+            (x, y), screen
+        )
+        
+        if self.platform_parser.parse_result is not None:
+            ceiling = float(self.platform_parser.parse_result[0][2])
+        else:
+            ceiling = 9999.0
+        
         if screen in static_variables.WIND_SCREENS:
             wind_velocity = float(state_dict["wind_velocity"])
-            return np.array([x, y, wind_velocity], dtype=np.float32)
+            return np.array([x, y, wind_velocity, ceiling], dtype=np.float32)
         elif screen in static_variables.ICE_SCREENS:
             vel_x = float(state_dict["vel_x"])
-            return np.array([x, y, vel_x], dtype=np.float32)
+            return np.array([x, y, vel_x, ceiling], dtype=np.float32)
         else:
-            return np.array([x, y], dtype=np.float32)
+            return np.array([x, y, ceiling], dtype=np.float32)
 
     def generate_dataset_per_screen(self, records, action_indices, screen):
         """Generates minimal state vectors for all records on a given screen."""

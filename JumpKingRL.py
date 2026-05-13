@@ -446,11 +446,15 @@ class JumpKingRL:
                 n_steps=n_steps,
                 batch_size=64,
                 n_epochs=10,
-                ent_coef=0.005,
-                learning_rate=0.00003,
+                ent_coef=0.02, #was 0.005 for the good screen1 run
+                learning_rate=0.0001, #was 0.00003 for the good screen1 run
                 policy_kwargs={"net_arch": [256, 256]}
             )
 
+
+            print(f"X shape for screen {screen}: {self.X_by_screen[screen].shape}")
+            bc_state = torch.load(bc_model_path)
+            print(f"BC input layer shape: {bc_state['net.0.weight'].shape}")
             bc.transfer_weights_to_ppo(model, bc_model_path)
             self.pretrain_value_function(model, self.X_by_screen[screen], per_screen=True)
             
@@ -794,7 +798,7 @@ class JumpKingRL:
             model.env.envs[0].env.teleport(screen)
 
         try:
-            freeze_callback = FreezePolicyCallback(freeze_updates=1)
+            freeze_callback = FreezePolicyCallback(freeze_updates=0)
             jk_callback = JumpKingCallback()
             callbacks = CallbackList([freeze_callback, jk_callback])
 
@@ -821,13 +825,13 @@ class JumpKingRL:
 
 JK = JumpKingRL()
 parser = RecordingParser()
-
-records = parser.load_recording()
-JK.gen_BC_bulk("dummytest", records) 
-JK.gen_RL_bulk("dummytest", n_steps=2048, episode_mode=EpisodeMode.SCREEN)
-
+#records = parser.load_recording()
+#JK.gen_BC_bulk("screen2_test", records) 
+#JK.gen_RL_bulk("screen2_test", n_steps=2048, episode_mode=EpisodeMode.SCREEN)
 callbacks = CallbackList([JumpKingCallback()]) 
-JK.train_model_one_screen("dummytest", screen=1)
+JK.train_model_one_screen("screen2_test", screen=2)
+
+
 
 # env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)
 # bc = BehavioralCloning()
