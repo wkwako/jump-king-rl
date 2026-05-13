@@ -62,11 +62,31 @@ class JumpKingCallback(BaseCallback):
     def __init__(self, verbose=0):
         super().__init__(verbose)
 
+    # def _on_step(self) -> bool:
+    #     env = self.training_env.envs[0].env
+    #     if env.gamedata is not None:
+    #         self.logger.record("custom/current_screen", env.gamedata["current_screen"])
+    #         self.logger.record("custom/max_height", env.gamedata["y"])
+    #     return True
+
     def _on_step(self) -> bool:
         env = self.training_env.envs[0].env
+        
         if env.gamedata is not None:
             self.logger.record("custom/current_screen", env.gamedata["current_screen"])
             self.logger.record("custom/max_height", env.gamedata["y"])
+        
+        # print action probabilities
+        obs = self.locals.get("obs_tensor")
+        if obs is not None:
+            with torch.no_grad():
+                dist = self.model.policy.get_distribution(obs)
+                probs = dist.distribution.probs[0].cpu().numpy()
+                action_map = env.action_map
+                print("Action probs:")
+                for i, (prob, action) in enumerate(zip(probs, action_map)):
+                    print(f"  {i} {action}: {prob:.4f}")
+        
         return True
 
 class EpisodeMode:
@@ -825,12 +845,11 @@ class JumpKingRL:
 
 JK = JumpKingRL()
 parser = RecordingParser()
-#records = parser.load_recording()
-#JK.gen_BC_bulk("screen2_test", records) 
-#JK.gen_RL_bulk("screen2_test", n_steps=2048, episode_mode=EpisodeMode.SCREEN)
+records = parser.load_recording()
+JK.gen_BC_bulk("screen2_test", records) 
+JK.gen_RL_bulk("screen2_test", n_steps=2048, episode_mode=EpisodeMode.SCREEN)
 callbacks = CallbackList([JumpKingCallback()]) 
 JK.train_model_one_screen("screen2_test", screen=2)
-
 
 
 # env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)

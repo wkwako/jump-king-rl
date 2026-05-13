@@ -3,6 +3,7 @@ from typing import Optional, Union
 import time
 import keyboard
 import pydirectinput
+pydirectinput.PAUSE = 0.01
 import numpy as np
 import json
 import os
@@ -128,10 +129,11 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         # snapshot prev values BEFORE action
         self.load_game_attributes_prev()
-
+        
         # executes action
         #time.sleep(1.5)
 
+        print(f"Action selected: {action} — {self.action_map[action]}")
         prev_write_count = self.execute_action(action)
 
         if self.per_screen:
@@ -366,16 +368,22 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         )
         
         if self.platform_parser.parse_result is not None:
-            ceiling = self.platform_parser.parse_result[0][2]  # ceiling distance
+            ceiling = self.platform_parser.parse_result[0][2]
+            platform_x_start = self.platform_parser.parse_result[0][0]
+            platform_x_end = self.platform_parser.parse_result[0][1]
+            rel_x_start = self.x - platform_x_start
+            rel_x_end = platform_x_end - self.x
         else:
             ceiling = 9999
+            rel_x_start = 9999
+            rel_x_end = 9999
         
         if self.current_screen in static_variables.WIND_SCREENS:
-            return np.array([self.x, self.y, self.wind_velocity, ceiling], dtype=np.float32)
+            return np.array([self.x, self.y, self.wind_velocity, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
         elif self.current_screen in static_variables.ICE_SCREENS:
-            return np.array([self.x, self.y, self.vel_x, ceiling], dtype=np.float32)
+            return np.array([self.x, self.y, self.vel_x, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
         else:
-            return np.array([self.x, self.y, ceiling], dtype=np.float32)
+            return np.array([self.x, self.y, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
 
     def build_state_ray(self):
         #ray state building
@@ -556,6 +564,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         prev_write_count = self.gamedata.get("write_count", 0) if self.gamedata else 0
         
         left, right, jump = self.action_map[action]
+        print(f"Executing: left={left}, right={right}, jump={jump}")
 
         if not jump:
             if left:

@@ -13,11 +13,11 @@ class RecordingParser:
 
     def get_state_size(self, screen):
         if screen in static_variables.WIND_SCREENS:
-            return 4  # x, y, wind_velocity, ceiling
+            return 6  # x, y, wind_velocity, ceiling, rel_x_start, rel_x_end
         elif screen in static_variables.ICE_SCREENS:
-            return 4  # x, y, vel_x, ceiling
+            return 6  # x, y, vel_x, ceiling, rel_x_start, rel_x_end
         else:
-            return 3  # x, y, ceiling
+            return 5  # x, y, ceiling, rel_x_start, rel_x_end
 
     def equalize_actions(self, actions):
         """For jump actions, sets arrow key duration equal to spacebar duration."""
@@ -115,28 +115,32 @@ class RecordingParser:
         return np.array(states), np.array(action_indices)
     
     def generate_state_per_screen(self, state_dict, screen):
-        """Generates minimal state vector for per-screen agent."""
         x = float(state_dict["x"])
         y = float(state_dict["y"])
         
-        # get ceiling distance from platform parser
         self.platform_parser.parse_result = self.platform_parser.read_platform_data(
             (x, y), screen
         )
         
         if self.platform_parser.parse_result is not None:
             ceiling = float(self.platform_parser.parse_result[0][2])
+            platform_x_start = float(self.platform_parser.parse_result[0][0])
+            platform_x_end = float(self.platform_parser.parse_result[0][1])
+            rel_x_start = x - platform_x_start
+            rel_x_end = platform_x_end - x
         else:
             ceiling = 9999.0
+            rel_x_start = 9999.0
+            rel_x_end = 9999.0
         
         if screen in static_variables.WIND_SCREENS:
             wind_velocity = float(state_dict["wind_velocity"])
-            return np.array([x, y, wind_velocity, ceiling], dtype=np.float32)
+            return np.array([x, y, wind_velocity, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
         elif screen in static_variables.ICE_SCREENS:
             vel_x = float(state_dict["vel_x"])
-            return np.array([x, y, vel_x, ceiling], dtype=np.float32)
+            return np.array([x, y, vel_x, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
         else:
-            return np.array([x, y, ceiling], dtype=np.float32)
+            return np.array([x, y, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
 
     def generate_dataset_per_screen(self, records, action_indices, screen):
         """Generates minimal state vectors for all records on a given screen."""
