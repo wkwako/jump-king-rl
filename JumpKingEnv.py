@@ -489,7 +489,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     #     return False
 
     def wait_for_landing(self, prev_write_count):
-        time.sleep(0.15)
+        time.sleep(0.2)
         while True:
             try:
                 with open(self.gamestate_path) as f:
