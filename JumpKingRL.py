@@ -37,13 +37,10 @@ class FreezePolicyCallback(BaseCallback):
         self._freeze_policy()
 
     def _on_rollout_end(self):
-        if hasattr(self.model, 'rollout_buffer'):
-            buffer = self.model.rollout_buffer
-            if buffer.returns is not None and len(buffer.returns) > 0:
-                returns = buffer.returns.flatten()
-                values = buffer.values.flatten()
-                ev = 1 - np.var(returns - values) / (np.var(returns) + 1e-8)
-                print(f"EV: {ev:.4f} | returns mean: {returns.mean():.2f} std: {returns.std():.2f} | values mean: {values.mean():.2f} std: {values.std():.2f}")
+        if self.frozen and self.model.num_timesteps >= self.freeze_updates * self.model.n_steps:
+            self._unfreeze_policy()
+            self.frozen = False
+            print(f"Policy unfrozen at timestep {self.model.num_timesteps}")
 
     def _freeze_policy(self):
         """Freeze all policy network parameters except value function."""
