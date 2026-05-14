@@ -57,6 +57,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.recent_walk_actions = []
         self.recent_jump_actions = []
         self.action_repeat_penalty = -10
+        self.action_cutoff = 20
+        self.action_cutoff_penalty = -50
 
         self.x = self.y = self.vel_x = self.vel_y = None
         self.is_on_ground = self.current_screen = self.total_screens = None
@@ -191,6 +193,11 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         if terminated and self.episode_mode == "screen" and self.current_screen > self.current_screen_prev:
             reward += self.speed_reward / self.action_counter
             print(f"Speed bonus: {self.speed_reward / self.action_counter:.2f} ({self.action_counter} actions)")
+
+        if self.action_counter >= 2:
+            reward += self.action_cutoff_penalty
+            terminated = True
+            print (f"Action cutoff penalty: {self.action_cutoff_penalty}")
 
         return self.state, reward, terminated, False, {}
 
