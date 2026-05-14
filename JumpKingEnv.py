@@ -281,7 +281,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             except PermissionError:
                 time.sleep(0.1)
         
-        time.sleep(0.5)
+        time.sleep(0.2)
         self.gamedata = self.read_gamedata()
         self.load_game_attributes()
         
@@ -489,6 +489,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     #     return False
 
     def wait_for_landing(self, prev_write_count):
+        time.sleep(0.15)
         while True:
             try:
                 with open(self.gamestate_path) as f:
@@ -582,7 +583,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
                 self.key_press("left", left)
             elif right:
                 self.key_press("right", right)
-            time.sleep(0.3)
+            time.sleep(0.1) #was 0.3
         else:
             self.jumped = True
             if left:
@@ -590,7 +591,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             else:
                 time.sleep(0.05)
                 self.key_press("space", jump, "right")
-            time.sleep(1)
+            time.sleep(0.1) #was 1
         
         return prev_write_count
 

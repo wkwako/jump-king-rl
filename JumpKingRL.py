@@ -37,11 +37,13 @@ class FreezePolicyCallback(BaseCallback):
         self._freeze_policy()
 
     def _on_rollout_end(self):
-        """Unfreeze policy after n updates."""
-        if self.frozen and self.model._n_updates >= self.freeze_updates:
-            self._unfreeze_policy()
-            print(f"Policy unfrozen after {self.freeze_updates} updates")
-            self.frozen = False
+        if hasattr(self.model, 'rollout_buffer'):
+            buffer = self.model.rollout_buffer
+            if buffer.returns is not None and len(buffer.returns) > 0:
+                returns = buffer.returns.flatten()
+                values = buffer.values.flatten()
+                ev = 1 - np.var(returns - values) / (np.var(returns) + 1e-8)
+                print(f"EV: {ev:.4f} | returns mean: {returns.mean():.2f} std: {returns.std():.2f} | values mean: {values.mean():.2f} std: {values.std():.2f}")
 
     def _freeze_policy(self):
         """Freeze all policy network parameters except value function."""
@@ -710,7 +712,7 @@ class JumpKingRL:
         print(f"BC model saved to {model_path}")
  
     def create_RL_screen(self, name, screen, n_steps=2048, episode_mode=EpisodeMode.SCREEN,
-                         freeze_updates=5, ent_coef=0.02, learning_rate=0.0001):
+                         freeze_updates=5, ent_coef=0.02, learning_rate=0.0001, vf_coef=0.5, n_epochs=10, clip_range=0.2):
         """Creates a PPO model for one screen with BC weight transfer and value pretraining.
         Saves to models/<name>/."""
         folder_path = self.model_direc + name
@@ -744,9 +746,11 @@ class JumpKingRL:
             verbose=1,
             n_steps=n_steps,
             batch_size=64,
-            n_epochs=10,
+            n_epochs=n_epochs,
             ent_coef=ent_coef,
             learning_rate=learning_rate,
+            vf_coef=vf_coef,
+            clip_range=clip_range,
             policy_kwargs={"net_arch": [256, 256]}
         )
  
@@ -808,9 +812,9 @@ class JumpKingRL:
 JK = JumpKingRL()
 parser = RecordingParser()
 records = parser.load_recording()
-#JK.create_BC_screen("screen2_only", screen=2, records=records)
-#JK.create_RL_screen("screen2_only", screen=2, n_steps=2048, episode_mode=EpisodeMode.SCREEN)
-JK.train_model_one_screen("screen2_only", screen=2, freeze_updates=0)
+JK.create_BC_screen("ev_test", screen=2, records=records)
+JK.create_RL_screen("ev_test", screen=2, n_steps=128, episode_mode=EpisodeMode.SCREEN)
+JK.train_model_one_screen("ev_test", screen=2, freeze_updates=0)
 
 # env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)
 # bc = BehavioralCloning()
