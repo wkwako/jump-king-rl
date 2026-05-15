@@ -134,9 +134,11 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.load_game_attributes_prev()
         
         # executes action
-        #time.sleep(1.5)
+        #print (f"prev x, y: {self.x_prev, self.y_prev}")
+        #time.sleep(1)
 
         #print(f"Action selected: {action} — {self.action_map[action]}")
+        self.reset_keys()
         prev_write_count = self.execute_action(action)
 
         self.action_counter += 1
@@ -154,6 +156,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         # set game data into individual variables
         self.load_game_attributes()
+
+        #print (f"x, y: {self.x, self.y}")
 
         self.state = self.build_state_per_screen() if self.per_screen else self.build_state()
 
@@ -207,6 +211,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     def reset(self, seed=None, options=None):
         self.gamedata = self.read_gamedata()
         self.load_game_attributes()
+        self.reset_keys()
         
         # only teleport if we're on the wrong screen
         if self.per_screen and (self.current_screen != self.expected_screen or self.force_teleport):
@@ -489,7 +494,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     #     return False
 
     def wait_for_landing(self, prev_write_count):
-        time.sleep(0.2)
+        #time.sleep(0.2)
         while True:
             try:
                 with open(self.gamestate_path) as f:
@@ -583,15 +588,15 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
                 self.key_press("left", left)
             elif right:
                 self.key_press("right", right)
-            time.sleep(0.1) #was 0.3
+            time.sleep(0.2) #was 0.3
         else:
             self.jumped = True
             if left:
                 self.key_press("space", jump, "left")
             else:
-                time.sleep(0.05)
+                #time.sleep(0.05)
                 self.key_press("space", jump, "right")
-            time.sleep(0.1) #was 1
+            time.sleep(1) #was 1
         
         return prev_write_count
 

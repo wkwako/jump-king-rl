@@ -75,7 +75,7 @@ class JumpKingCallback(BaseCallback):
             self.logger.record("custom/current_screen", env.gamedata["current_screen"])
             self.logger.record("custom/max_height", env.gamedata["y"])
         
-        # print action probabilities
+        #print action probabilities
         # obs = self.locals.get("obs_tensor")
         # if obs is not None:
         #     with torch.no_grad():
@@ -754,7 +754,7 @@ class JumpKingRL:
         bc_state = torch.load(bc_model_path)
         print(f"BC input layer shape: {bc_state['net.0.weight'].shape}")
         bc.transfer_weights_to_ppo(model, bc_model_path)
-        self.pretrain_value_function(model, self.X_by_screen[screen], per_screen=True)
+        #self.pretrain_value_function(model, self.X_by_screen[screen], per_screen=True)
  
         self.overwrite_model(model_name, model)
         print(f"Screen {screen} PPO model saved to {self.model_direc}{model_name}")
@@ -809,9 +809,9 @@ class JumpKingRL:
 JK = JumpKingRL()
 parser = RecordingParser()
 records = parser.load_recording()
-JK.create_BC_screen("ev_test", screen=2, records=records)
-JK.create_RL_screen("ev_test", screen=2, n_steps=128, episode_mode=EpisodeMode.SCREEN)
-JK.train_model_one_screen("ev_test", screen=2, freeze_updates=0)
+JK.create_BC_screen("dummytest", screen=2, records=records)
+JK.create_RL_screen("dummytest", screen=2, n_steps=128, episode_mode=EpisodeMode.SCREEN)
+JK.train_model_one_screen("dummytest", screen=2, freeze_updates=3)
 
 # env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)
 # bc = BehavioralCloning()

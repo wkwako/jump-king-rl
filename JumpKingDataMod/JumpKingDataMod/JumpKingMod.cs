@@ -65,6 +65,7 @@ namespace JumpKingDataMod
         private FieldInfo _collisionQueryField;
         private MethodInfo _windGetVelocityMethod;
         private ActionKeylogger _keylogger;
+        private TrajectoryRecorder _trajectoryRecorder;
 
         private static readonly int[] WindScreens = { 25, 26, 27, 28, 29, 30, 31 };
         private static readonly int[] IceScreens = { 36, 37, 38 };
@@ -73,6 +74,7 @@ namespace JumpKingDataMod
         {
             _teleporter = new TeleporterBehavior();
             _keylogger = new ActionKeylogger();
+            _trajectoryRecorder = new TrajectoryRecorder();
         }
 
         private void InitializeReflection()
@@ -150,6 +152,7 @@ namespace JumpKingDataMod
                 BodyComp body = context.BodyComp;
                 if (body == null) return true;
                 _teleporter?.Update(body);
+                _trajectoryRecorder?.Update(body);
 
                 bool isOnGround = body.IsOnGround;
                 int currentScreen = Camera.CurrentScreen;
