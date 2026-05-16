@@ -629,3 +629,226 @@ class PlatformParser:
             )
 
         return can_bounce_right, can_bounce_left
+    
+    def clean_registry(self, input_path, output_path, y_tolerance=8, x_merge_gap=16):
+        """Cleans full_registry.txt by deduplicating and merging split platforms.
+        
+        y_tolerance: max y difference to consider platforms on the same level
+        x_merge_gap: max gap in pixels between two segments to merge them
+        """
+        with open(input_path, 'r') as f:
+            raw = json.load(f)
+
+        cleaned = {}
+
+        for screen_key, platforms in raw.items():
+            # group platforms by y level (within tolerance)
+            y_groups = []  # list of (representative_y, [platforms])
+
+            for platform in platforms:
+                abs_start, y, abs_end, _, center_x, length = platform
+                
+                # find existing y group within tolerance
+                matched = False
+                for group in y_groups:
+                    if abs(group[0] - y) <= y_tolerance:
+                        group[1].append((abs_start, y, abs_end))
+                        matched = True
+                        break
+                if not matched:
+                    y_groups.append((y, [(abs_start, y, abs_end)]))
+
+            # within each y group, merge overlapping or close segments
+            merged_platforms = []
+            for rep_y, segments in y_groups:
+                # sort by x_start
+                segments.sort(key=lambda s: s[0])
+
+                merged = []
+                current_start, current_y, current_end = segments[0]
+
+                for x_start, y, x_end in segments[1:]:
+                    if x_start <= current_end + x_merge_gap:
+                        # overlapping or close enough — extend
+                        current_end = max(current_end, x_end)
+                        current_y = (current_y + y) / 2  # average y
+                    else:
+                        merged.append((current_start, current_y, current_end))
+                        current_start, current_y, current_end = x_start, y, x_end
+
+                merged.append((current_start, current_y, current_end))
+
+                for x_start, y, x_end in merged:
+                    y = round(y)
+                    length = x_end - x_start
+                    center_x = (x_start + x_end) / 2
+                    merged_platforms.append([x_start, y, x_end, y, center_x, length])
+
+            cleaned[screen_key] = merged_platforms
+            print(f"Screen {screen_key}: {len(platforms)} → {len(merged_platforms)} platforms")
+
+        with open(output_path, 'w') as f:
+            json.dump(cleaned, f, indent=2)
+
+        print(f"\nCleaned registry saved to {output_path}")
+        return cleaned
+    
+    def load_slope_data(self, slope_path):
+        """Loads raw slope tile data from slopedata.txt."""
+        with open(slope_path, 'r') as f:
+            raw = json.load(f)
+        # negate Y to match Python coordinate system
+        result = {}
+        for screen_key, tiles in raw.items():
+            result[int(screen_key)] = [
+                (x, -y, w, h, slope_type)
+                for x, y, w, h, slope_type in tiles
+            ]
+        return result
+
+    def build_slope_segments(self, slope_tiles, platform_list, platform_y_tolerance=24):
+        if not slope_tiles:
+            return []
+
+        # cluster all tiles by spatial proximity regardless of type
+        clusters = []
+        for x, y, w, h, slope_type in slope_tiles:
+            matched = False
+            for cluster in clusters:
+                # only merge if same dominant type
+                cluster_type = cluster[0][4]
+                if slope_type != cluster_type:
+                    continue
+                for cx, cy, _, _, _ in cluster:
+                    if abs(x - cx) <= 24 and abs(y - cy) <= 24:
+                        cluster.append((x, y, w, h, slope_type))
+                        matched = True
+                        break
+                if matched:
+                    break
+            if not matched:
+                clusters.append([(x, y, w, h, slope_type)])
+
+        segments = []
+        for cluster in clusters:
+            slope_type = cluster[0][4]
+            seg = self._make_segment(cluster, slope_type, platform_list, platform_y_tolerance)
+            if seg:
+                segments.append(seg)
+
+        return segments
+
+    def _make_segment(self, tiles, slope_type, platform_list, platform_y_tolerance):
+        if len(tiles) < 2:
+            return None
+
+        xs = [t[0] for t in tiles]
+        ys = [t[1] for t in tiles]
+
+        # use only dominant type tiles for y_bottom calculation
+        dominant_tiles = [t for t in tiles if t[4] == slope_type]
+        dominant_ys = [t[1] for t in dominant_tiles] if dominant_tiles else ys
+
+        x_start = min(xs)
+        x_end = max(xs) + 8
+        y_top = max(ys)
+        y_bottom = min(dominant_ys)
+
+        bottom_x = x_start if slope_type in ("TopLeft", "BottomLeft") else x_end
+        x_buffer = 16
+        landing = None
+
+        for platform in platform_list:
+            px_start, py, px_end = platform[0], platform[1], platform[2]
+            #print(f"  checking platform y={py} vs y_bottom={y_bottom} | px={px_start}-{px_end} vs bottom_x={bottom_x}")
+            if abs(py - y_bottom) <= platform_y_tolerance:
+                if (px_start - x_buffer) <= bottom_x <= (px_end + x_buffer):
+                    landing = platform
+                    break
+
+        return {
+            "x_start": x_start,
+            "x_end": x_end,
+            "y_top": y_top,
+            "y_bottom": y_bottom,
+            "slope_type": slope_type,
+            "landing_platform": landing
+        }
+
+    def trajectory_hits_slope(self, start_x, start_y, direction, space_frames, 
+                            slope_segment, jump_models):
+        """Checks if a jump trajectory intersects a slope segment.
+        Returns landing x,y on the slope if hit, else None."""
+        model = jump_models.get(str(space_frames))
+        if model is None:
+            return None
+
+        total_dist = model["avg_horizontal_distance"]
+        apex_height = model["avg_apex_height_gain"]
+        a = model["parabola_a"]
+
+        # sign of horizontal movement
+        sign = 1 if direction == "right" else -1
+        half_dist = total_dist / 2
+
+        # step through trajectory frame by frame
+        # horizontal velocity is constant: total_dist / total_frames
+        # estimate total air frames from model
+        total_frames = space_frames * 2 + 10  # rough estimate
+        vx = (total_dist / total_frames) * sign
+
+        # reconstruct parabola in relative coords
+        # y_rel(t) = a_rel * t^2 + b_rel * t where t is horizontal distance from start
+        # apex at t = half_dist, so a_rel = -apex_height / half_dist^2
+        if half_dist == 0:
+            return None
+        a_rel = -apex_height / (half_dist ** 2)
+
+        for frame in range(int(total_frames)):
+            t = frame * abs(vx)  # horizontal distance traveled
+            x = start_x + sign * t
+            y_rel = a_rel * (t - half_dist) ** 2 + apex_height
+            y = start_y + y_rel
+
+            seg = slope_segment
+            # check if (x, y) is within the slope's x and y bounds
+            if seg["x_start"] <= x <= seg["x_end"]:
+                if seg["y_bottom"] <= y <= seg["y_top"]:
+                    # compute slope y at this x using linear interpolation
+                    x_range = seg["x_end"] - seg["x_start"]
+                    if x_range == 0:
+                        continue
+                    t_slope = (x - seg["x_start"]) / x_range
+                    if seg["slope_type"] in ("TopLeft", "BottomLeft"):
+                        # high on left, low on right
+                        slope_y = seg["y_top"] - t_slope * (seg["y_top"] - seg["y_bottom"])
+                    else:
+                        # high on right, low on left
+                        slope_y = seg["y_bottom"] + t_slope * (seg["y_top"] - seg["y_bottom"])
+
+                    if abs(y - slope_y) <= 12:  # within 12px of slope surface
+                        return (x, slope_y, seg["landing_platform"])
+
+        return None
+
+# parser = PlatformParser()
+# parser.clean_registry("full_registry.txt", "full_registry_clean.txt")
+
+parser = PlatformParser()
+
+# load slope data
+slope_data = parser.load_slope_data("C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/slopedata.txt")
+
+# load cleaned registry for platform lookup
+with open("full_registry_clean.txt", 'r') as f:
+    registry = json.load(f)
+
+# build segments for screens 37 and 38
+for screen in [37, 38]:
+    platform_list = registry.get(str(screen), [])
+    tiles = slope_data.get(screen, [])
+    segments = parser.build_slope_segments(tiles, platform_list, platform_y_tolerance=24)
+    print(f"\n--- Screen {screen} ({len(segments)} segments) ---")
+    for seg in segments:
+        landing = seg["landing_platform"]
+        print(f"  {seg['slope_type']} | x: {seg['x_start']}-{seg['x_end']} | y: {seg['y_bottom']}-{seg['y_top']} | landing: {'YES -> ' + str(landing) if landing else 'None (harmful)'}")

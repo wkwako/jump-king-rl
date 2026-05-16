@@ -60,6 +60,9 @@ class FreezePolicyCallback(BaseCallback):
 class JumpKingCallback(BaseCallback):
     def __init__(self, verbose=0):
         super().__init__(verbose)
+        self.best_reward = -np.inf
+        JK = JumpKingRL()
+        self.save_path = JK.model_direc
 
     # def _on_step(self) -> bool:
     #     env = self.training_env.envs[0].env
@@ -67,6 +70,15 @@ class JumpKingCallback(BaseCallback):
     #         self.logger.record("custom/current_screen", env.gamedata["current_screen"])
     #         self.logger.record("custom/max_height", env.gamedata["y"])
     #     return True
+
+    def _on_rollout_end(self):
+        ep_rew_mean = self.model.ep_info_buffer
+        if ep_rew_mean:
+            mean_reward = np.mean([ep['r'] for ep in ep_rew_mean])
+            if mean_reward > self.best_reward:
+                self.best_reward = mean_reward
+                self.model.save(f"{self.save_path}_best")
+                print(f"New best reward {mean_reward:.2f} — model saved")
 
     def _on_step(self) -> bool:
         env = self.training_env.envs[0].env

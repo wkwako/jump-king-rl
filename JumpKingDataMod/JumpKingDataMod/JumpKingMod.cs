@@ -37,6 +37,7 @@ namespace JumpKingDataMod
             // scan all screens once on load
             int totalScreens = LevelManager.TotalScreens;
             PlatformScanner.ScanAllScreens(totalScreens);
+            SlopeScanner.ScanAllScreens(totalScreens);
         }
 
         [OnLevelEnd]
