@@ -243,7 +243,8 @@ class JumpKingRL:
             max_episode_actions=self.metadata["hyperparameters"]["max_episode_actions"],
             per_screen=screen is not None,
             action_map=action_map,
-            current_screen=screen if screen is not None else 0
+            current_screen=screen if screen is not None else 0,
+            dummyenv=False #switch to True for adding platform data
         )
 
         model_class = self.MODEL_CONFIGS[self.metadata["model_type"]]["class"]
@@ -809,9 +810,23 @@ class JumpKingRL:
 JK = JumpKingRL()
 parser = RecordingParser()
 records = parser.load_recording()
-JK.create_BC_screen("dummytest", screen=2, records=records)
-JK.create_RL_screen("dummytest", screen=2, n_steps=128, episode_mode=EpisodeMode.SCREEN)
-JK.train_model_one_screen("dummytest", screen=2, freeze_updates=3)
+#JK.create_BC_screen("dummytest2", screen=2, records=records)
+#JK.create_RL_screen("dummytest2", screen=2, n_steps=128, episode_mode=EpisodeMode.SCREEN)
+JK.train_model_one_screen("dummytest2", screen=2, freeze_updates=3)
+
+
+#UNCOMMENT TO ADD PLATFORM DATA
+# JK = JumpKingRL()
+# max_episode_actions = 8
+# env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=max_episode_actions, dummyenv=True)
+# n_steps=64
+# callback = JumpKingCallback()
+# platform_parser = PlatformParser()
+# #create, load, train model
+# #model = JK.create_model("dummy", env, "PPO", verbose=1, n_steps=n_steps)
+# model = JK.load_model("dummy")
+# JK.train_model("dummy", model, total_timesteps=10000, callback=callback) #default is 2k
+
 
 # env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)
 # bc = BehavioralCloning()

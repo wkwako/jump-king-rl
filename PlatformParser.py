@@ -50,6 +50,12 @@ class PlatformParser:
         
     def update_registry(self, current_screen, player_position):
         #helper function for updating the registry. used for manual registry population only
+        
+        self.parse_result = self.read_platform_data(player_position, current_screen)
+    
+        if self.parse_result is None:
+            return False
+        
         env_state = self.parse_result[0]
         standing_start, standing_end = env_state[3], env_state[4]
 
@@ -68,6 +74,7 @@ class PlatformParser:
             self.registry[screen_key] = []
 
         if not self.is_coord_in_registry(new_platform, screen_key):
+            print (f"Adding new platform to registry: {new_platform}")
             self.registry[screen_key].append(list(new_platform))
             self.save_registry()
 
