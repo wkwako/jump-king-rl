@@ -24,7 +24,7 @@ class ScreenTransitionException(Exception):
 
 class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
-    def __init__(self, episode_mode, max_episode_actions=10, curriculum_screens=5, spacing=0.05, per_screen=False, action_map=None, current_screen=None):
+    def __init__(self, episode_mode, max_episode_actions=10, curriculum_screens=5, spacing=0.05, per_screen=False, action_map=None, current_screen=None, dummyenv=False):
         self.teleport_path = "C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/teleport.txt"
         self.gamestate_path = "C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/gamestate.txt"
         self.spacing = spacing
@@ -54,6 +54,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.direction_reward = 0.01
         self.speed_reward = 100
         self.force_teleport = False
+        self.dummyenv = dummyenv
 
         self.recent_walk_actions = []
         self.recent_jump_actions = []
@@ -157,13 +158,16 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         # set game data into individual variables
         self.load_game_attributes()
 
+        if self.dummyenv:
+            self.platform_parser.update_registry(self.current_screen, (self.x, self.y))
+
         #print (f"x, y: {self.x, self.y}")
 
         self.state = self.build_state_per_screen() if self.per_screen else self.build_state()
 
         #provides a small bonus in direction of progress
-        reward += self.get_direction_reward()
-        reward += self.get_goal_proximity_reward()
+        #reward += self.get_direction_reward()
+        #reward += self.get_goal_proximity_reward()
 
         # height reward for all agents
         height_reward = self.new_height_reward()
@@ -214,7 +218,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.reset_keys()
         
         # only teleport if we're on the wrong screen
-        if self.per_screen and (self.current_screen != self.expected_screen or self.force_teleport):
+        if self.per_screen and (self.current_screen != self.expected_screen or self.force_teleport) and not self.dummyenv:
             self.teleport(self.expected_screen)
             self.gamedata = self.read_gamedata()
             self.load_game_attributes()
@@ -617,10 +621,14 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
     def init_action_map(self):
         #left, right, spacebar
-        action_map = []
+
+        if self.dummyenv:
+            return [[0,0,0]]
 
         #perform no action - only used for testing
         #action_map.append([0, 0, 0])
+
+        action_map = []
 
         for t in [0.1, 0.2]:
             action_map.append([t, 0, 0])
