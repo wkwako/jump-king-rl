@@ -58,7 +58,23 @@ namespace JumpKingDataMod
                             {
                                 if (block == null) continue;
                                 if (block is SlopeBlock) continue;
+
                                 Rectangle rect = block.GetRect();
+
+                                Rectangle testRect = new Rectangle(rect.X + rect.Width / 2, rect.Y + rect.Height / 2, 1, 1);
+                                Rectangle intersection;
+                                BlockCollisionType collisionType = block.Intersects(testRect, out intersection);
+
+                                // log every tile with its collision type
+                                //File.AppendAllText(_outputPath + ".log",
+                                //    $"x={rect.X} y={rect.Y} w={rect.Width} h={rect.Height} type={collisionType}\n");
+
+                                if (collisionType != BlockCollisionType.Collision_Blocking)
+                                    continue;
+
+                                if (collisionType != BlockCollisionType.Collision_Blocking)
+                                    continue;
+
                                 if (!first) sb.Append(",");
                                 sb.Append($"[{rect.X},{rect.Y},{rect.Width},{rect.Height}]");
                                 first = false;
@@ -147,10 +163,16 @@ namespace JumpKingDataMod
             foreach (IBlock block in hitboxes)
             {
                 if (block == null) continue;
+                if (block is SlopeBlock) continue;
 
-                // skip slope blocks entirely
-                if (block is SlopeBlock)
-                    continue;
+                // skip non-blocking BoxBlocks
+                if (block is BoxBlock boxBlock)
+                {
+                    var canBlockField = typeof(BoxBlock).GetField("canBlockPlayer",
+                        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (canBlockField != null && !(bool)canBlockField.GetValue(boxBlock))
+                        continue;
+                }
 
                 Rectangle rect = block.GetRect();
                 sb.AppendLine($"{rect.X},{rect.Y},{rect.Width},{rect.Height}");

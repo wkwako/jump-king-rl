@@ -15,6 +15,7 @@ namespace JumpKingDataMod
         private KeyboardState _prevKeyState;
 
         private bool _isRecording = false;
+        private bool _startCaptured = false;
         private float _startX;
         private float _startY;
         private int _spaceHeldFrames = 0;
@@ -46,13 +47,12 @@ namespace JumpKingDataMod
             float x = body.Position.X;
             float y = body.Position.Y;
 
-            // spacebar pressed — record start position and reset
+            // spacebar pressed — reset counters
             if (spaceDown && !prevSpaceDown && isOnGround)
             {
-                _startX = x;
-                _startY = y;
                 _spaceHeldFrames = 0;
                 _framePositions.Clear();
+                _startCaptured = false;
                 _isRecording = false;
             }
 
@@ -64,8 +64,16 @@ namespace JumpKingDataMod
             if (!spaceDown && prevSpaceDown)
                 _isRecording = true;
 
+            // capture start position on first airborne frame
+            if (_isRecording && !isOnGround && !_startCaptured)
+            {
+                _startX = x;
+                _startY = y;
+                _startCaptured = true;
+            }
+
             // record every airborne frame
-            if (_isRecording && !isOnGround)
+            if (_isRecording && !isOnGround && _startCaptured)
                 _framePositions.Add($"{x:F2},{-y:F2}");
 
             // landed — write full trajectory record
@@ -73,6 +81,7 @@ namespace JumpKingDataMod
             {
                 WriteRecord(x, y);
                 _isRecording = false;
+                _startCaptured = false;
                 _framePositions.Clear();
             }
 
@@ -82,7 +91,6 @@ namespace JumpKingDataMod
         private void WriteRecord(float endX, float endY)
         {
             float spaceSeconds = _spaceHeldFrames * DELTA_TIME;
-            // format: start_x,start_y,end_x,end_y,space_frames,space_seconds|x0,y0|x1,y1|...
             string header = $"{_startX:F2},{-_startY:F2},{endX:F2},{-endY:F2},{_spaceHeldFrames},{spaceSeconds:F4}";
             string frames = string.Join("|", _framePositions);
             try

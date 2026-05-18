@@ -747,7 +747,9 @@ class JumpKingRL:
             max_episode_actions=12,
             per_screen=True,
             action_map=action_map,
-            current_screen=screen
+            current_screen=screen,
+            target_kl=0.02, #added this. default is none
+            n_epochs=5, #added this. default is 10
         )
  
         model_name = f"{name}/ppo_screen_{screen}"

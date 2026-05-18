@@ -693,6 +693,41 @@ class PlatformParser:
         print(f"\nCleaned registry saved to {output_path}")
         return cleaned
     
+    def get_walls_for_screen(self, screen, min_height=32):
+        """Returns list of wall x ranges for a screen as dicts with x_start, x_end, y_top, y_bottom.
+        Walls are tiles significantly taller than wide. Also implicitly includes screen boundaries.
+        """
+        walls = []
+        tiles = self.tile_map.get(screen, [])
+        for tile in tiles:
+            tx, ty, tw, th = tile[0], tile[1], tile[2], tile[3]
+            ty_py = -ty
+            if th >= min_height and th > tw * 2:
+                walls.append({
+                    "x_start": tx,
+                    "x_end": tx + tw,
+                    "y_top": ty_py + th,
+                    "y_bottom": ty_py
+                })
+        return walls
+
+    def get_ceilings_for_screen(self, screen, min_width=16):
+        """Returns list of ceiling tiles for a screen as dicts with x_start, x_end, y.
+        Ceilings are tiles significantly wider than tall.
+        """
+        ceilings = []
+        tiles = self.tile_map.get(screen, [])
+        for tile in tiles:
+            tx, ty, tw, th = tile[0], tile[1], tile[2], tile[3]
+            ty_py = -ty
+            if tw >= min_width and tw > th * 2:
+                ceilings.append({
+                    "x_start": tx,
+                    "x_end": tx + tw,
+                    "y": ty_py
+                })
+        return ceilings
+
     def load_slope_data(self, slope_path):
         """Loads raw slope tile data from slopedata.txt."""
         with open(slope_path, 'r') as f:
@@ -709,6 +744,9 @@ class PlatformParser:
     def build_slope_segments(self, slope_tiles, platform_list, platform_y_tolerance=24):
         if not slope_tiles:
             return []
+        
+        # only process walkable slope surfaces, ignore bottom edges
+        slope_tiles = [(x, y, w, h, t) for x, y, w, h, t in slope_tiles if t in ("TopLeft", "TopRight")]
 
         # cluster all tiles by spatial proximity regardless of type
         clusters = []
@@ -720,7 +758,7 @@ class PlatformParser:
                 if slope_type != cluster_type:
                     continue
                 for cx, cy, _, _, _ in cluster:
-                    if abs(x - cx) <= 24 and abs(y - cy) <= 24:
+                    if abs(x - cx) <= 16 and abs(y - cy) <= 16:
                         cluster.append((x, y, w, h, slope_type))
                         matched = True
                         break
@@ -739,7 +777,7 @@ class PlatformParser:
         return segments
 
     def _make_segment(self, tiles, slope_type, platform_list, platform_y_tolerance):
-        if len(tiles) < 2:
+        if len(tiles) < 3:
             return None
 
         xs = [t[0] for t in tiles]
@@ -831,24 +869,23 @@ class PlatformParser:
 
         return None
 
+#cleans registry.txt. only run these 2 lines when full_registry_clean.txt needs to be rebuilt
 # parser = PlatformParser()
 # parser.clean_registry("full_registry.txt", "full_registry_clean.txt")
 
-parser = PlatformParser()
-
-# load slope data
-slope_data = parser.load_slope_data("C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/slopedata.txt")
-
-# load cleaned registry for platform lookup
-with open("full_registry_clean.txt", 'r') as f:
-    registry = json.load(f)
-
-# build segments for screens 37 and 38
-for screen in [37, 38]:
-    platform_list = registry.get(str(screen), [])
-    tiles = slope_data.get(screen, [])
-    segments = parser.build_slope_segments(tiles, platform_list, platform_y_tolerance=24)
-    print(f"\n--- Screen {screen} ({len(segments)} segments) ---")
-    for seg in segments:
-        landing = seg["landing_platform"]
-        print(f"  {seg['slope_type']} | x: {seg['x_start']}-{seg['x_end']} | y: {seg['y_bottom']}-{seg['y_top']} | landing: {'YES -> ' + str(landing) if landing else 'None (harmful)'}")
+#prints slope info for screens in list. for debugging only
+# parser = PlatformParser()
+# # load slope data
+# slope_data = parser.load_slope_data("C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/slopedata.txt")
+# # load cleaned registry for platform lookup
+# with open("full_registry_clean.txt", 'r') as f:
+#     registry = json.load(f)
+# # build segments for screens 37 and 38
+# for screen in [37, 38]:
+#     platform_list = registry.get(str(screen), [])
+#     tiles = slope_data.get(screen, [])
+#     segments = parser.build_slope_segments(tiles, platform_list, platform_y_tolerance=24)
+#     print(f"\n--- Screen {screen} ({len(segments)} segments) ---")
+#     for seg in segments:
+#         landing = seg["landing_platform"]
+#         print(f"  {seg['slope_type']} | x: {seg['x_start']}-{seg['x_end']} | y: {seg['y_bottom']}-{seg['y_top']} | landing: {'YES -> ' + str(landing) if landing else 'None (harmful)'}")
