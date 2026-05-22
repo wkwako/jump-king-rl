@@ -748,8 +748,6 @@ class JumpKingRL:
             per_screen=True,
             action_map=action_map,
             current_screen=screen,
-            target_kl=0.02, #added this. default is none
-            n_epochs=5, #added this. default is 10
         )
  
         model_name = f"{name}/ppo_screen_{screen}"
@@ -763,6 +761,7 @@ class JumpKingRL:
             learning_rate=learning_rate,
             vf_coef=vf_coef,
             clip_range=clip_range,
+            target_kl=0.02, #added this. default is none
             policy_kwargs={"net_arch": [256, 256]}
         )
  
@@ -824,9 +823,14 @@ class JumpKingRL:
 JK = JumpKingRL()
 parser = RecordingParser()
 records = parser.load_recording()
-#JK.create_BC_screen("dummytest2", screen=2, records=records)
-#JK.create_RL_screen("dummytest2", screen=2, n_steps=128, episode_mode=EpisodeMode.SCREEN)
-JK.train_model_one_screen("dummytest2", screen=2, freeze_updates=3)
+screen = 32
+JK.create_BC_screen(f"screen{screen}_dummy", screen=screen, records=records)
+JK.create_RL_screen(f"screen{screen}_dummy", screen=screen, n_steps=2048, n_epochs=5, episode_mode=EpisodeMode.SCREEN)
+JK.train_model_one_screen(f"screen{screen}_dummy", screen=screen, freeze_updates=0)
+
+#parser = RecordingParser()
+#action_map = parser.get_screen_action_map(25)
+#print (action_map)
 
 
 #UNCOMMENT TO ADD PLATFORM DATA
@@ -849,7 +853,7 @@ JK.train_model_one_screen("dummytest2", screen=2, freeze_updates=3)
 # records = parser.clean_actions(records, increment=0.025)
 # by_screen = parser.split_recording_by_screen(records)
 
-# _, actions = parser.separate_actions_and_state(by_screen[42])
+# _, actions = parser.separate_actions_and_state(by_screen[32])
 # left_counts, right_counts, space_counts = parser.tally_actions(actions)
 # print (f"left counts: {left_counts}")
 # print (f"right counts: {right_counts}")

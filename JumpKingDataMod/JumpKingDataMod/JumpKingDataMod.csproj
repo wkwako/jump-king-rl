@@ -78,6 +78,7 @@
     <Compile Include="SlopeScanner.cs" />
     <Compile Include="TeleporterBehavior.cs" />
     <Compile Include="TrajectoryRecorder.cs" />
+    <Compile Include="WindCycleRecorder.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

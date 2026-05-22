@@ -66,10 +66,12 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.is_on_ground = self.current_screen = self.total_screens = None
         self.jump_frames = self.jump_percentage = self.max_height_this_jump = None
         self.is_on_ice = self.is_in_snow = self.is_in_water = self.wind_velocity = None
+        self.wind_acceleration = None
         self.x_prev = self.y_prev = self.vel_x_prev = self.vel_y_prev = None
         self.is_on_ground_prev = self.current_screen_prev = self.total_screens_prev = None
         self.jump_frames_prev = self.jump_percentage_prev = self.max_height_this_jump_prev = None
         self.is_on_ice_prev = self.is_in_snow_prev = self.is_in_water_prev = self.wind_velocity_prev = None
+        self.wind_acceleration_prev = None
 
         self.recent_landings = []
         self.landing_memory = 5  # how many recent landings to remember
@@ -139,15 +141,19 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #time.sleep(1)
 
         #print(f"Action selected: {action} — {self.action_map[action]}")
-        self.reset_keys()
+        #self.reset_keys()
+        #print (f"starting execute action: {action}")
         prev_write_count = self.execute_action(action)
+        #print (f"ending execute action: {action}")
 
         self.action_counter += 1
 
         if self.per_screen:
             self.total_screen_actions += 1
 
+        #print ("now waiting for landing")
         self.wait_for_landing(prev_write_count)
+        #print ("character has landed")
 
         # reads gamedata — pauses until character lands
         self.gamedata = self.read_gamedata()
@@ -290,7 +296,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             except PermissionError:
                 time.sleep(0.1)
         
-        time.sleep(0.2)
+        time.sleep(0.5)
         self.gamedata = self.read_gamedata()
         self.load_game_attributes()
         
@@ -399,7 +405,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             rel_x_end = 9999
         
         if self.current_screen in static_variables.WIND_SCREENS:
-            return np.array([self.x, self.y, self.wind_velocity, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
+            return np.array([self.x, self.y, self.wind_velocity, self.wind_acceleration, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
         elif self.current_screen in static_variables.ICE_SCREENS:
             return np.array([self.x, self.y, self.vel_x, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
         else:
@@ -585,7 +591,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         prev_write_count = self.gamedata.get("write_count", 0) if self.gamedata else 0
         
         left, right, jump = self.action_map[action]
-        #print(f"Executing: left={left}, right={right}, jump={jump}")
+        print(f"Executing action: left={left}, right={right}, jump={jump}")
 
         if not jump:
             if left:
@@ -600,7 +606,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             else:
                 #time.sleep(0.05)
                 self.key_press("space", jump, "right")
-            time.sleep(1) #was 1
+            time.sleep(0.1) #was 1
         
         return prev_write_count
 
@@ -656,6 +662,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.is_in_snow = self.gamedata["is_in_snow"]
         self.is_in_water = self.gamedata["is_in_water"]
         self.wind_velocity = self.gamedata["wind_velocity"]
+        self.wind_acceleration = self.gamedata["wind_acceleration"]
 
     def load_game_attributes_prev(self):
         """Unpacks current gamedata dict into instance variables."""
@@ -673,3 +680,4 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.is_in_snow_prev = self.gamedata["is_in_snow"]
         self.is_in_water_prev = self.gamedata["is_in_water"]
         self.wind_velocity_prev = self.gamedata["wind_velocity"]
+        self.wind_acceleration_prev = self.gamedata["wind_acceleration"]

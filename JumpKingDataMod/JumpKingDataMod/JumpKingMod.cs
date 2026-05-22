@@ -57,6 +57,8 @@ namespace JumpKingDataMod
         private bool _prevAnyKeyDown = false;
         private int _prevScreen = -1;
         private int _writeCount = 0;
+        private bool _firstAirborneFrame = false;
+        private float _prevWindVelocity = 0f;
 
         private Type _jumpChargeCalcType;
         private PropertyInfo _jumpFramesProp;
@@ -67,6 +69,7 @@ namespace JumpKingDataMod
         private MethodInfo _windGetVelocityMethod;
         private ActionKeylogger _keylogger;
         private TrajectoryRecorder _trajectoryRecorder;
+        private WindCycleRecorder _windCycleRecorder;
 
         private static readonly int[] WindScreens = { 25, 26, 27, 28, 29, 30, 31 };
         private static readonly int[] IceScreens = { 36, 37, 38 };
@@ -76,6 +79,7 @@ namespace JumpKingDataMod
             _teleporter = new TeleporterBehavior();
             _keylogger = new ActionKeylogger();
             _trajectoryRecorder = new TrajectoryRecorder();
+            _windCycleRecorder = new WindCycleRecorder();
         }
 
         private void InitializeReflection()
@@ -199,6 +203,9 @@ namespace JumpKingDataMod
                         windVelocity = (float)_windGetVelocityMethod.Invoke(windQuery, null);
                 }
 
+                float windAcceleration = windVelocity - _prevWindVelocity;
+                _prevWindVelocity = windVelocity;
+
                 string state = $@"{{
                     ""x"": {x:F2},
                     ""y"": {-y:F2},
@@ -214,11 +221,15 @@ namespace JumpKingDataMod
                     ""is_in_snow"": {isInSnow.ToString().ToLower()},
                     ""is_in_water"": {isInWater.ToString().ToLower()},
                     ""wind_velocity"": {windVelocity:F4},
-                    ""write_count"": {_writeCount}
+                    ""write_count"": {_writeCount},
+                    ""wind_acceleration"": {windAcceleration:F6}
                 }}";
 
                 // keylogger runs every frame
                 _keylogger.Update(state, isOnGround);
+
+                // wind cycle recorder runs every frame
+                //_windCycleRecorder.Update(windVelocity);
 
                 // track key state for write trigger
                 KeyboardState keyState = Keyboard.GetState();
@@ -226,22 +237,35 @@ namespace JumpKingDataMod
                                   keyState.IsKeyDown(Keys.Right) ||
                                   keyState.IsKeyDown(Keys.Space);
 
-                // write immediately on screen transition
+                /// write immediately on screen transition
                 if (currentScreen != _prevScreen && _prevScreen != -1)
                 {
                     WriteStateSafe(state);
                 }
                 _prevScreen = currentScreen;
 
+                if (!isOnGround && _wasOnGround)
+                {
+                    // first airborne frame — flag it
+                    _firstAirborneFrame = true;
+                }
+                else if (!isOnGround && _firstAirborneFrame)
+                {
+                    // second airborne frame — character is unambiguously airborne
+                    WriteStateSafe(state);
+                    _firstAirborneFrame = false;
+                }
+
                 if (isOnGround && !_wasOnGround)
                 {
                     // landing
                     WriteStateSafe(state);
+                    _firstAirborneFrame = false;
                 }
-                else if (!anyKeyDown && _prevAnyKeyDown && isOnGround)
+
+                if (isOnGround)
                 {
-                    // all keys released while on ground
-                    WriteStateSafe(state);
+                    _firstAirborneFrame = false;
                 }
 
                 _prevAnyKeyDown = anyKeyDown;
