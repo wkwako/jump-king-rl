@@ -157,7 +157,7 @@ SCREEN_ACTION_MAPS = {
     #Colossal Drain
     5: {
         "walks": [0.1, 0.2],
-        "jumps": [0.35, 0.45, 0.6],
+        "jumps": [0.35, 0.40, 0.6], #changed something here on Boots, (0.45 -> 0.40)
     },
     6: {
         "walks": [0.1, 0.2],
@@ -274,7 +274,7 @@ SCREEN_ACTION_MAPS = {
         "only_jump": [0.6],
     },
     31: {
-        "walks": [0.1, 0.2],
+        "walks": [0.2],
         "jumps": [],
         "only_jump": [0.6],
     },

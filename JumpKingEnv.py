@@ -139,14 +139,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.load_game_attributes_prev()
         
         # executes action
-        #print (f"prev x, y: {self.x_prev, self.y_prev}")
         #time.sleep(1)
-
-        #print(f"Action selected: {action} — {self.action_map[action]}")
-        #self.reset_keys()
-        #print (f"starting execute action: {action}")
         self.execute_action(action)
-        #print (f"ending execute action: {action}")
 
         self.action_counter += 1
 
@@ -157,22 +151,20 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.wait_for_landing()
         #print ("character has landed")
 
-        # reads gamedata — pauses until character lands
+        #reads gamedata
         self.gamedata = self.read_gamedata()
 
-        # release spacebar if held
+        #release spacebar if held
         self.reset_keys()
 
-        # set game data into individual variables
+        #set game data into individual variables
         self.load_game_attributes()
 
         if self.dummyenv:
             self.platform_parser.update_registry(self.current_screen, (self.x, self.y))
 
-        #print (f"x, y: {self.x, self.y}")
-
         self.state = self.build_state_per_screen() if self.per_screen else self.build_state()
-
+        #print (f"state: {self.state}")
         #provides a small bonus in direction of progress
         #reward += self.get_direction_reward()
         #reward += self.get_goal_proximity_reward()
@@ -204,7 +196,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         # termination
         terminated = self.set_terminated()
 
-        if self.action_counter >= self.action_cutoff:
+        if self.action_counter >= self.action_cutoff and self.current_screen not in static_variables.WIND_SCREENS:
             reward += self.action_cutoff_penalty
             terminated = True
             self.force_teleport = True
@@ -213,7 +205,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         if terminated:
             print ("--- EPISODE END ---")
 
-        #test this. gives bonus reward for faster screen completion
+        #gives bonus reward for faster screen completion
         if terminated and self.episode_mode == "screen" and self.current_screen > self.current_screen_prev:
             reward += self.speed_reward / self.action_counter
             print(f"Speed bonus: {self.speed_reward / self.action_counter:.2f} ({self.action_counter} actions)")
@@ -283,8 +275,9 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     def teleport(self, screen):
         x, y, radius = static_variables.SCREEN_START_POSITIONS[screen]
         x += random.randint(-radius, radius)
+        time.sleep(0.2)
         self.receiver.send_teleport(x, y)
-        time.sleep(0.5)  # keep 0.5s, teleport needs more time than 0.1s
+        time.sleep(0.4)  # keep 0.5s, teleport needs more time than 0.1s
         self.gamedata = self.read_gamedata()
         self.load_game_attributes()
         
@@ -559,19 +552,25 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         left, right, jump = self.action_map[action]
         print(f"Executing action: left={left}, right={right}, jump={jump}")
 
+        if (left, right, jump) == (0, 0, 0):
+            print ("no-op")
+            time.sleep(0.05)
+
         if not jump:
             if left:
                 self.key_press("left", left)
             elif right:
                 self.key_press("right", right)
-            time.sleep(0.2) #was 0.3
+            time.sleep(0.1) #was 0.3
         else:
             self.jumped = True
             if left:
                 self.key_press("space", jump, "left")
-            else:
+            elif right:
                 #time.sleep(0.05)
                 self.key_press("space", jump, "right")
+            else:
+                self.key_press("space", jump)
             time.sleep(0.1) #was 1
         
     
