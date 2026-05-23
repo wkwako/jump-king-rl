@@ -236,7 +236,7 @@ class JumpKingRL:
         }
         return metadata
 
-    def load_model(self, name, screen=None, model_prefix="ppo"):
+    def load_model(self, name, screen=None, model_prefix="ppo", env=None):
         if screen is not None:
             model_path = f"{self.model_direc}{name}/{model_prefix}_screen_{screen}"
             metadata_path = f"{self.model_direc}{name}/{model_prefix}_screen_{screen}_metadata.json"
@@ -250,14 +250,15 @@ class JumpKingRL:
         parser = RecordingParser()
         action_map = parser.get_screen_action_map(screen) if screen is not None else None
 
-        env = JumpKingEnv(
-            episode_mode=self.metadata["episode_mode"],
-            max_episode_actions=self.metadata["hyperparameters"]["max_episode_actions"],
-            per_screen=screen is not None,
-            action_map=action_map,
-            current_screen=screen if screen is not None else 0,
-            dummyenv=False #switch to True for adding platform data
-        )
+        if env is None:
+            env = JumpKingEnv(
+                episode_mode=self.metadata["episode_mode"],
+                max_episode_actions=self.metadata["hyperparameters"]["max_episode_actions"],
+                per_screen=screen is not None,
+                action_map=action_map,
+                current_screen=screen if screen is not None else 0,
+                dummyenv=False
+            )
 
         model_class = self.MODEL_CONFIGS[self.metadata["model_type"]]["class"]
         model = model_class.load(
@@ -748,8 +749,6 @@ class JumpKingRL:
             per_screen=True,
             action_map=action_map,
             current_screen=screen,
-            target_kl=0.02, #added this. default is none
-            n_epochs=5, #added this. default is 10
         )
  
         model_name = f"{name}/ppo_screen_{screen}"
@@ -763,6 +762,7 @@ class JumpKingRL:
             learning_rate=learning_rate,
             vf_coef=vf_coef,
             clip_range=clip_range,
+            target_kl=0.02, #added this. default is none
             policy_kwargs={"net_arch": [256, 256]}
         )
  
@@ -773,8 +773,9 @@ class JumpKingRL:
  
         self.overwrite_model(model_name, model)
         print(f"Screen {screen} PPO model saved to {self.model_direc}{model_name}")
+        return env
 
-    def train_model_one_screen(self, folder_name, screen, total_timesteps=500000, freeze_updates=0):
+    def train_model_one_screen(self, folder_name, screen, total_timesteps=500000, freeze_updates=0, env=None):
         """Trains a single per-screen model using teleporter for resets."""
         
         model_path = f"{self.model_direc}{folder_name}/ppo_screen_{screen}"
@@ -782,7 +783,7 @@ class JumpKingRL:
             print(f"No model found for screen {screen}, stopping.")
             return
 
-        model = self.load_model(folder_name, screen=screen)
+        model = self.load_model(folder_name, screen=screen, env=env)
         model.env.envs[0].env.expected_screen = screen
         model.env.envs[0].env.total_screen_actions = 0
         # print(f"episode_mode from metadata: {self.metadata['episode_mode']}")
@@ -790,6 +791,8 @@ class JumpKingRL:
         # print(f"expected_screen: {model.env.envs[0].env.expected_screen}")
 
         # verify we're on the right screen before starting
+        # while model.env.envs[0].env.read_gamedata() is None:
+        #     time.sleep(0.1)
         actual_screen = model.env.envs[0].env.read_gamedata()["current_screen"]
         if actual_screen != screen:
             print(f"Warning: expected screen {screen}, got {actual_screen}. Teleporting...")
@@ -824,9 +827,14 @@ class JumpKingRL:
 JK = JumpKingRL()
 parser = RecordingParser()
 records = parser.load_recording()
-#JK.create_BC_screen("dummytest2", screen=2, records=records)
-#JK.create_RL_screen("dummytest2", screen=2, n_steps=128, episode_mode=EpisodeMode.SCREEN)
-JK.train_model_one_screen("dummytest2", screen=2, freeze_updates=3)
+screen = 0
+JK.create_BC_screen(f"screen{screen}_dummy", screen=screen, records=records)
+env = JK.create_RL_screen(f"screen{screen}_dummy", screen=screen, n_steps=2048, n_epochs=5, episode_mode=EpisodeMode.SCREEN)
+JK.train_model_one_screen(f"screen{screen}_dummy", screen=screen, freeze_updates=0, env=env)
+
+#parser = RecordingParser()
+#action_map = parser.get_screen_action_map(25)
+#print (action_map)
 
 
 #UNCOMMENT TO ADD PLATFORM DATA
@@ -849,7 +857,7 @@ JK.train_model_one_screen("dummytest2", screen=2, freeze_updates=3)
 # records = parser.clean_actions(records, increment=0.025)
 # by_screen = parser.split_recording_by_screen(records)
 
-# _, actions = parser.separate_actions_and_state(by_screen[42])
+# _, actions = parser.separate_actions_and_state(by_screen[32])
 # left_counts, right_counts, space_counts = parser.tally_actions(actions)
 # print (f"left counts: {left_counts}")
 # print (f"right counts: {right_counts}")

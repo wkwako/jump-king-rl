@@ -244,7 +244,7 @@ SCREEN_ACTION_MAPS = {
 
     #Windswept Bluff/Stormwall Pass
     25: {
-        "walks": [0.1, 0.2],
+        "walks": [0.2],
         "jumps": [0.25],
         "only_jump": [0.6],
     },
@@ -282,11 +282,11 @@ SCREEN_ACTION_MAPS = {
     #Chapel Perilous
     32: {
         "walks": [0.1, 0.2],
-        "jumps": [0.15, 0.6],
+        "jumps": [0.15, 0.45, 0.6],
     },
     33: {
         "walks": [0.1, 0.2],
-        "jumps": [0.5, 0.6],
+        "jumps": [0.48, 0.6],
     },
     34: {
         "walks": [0.1, 0.2],
@@ -299,16 +299,16 @@ SCREEN_ACTION_MAPS = {
 
     #Blue Ruin
     36: {
-        "walks": [0.1, 0.2],
+        "walks": [0.2],
         "jumps": [0.1, 0.45, 0.5],
     },
     37: {
-        "walks": [0.1, 0.2],
+        "walks": [0.2],
         "jumps": [0.1, 0.6],
         "only_jump": [0.1],
     },
     38: {
-        "walks": [0.1, 0.2],
+        "walks": [0.2],
         "jumps": [0.1, 0.28, 0.6],
     },
 

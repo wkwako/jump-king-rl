@@ -18,6 +18,7 @@ from PlatformParser import PlatformParser
 from RecordingParser import RecordingParser
 from Ray import Ray
 import static_variables
+from GameStateReceiver import GameStateReceiver
 
 class ScreenTransitionException(Exception):
     pass
@@ -25,8 +26,9 @@ class ScreenTransitionException(Exception):
 class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
     def __init__(self, episode_mode, max_episode_actions=10, curriculum_screens=5, spacing=0.05, per_screen=False, action_map=None, current_screen=None, dummyenv=False):
+        print(f"JumpKingEnv created")
         self.teleport_path = "C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/teleport.txt"
-        self.gamestate_path = "C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/gamestate.txt"
+        self.receiver = GameStateReceiver(host="127.0.0.1", port=7777)
         self.spacing = spacing
         #self.action_map = self.init_action_map()
         self.state = None
@@ -66,10 +68,12 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.is_on_ground = self.current_screen = self.total_screens = None
         self.jump_frames = self.jump_percentage = self.max_height_this_jump = None
         self.is_on_ice = self.is_in_snow = self.is_in_water = self.wind_velocity = None
+        self.wind_acceleration = None
         self.x_prev = self.y_prev = self.vel_x_prev = self.vel_y_prev = None
         self.is_on_ground_prev = self.current_screen_prev = self.total_screens_prev = None
         self.jump_frames_prev = self.jump_percentage_prev = self.max_height_this_jump_prev = None
         self.is_on_ice_prev = self.is_in_snow_prev = self.is_in_water_prev = self.wind_velocity_prev = None
+        self.wind_acceleration_prev = None
 
         self.recent_landings = []
         self.landing_memory = 5  # how many recent landings to remember
@@ -139,15 +143,19 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #time.sleep(1)
 
         #print(f"Action selected: {action} — {self.action_map[action]}")
-        self.reset_keys()
-        prev_write_count = self.execute_action(action)
+        #self.reset_keys()
+        #print (f"starting execute action: {action}")
+        self.execute_action(action)
+        #print (f"ending execute action: {action}")
 
         self.action_counter += 1
 
         if self.per_screen:
             self.total_screen_actions += 1
 
-        self.wait_for_landing(prev_write_count)
+        #print ("now waiting for landing")
+        self.wait_for_landing()
+        #print ("character has landed")
 
         # reads gamedata — pauses until character lands
         self.gamedata = self.read_gamedata()
@@ -275,22 +283,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     def teleport(self, screen):
         x, y, radius = static_variables.SCREEN_START_POSITIONS[screen]
         x += random.randint(-radius, radius)
-        
-        temp_path = self.teleport_path + ".tmp"
-        
-        # write to temp file
-        with open(temp_path, 'w') as f:
-            f.write(f"{x},{y}")
-        
-        # retry rename if access denied
-        for attempt in range(50):
-            try:
-                os.replace(temp_path, self.teleport_path)
-                break
-            except PermissionError:
-                time.sleep(0.1)
-        
-        time.sleep(0.2)
+        self.receiver.send_teleport(x, y)
+        time.sleep(0.5)  # keep 0.5s, teleport needs more time than 0.1s
         self.gamedata = self.read_gamedata()
         self.load_game_attributes()
         
@@ -399,7 +393,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             rel_x_end = 9999
         
         if self.current_screen in static_variables.WIND_SCREENS:
-            return np.array([self.x, self.y, self.wind_velocity, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
+            return np.array([self.x, self.y, self.wind_velocity, self.wind_acceleration, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
         elif self.current_screen in static_variables.ICE_SCREENS:
             return np.array([self.x, self.y, self.vel_x, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
         else:
@@ -497,23 +491,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     
     #     return False
 
-    def wait_for_landing(self, prev_write_count):
-        #time.sleep(0.2)
-        while True:
-            try:
-                with open(self.gamestate_path) as f:
-                    content = f.read()
-                if not content or content.isspace():
-                    time.sleep(self.sleep_time)
-                    continue
-                data = json.loads(content)
-                if data.get("is_on_ground") and data.get("write_count", 0) > prev_write_count:
-                    return
-            except (json.JSONDecodeError, KeyError):
-                pass
-            except Exception as e:
-                print(f"wait_for_landing error: {e}")
-            time.sleep(self.sleep_time)
+    def wait_for_landing(self):
+        self.receiver.wait_for_landing(self.jumped)
     
     def reset_keys(self):
         #stops pressing all keys
@@ -564,17 +543,10 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         return reward
 
     def read_gamedata(self):
-        while True:
-            try:
-                with open("C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/gamestate.txt") as f:
-                    content = f.read()
-                data = json.loads(content)
-                if data.get("is_on_ground"):
-                    return data
-            except Exception as e:
-                continue
-                #print(f"error: {e}")
-            time.sleep(self.sleep_time)
+        data = self.receiver.read_gamedata()
+        if data is None:
+            return self.gamedata  # return last known if buffer empty
+        return data
 
     def get_gamedata_old(self):
         self.gamedata = self.read_gamedata()
@@ -582,10 +554,10 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         return self.gamedata
                 
     def execute_action(self, action):
-        prev_write_count = self.gamedata.get("write_count", 0) if self.gamedata else 0
+        #prev_write_count = self.gamedata.get("write_count", 0) if self.gamedata else 0
         
         left, right, jump = self.action_map[action]
-        #print(f"Executing: left={left}, right={right}, jump={jump}")
+        print(f"Executing action: left={left}, right={right}, jump={jump}")
 
         if not jump:
             if left:
@@ -600,10 +572,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             else:
                 #time.sleep(0.05)
                 self.key_press("space", jump, "right")
-            time.sleep(1) #was 1
+            time.sleep(0.1) #was 1
         
-        return prev_write_count
-
     
     def key_press(self, key, duration, key2=None):
         #key is released first when key2 is present so directional jumps occur
@@ -656,6 +626,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.is_in_snow = self.gamedata["is_in_snow"]
         self.is_in_water = self.gamedata["is_in_water"]
         self.wind_velocity = self.gamedata["wind_velocity"]
+        self.wind_acceleration = self.gamedata["wind_acceleration"]
 
     def load_game_attributes_prev(self):
         """Unpacks current gamedata dict into instance variables."""
@@ -673,3 +644,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.is_in_snow_prev = self.gamedata["is_in_snow"]
         self.is_in_water_prev = self.gamedata["is_in_water"]
         self.wind_velocity_prev = self.gamedata["wind_velocity"]
+        self.wind_acceleration_prev = self.gamedata["wind_acceleration"]
+
+    def close(self):
+        self.receiver.close()
+        super().close()

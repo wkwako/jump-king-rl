@@ -13,7 +13,7 @@ class RecordingParser:
 
     def get_state_size(self, screen):
         if screen in static_variables.WIND_SCREENS:
-            return 6  # x, y, wind_velocity, ceiling, rel_x_start, rel_x_end
+            return 7  # x, y, wind_velocity, ceiling, rel_x_start, rel_x_end, wind_acceleration
         elif screen in static_variables.ICE_SCREENS:
             return 6  # x, y, vel_x, ceiling, rel_x_start, rel_x_end
         else:
@@ -135,7 +135,8 @@ class RecordingParser:
         
         if screen in static_variables.WIND_SCREENS:
             wind_velocity = float(state_dict["wind_velocity"])
-            return np.array([x, y, wind_velocity, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
+            wind_acceleration = float(state_dict.get("wind_acceleration", 0.0))
+            return np.array([x, y, wind_velocity, wind_acceleration, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
         elif screen in static_variables.ICE_SCREENS:
             vel_x = float(state_dict["vel_x"])
             return np.array([x, y, vel_x, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
