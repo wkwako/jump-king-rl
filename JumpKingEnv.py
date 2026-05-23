@@ -26,6 +26,7 @@ class ScreenTransitionException(Exception):
 class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
     def __init__(self, episode_mode, max_episode_actions=10, curriculum_screens=5, spacing=0.05, per_screen=False, action_map=None, current_screen=None, dummyenv=False):
+        print(f"JumpKingEnv created")
         self.teleport_path = "C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/teleport.txt"
         self.receiver = GameStateReceiver(host="127.0.0.1", port=7777)
         self.spacing = spacing

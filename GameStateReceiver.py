@@ -16,6 +16,7 @@ class GameStateReceiver:
     """
 
     def __init__(self, host="127.0.0.1", port=7777, max_retries=30):
+        print(f"GameStateReceiver created, connecting to {host}:{port}")
         self.host = host
         self.port = port
         self.max_retries = max_retries
