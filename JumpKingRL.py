@@ -686,7 +686,7 @@ class JumpKingRL:
             wind_records = parser.load_wind_recording(self.wind_path)
             wind_screen_records = [(ts, s, a) for ts, s, a in wind_records
                                 if int(s.get("current_screen", -1)) == screen]
-            screen_records = parser.fill_wind_noops(wind_screen_records, screen)
+            screen_records = parser.fill_wind_noops(wind_screen_records, screen, noop_divisor=30)
         else:
             screen_records = by_screen[screen]
 
@@ -839,10 +839,10 @@ JK = JumpKingRL()
 parser = RecordingParser()
 records = parser.load_recording()
 screen = 31
-JK.create_BC_screen(f"screen{screen}", screen=screen, records=records)
-env = JK.create_RL_screen(f"screen{screen}", screen=screen, n_steps=2048, n_epochs=5, ent_coef=0.08, target_kl=0.04, episode_mode=EpisodeMode.SCREEN)
-#env = None
-JK.train_model_one_screen(f"screen{screen}", screen=screen, freeze_updates=0, env=env)
+#JK.create_BC_screen(f"screen{screen}_15frames", screen=screen, records=records)
+#env = JK.create_RL_screen(f"screen{screen}_15frames", screen=screen, n_steps=2048, n_epochs=5, ent_coef=0.08, target_kl=0.04, episode_mode=EpisodeMode.SCREEN)
+env = None
+JK.train_model_one_screen(f"screen{screen}_15frames", screen=screen, freeze_updates=0, env=env)
 
 # parser = RecordingParser()
 # action_map = parser.get_screen_action_map(31)

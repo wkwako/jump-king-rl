@@ -274,8 +274,8 @@ SCREEN_ACTION_MAPS = {
         "only_jump": [0.6],
     },
     31: {
-        "walks": [0.2],
-        "jumps": [],
+        "walks": [0.1, 0.2],
+        "jumps": [0.6], #could try without this. did make it once
         "only_jump": [0.6],
     },
 

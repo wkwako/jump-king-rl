@@ -34,7 +34,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.state = None
         self.gamedata = None
         #self.gamedata_prev = None
-        self.new_screen_reward_val = 150
+        self.new_screen_reward_val = 1000 #was 150
+        self.falling_screen_penalty = -100
         self.jumped = False
         self.sleep_time = 0.1
         self.jump_counter_metadata = 0
@@ -61,7 +62,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.recent_walk_actions = []
         self.recent_jump_actions = []
         self.action_repeat_penalty = -10
-        self.action_cutoff = 22
+        self.action_cutoff = 200 #20-30 depending on screen
         self.action_cutoff_penalty = -50
 
         self.x = self.y = self.vel_x = self.vel_y = None
@@ -196,7 +197,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         # termination
         terminated = self.set_terminated()
 
-        if self.action_counter >= self.action_cutoff and self.current_screen not in static_variables.WIND_SCREENS:
+        if self.action_counter >= self.action_cutoff:
             reward += self.action_cutoff_penalty
             terminated = True
             self.force_teleport = True
@@ -250,7 +251,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         if self.current_screen > self.current_screen_prev:
             return self.new_screen_reward_val
         elif self.current_screen < self.current_screen_prev:
-            return -50
+            return self.falling_screen_penalty
         return 0
     
     def get_goal_proximity_reward(self):
@@ -275,9 +276,9 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     def teleport(self, screen):
         x, y, radius = static_variables.SCREEN_START_POSITIONS[screen]
         x += random.randint(-radius, radius)
-        time.sleep(0.2)
+        time.sleep(0.4)
         self.receiver.send_teleport(x, y)
-        time.sleep(0.4)  # keep 0.5s, teleport needs more time than 0.1s
+        time.sleep(0.6)  # keep 0.5s, teleport needs more time than 0.1s
         self.gamedata = self.read_gamedata()
         self.load_game_attributes()
         
@@ -533,6 +534,11 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         reward = (self.y - self.y_prev) / 5
         if self.jump_percentage == 1 and self.y > self.y_prev:
             reward *= self.max_jump_bonus
+
+        #temporary for wind screens - no height penalty:
+        if self.current_screen in static_variables.WIND_SCREENS and reward < 0:
+            reward = 0
+
         return reward
 
     def read_gamedata(self):

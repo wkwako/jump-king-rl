@@ -7,7 +7,7 @@ FRAMES_PER_SECOND = 60
 NOOP_THRESHOLD_SECONDS = 0.4
 NOOP_THRESHOLD_FRAMES = int(NOOP_THRESHOLD_SECONDS * FRAMES_PER_SECOND)  # 24 frames
 MAX_NOOP_FRAMES = WIND_CYCLE_FRAMES  # cap at 1 cycle
-frame_skips = 5
+frame_skips = 30
 
 def parse_timestamp(ts_str):
     """Parse timestamp string to datetime object."""
