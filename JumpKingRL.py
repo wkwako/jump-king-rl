@@ -823,10 +823,10 @@ class JumpKingRL:
 JK = JumpKingRL()
 parser = RecordingParser()
 records = parser.load_recording()
-screen = 32
-JK.create_BC_screen(f"screen{screen}_dummy", screen=screen, records=records)
-JK.create_RL_screen(f"screen{screen}_dummy", screen=screen, n_steps=2048, n_epochs=5, episode_mode=EpisodeMode.SCREEN)
-JK.train_model_one_screen(f"screen{screen}_dummy", screen=screen, freeze_updates=0)
+screen = 1
+#JK.create_BC_screen(f"screen{screen}_dummy", screen=screen, records=records)
+#JK.create_RL_screen(f"screen{screen}_dummy", screen=screen, n_steps=2048, n_epochs=5, episode_mode=EpisodeMode.SCREEN)
+JK.train_model_one_screen(f"screen{screen}", screen=screen, freeze_updates=0)
 
 #parser = RecordingParser()
 #action_map = parser.get_screen_action_map(25)
