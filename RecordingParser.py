@@ -13,7 +13,7 @@ class RecordingParser:
 
     def get_state_size(self, screen):
         if screen in static_variables.WIND_SCREENS:
-            return 7  # x, y, wind_velocity, ceiling, rel_x_start, rel_x_end, wind_acceleration
+            return 7  # x, y, wind_velocity, wind_acceleration, ceiling, rel_x_start, rel_x_end
         elif screen in static_variables.ICE_SCREENS:
             return 6  # x, y, vel_x, ceiling, rel_x_start, rel_x_end
         else:
@@ -290,3 +290,106 @@ class RecordingParser:
         
         print(f"Done. Found {len(by_screen)} screens, {len(records)} total records.")
         return by_screen
+    def load_wind_recording(self, filepath):
+        """Loads a wind-specific recording with timestamps.
+        Returns list of (timestamp, state_dict, action) tuples.
+        """
+        from datetime import datetime
+
+        def parse_timestamp(ts_str):
+            try:
+                return datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S.%f")
+            except ValueError:
+                try:
+                    return datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    return None
+
+        records = []
+        with open(filepath, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("Start session"):
+                    continue
+                try:
+                    parts = line.split("|")
+                    if len(parts) == 3:
+                        ts_str, state_str, durations_str = parts
+                        ts = parse_timestamp(ts_str)
+                    elif len(parts) == 2:
+                        ts = None
+                        state_str, durations_str = parts
+                    else:
+                        continue
+
+                    state = json.loads(state_str)
+                    left, right, space = map(float, durations_str.split(","))
+                    records.append((ts, state, (left, right, space)))
+                except Exception:
+                    continue
+
+        print(f"Loaded {len(records)} wind records from {filepath}")
+        return records
+
+    def fill_wind_noops(self, records, screen, noop_divisor=5, verbose=True):
+        """Inserts no-op actions between recorded wind screen actions.
+
+        Rules:
+        1. Gap > 0.4s between consecutive actions → fill with no-ops
+        2. Cap at 1 wind cycle (780 frames) regardless of actual gap
+        3. Insert 1 no-op per noop_divisor frames to avoid overrepresentation
+
+        Args:
+            records: list of (timestamp, state_dict, action) tuples
+            screen: screen number
+            noop_divisor: insert 1 no-op per N frames (default 5)
+            verbose: print details per gap
+
+        Returns:
+            list of (state_dict, action) tuples with no-ops inserted
+        """
+        WIND_CYCLE_FRAMES = 780
+        FRAMES_PER_SECOND = 60
+        NOOP_THRESHOLD_FRAMES = int(0.4 * FRAMES_PER_SECOND)  # 24 frames
+        noop_action = (0, 0, 0)
+
+        filled = []
+        total_noops = 0
+
+        for i, (ts, state_dict, action) in enumerate(records):
+            filled.append((state_dict, action))
+
+            if i >= len(records) - 1:
+                continue
+
+            next_ts, next_state_dict, next_action = records[i + 1]
+
+            if ts is None or next_ts is None:
+                continue
+
+            gap_seconds = (next_ts - ts).total_seconds()
+
+            if gap_seconds <= 0:
+                continue
+
+            # cap at 1 wind cycle
+            gap_seconds = min(gap_seconds, WIND_CYCLE_FRAMES / FRAMES_PER_SECOND)
+            gap_frames = int(gap_seconds * FRAMES_PER_SECOND)
+
+            if gap_frames <= NOOP_THRESHOLD_FRAMES:
+                continue
+
+            noops_to_insert = gap_frames // noop_divisor
+
+            for _ in range(noops_to_insert):
+                filled.append((state_dict, noop_action))
+            total_noops += noops_to_insert
+
+            if verbose:
+                print(f"  Record {i}: gap={gap_seconds:.2f}s → "
+                      f"inserted {noops_to_insert} no-ops "
+                      f"(wind_vel={state_dict.get('wind_velocity', 0):.4f})")
+
+        print(f"Screen {screen}: {len(records)} records → {len(filled)} "
+              f"after no-op fill ({total_noops} no-ops inserted)")
+        return filled

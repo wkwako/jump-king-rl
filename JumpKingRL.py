@@ -15,6 +15,7 @@ from RecordingParser import RecordingParser
 import torch
 import torch.nn as nn
 from stable_baselines3.common.utils import obs_as_tensor
+import static_variables
 
 import sys
 sys.path.append("C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL")
@@ -113,6 +114,7 @@ class JumpKingRL:
     def __init__(self):
         self.X_by_screen = {}
         self.model_direc = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/models/"
+        self.wind_path = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/recording_wind_only.txt"
         #self.model_direc = "C:/Users/wkwak/Documents/CodingWork/PythonStuff/jump-king-rl/models/"
 
         self.MODEL_CONFIGS = {
@@ -680,7 +682,15 @@ class JumpKingRL:
             print(f"No records found for screen {screen}.")
             return
  
-        screen_records = by_screen[screen]
+        if screen in static_variables.WIND_SCREENS:
+            wind_records = parser.load_wind_recording(self.wind_path)
+            wind_screen_records = [(ts, s, a) for ts, s, a in wind_records
+                                if int(s.get("current_screen", -1)) == screen]
+            screen_records = parser.fill_wind_noops(wind_screen_records, screen)
+        else:
+            screen_records = by_screen[screen]
+
+
         print(f"\n--- Screen {screen} ({len(screen_records)} records) ---")
  
         if len(screen_records) < 10:
@@ -723,7 +733,8 @@ class JumpKingRL:
         print(f"BC model saved to {model_path}")
  
     def create_RL_screen(self, name, screen, n_steps=2048, episode_mode=EpisodeMode.SCREEN,
-                         freeze_updates=5, ent_coef=0.02, learning_rate=0.0001, vf_coef=0.5, n_epochs=10, clip_range=0.2):
+                         freeze_updates=5, ent_coef=0.02, learning_rate=0.0001, vf_coef=0.5,
+                        n_epochs=10, clip_range=0.2, target_kl=0.02):
         """Creates a PPO model for one screen with BC weight transfer and value pretraining.
         Saves to models/<name>/."""
         folder_path = self.model_direc + name
@@ -762,7 +773,7 @@ class JumpKingRL:
             learning_rate=learning_rate,
             vf_coef=vf_coef,
             clip_range=clip_range,
-            target_kl=0.02, #added this. default is none
+            target_kl=target_kl, #added this. default is none
             policy_kwargs={"net_arch": [256, 256]}
         )
  
@@ -827,14 +838,28 @@ class JumpKingRL:
 JK = JumpKingRL()
 parser = RecordingParser()
 records = parser.load_recording()
-screen = 0
-JK.create_BC_screen(f"screen{screen}_dummy", screen=screen, records=records)
-env = JK.create_RL_screen(f"screen{screen}_dummy", screen=screen, n_steps=2048, n_epochs=5, episode_mode=EpisodeMode.SCREEN)
-JK.train_model_one_screen(f"screen{screen}_dummy", screen=screen, freeze_updates=0, env=env)
+screen = 31
+JK.create_BC_screen(f"screen{screen}", screen=screen, records=records)
+env = JK.create_RL_screen(f"screen{screen}", screen=screen, n_steps=2048, n_epochs=5, ent_coef=0.08, target_kl=0.04, episode_mode=EpisodeMode.SCREEN)
+#env = None
+JK.train_model_one_screen(f"screen{screen}", screen=screen, freeze_updates=0, env=env)
 
-#parser = RecordingParser()
-#action_map = parser.get_screen_action_map(25)
-#print (action_map)
+# parser = RecordingParser()
+# action_map = parser.get_screen_action_map(31)
+# print (action_map)
+
+# env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)
+# bc = BehavioralCloning()
+# parser = RecordingParser()
+# records = parser.load_recording()
+# records = parser.clean_actions(records, increment=0.025)
+# by_screen = parser.split_recording_by_screen(records)
+
+# _, actions = parser.separate_actions_and_state(by_screen[31])
+# left_counts, right_counts, space_counts = parser.tally_actions(actions)
+# print (f"left counts: {left_counts}")
+# print (f"right counts: {right_counts}")
+# print (f"space counts: {space_counts}")
 
 
 #UNCOMMENT TO ADD PLATFORM DATA
@@ -848,20 +873,6 @@ JK.train_model_one_screen(f"screen{screen}_dummy", screen=screen, freeze_updates
 # #model = JK.create_model("dummy", env, "PPO", verbose=1, n_steps=n_steps)
 # model = JK.load_model("dummy")
 # JK.train_model("dummy", model, total_timesteps=10000, callback=callback) #default is 2k
-
-
-# env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)
-# bc = BehavioralCloning()
-# parser = RecordingParser()
-# records = parser.load_recording()
-# records = parser.clean_actions(records, increment=0.025)
-# by_screen = parser.split_recording_by_screen(records)
-
-# _, actions = parser.separate_actions_and_state(by_screen[32])
-# left_counts, right_counts, space_counts = parser.tally_actions(actions)
-# print (f"left counts: {left_counts}")
-# print (f"right counts: {right_counts}")
-# print (f"space counts: {space_counts}")
 
 #behavioral cloning test
 # env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)
