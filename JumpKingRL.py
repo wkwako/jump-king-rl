@@ -895,17 +895,17 @@ class JumpKingRL:
                 break
 
 JK = JumpKingRL()
-#parser = RecordingParser()
-#records = parser.load_recording()
-#screen = 5
-#env = None
-#JK.create_BC_screen(f"screen{screen}_newstate", screen=screen, records=records)
-#env = JK.create_RL_screen(f"screen{screen}_newstate", screen=screen, n_steps=2048, n_epochs=5, ent_coef=0.08, target_kl=0.04, episode_mode=EpisodeMode.SCREEN)
-#JK.train_model_one_screen(f"screen{screen}", screen=screen, freeze_updates=0, env=env)
+parser = RecordingParser()
+records = parser.load_recording()
+screen = 6
+env = None
+JK.create_BC_screen(f"screen{screen}", screen=screen, records=records)
+env = JK.create_RL_screen(f"screen{screen}", screen=screen, n_steps=2048, n_epochs=5, ent_coef=0.04, target_kl=0.02, episode_mode=EpisodeMode.SCREEN)
+JK.train_model_one_screen(f"screen{screen}", screen=screen, freeze_updates=2, env=env)
 
 
-folder = "full"
-JK.play_game_per_screen(folder, start_screen=0)
+#folder = "full"
+#JK.play_game_per_screen(folder, start_screen=0)
 
 
 # parser = RecordingParser()

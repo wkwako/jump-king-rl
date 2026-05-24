@@ -34,7 +34,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.state = None
         self.gamedata = None
         #self.gamedata_prev = None
-        self.new_screen_reward_val = 2000 #was 150
+        self.new_screen_reward_val = 150 #was 150
         self.falling_screen_penalty = -100
         self.jumped = False
         self.sleep_time = 0.1
@@ -63,7 +63,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.recent_walk_actions = []
         self.recent_jump_actions = []
         self.action_repeat_penalty = -10
-        self.action_cutoff = 200 #20-30 depending on screen
+        self.action_cutoff = 22 #20-30 depending on screen
         self.action_cutoff_penalty = -50
 
         self.x = self.y = self.vel_x = self.vel_y = None
@@ -436,7 +436,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         
         #terminate after reaching a new screen and landing there
         elif self.episode_mode == "screen":
-            result = self.terminate_screen_episode()
+            result = self.terminate_screen_episode()# or self.terminate_height_episode() #added self.terminate_height_episode()
         
         #terminate after landing with a positive height gain
         elif self.episode_mode == "height":
