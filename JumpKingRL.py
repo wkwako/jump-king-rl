@@ -839,10 +839,10 @@ JK = JumpKingRL()
 parser = RecordingParser()
 records = parser.load_recording()
 screen = 31
-#JK.create_BC_screen(f"screen{screen}_15frames", screen=screen, records=records)
-#env = JK.create_RL_screen(f"screen{screen}_15frames", screen=screen, n_steps=2048, n_epochs=5, ent_coef=0.08, target_kl=0.04, episode_mode=EpisodeMode.SCREEN)
 env = None
-JK.train_model_one_screen(f"screen{screen}_15frames", screen=screen, freeze_updates=0, env=env)
+JK.create_BC_screen(f"screen{screen}_newstate", screen=screen, records=records)
+env = JK.create_RL_screen(f"screen{screen}_newstate", screen=screen, n_steps=2048, n_epochs=5, ent_coef=0.08, target_kl=0.04, episode_mode=EpisodeMode.SCREEN)
+JK.train_model_one_screen(f"screen{screen}_newstate", screen=screen, freeze_updates=0, env=env)
 
 # parser = RecordingParser()
 # action_map = parser.get_screen_action_map(31)

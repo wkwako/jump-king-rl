@@ -34,7 +34,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.state = None
         self.gamedata = None
         #self.gamedata_prev = None
-        self.new_screen_reward_val = 1000 #was 150
+        self.new_screen_reward_val = 2000 #was 150
         self.falling_screen_penalty = -100
         self.jumped = False
         self.sleep_time = 0.1
@@ -387,7 +387,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             rel_x_end = 9999
         
         if self.current_screen in static_variables.WIND_SCREENS:
-            return np.array([self.x, self.y, self.wind_velocity, self.wind_acceleration, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
+            #return np.array([self.x, self.y, self.wind_velocity, self.wind_acceleration, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
+            return np.array([self.x, self.y, self.wind_velocity*1000, self.wind_acceleration*10000], dtype=np.float32)
         elif self.current_screen in static_variables.ICE_SCREENS:
             return np.array([self.x, self.y, self.vel_x, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
         else:
