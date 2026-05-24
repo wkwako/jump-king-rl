@@ -14,6 +14,7 @@ class GameStateReceiver:
     
     Also handles sending teleport commands back to C#.
     """
+    _instance = None
 
     def __init__(self, host="127.0.0.1", port=7777, max_retries=30):
         print(f"GameStateReceiver created, connecting to {host}:{port}")
@@ -31,6 +32,18 @@ class GameStateReceiver:
         self._partial = ""  # handle partial messages
 
         self.connect()
+
+    @classmethod
+    def get_shared(cls, host="127.0.0.1", port=7777):
+        if cls._instance is None:
+            cls._instance = cls(host=host, port=port)
+        return cls._instance
+
+    @classmethod
+    def reset_shared(cls):
+        if cls._instance is not None:
+            cls._instance.close()
+        cls._instance = None
 
     def connect(self):
         """Connect to C# TCP server with retry logic."""

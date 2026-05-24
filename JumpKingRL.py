@@ -238,7 +238,7 @@ class JumpKingRL:
         }
         return metadata
 
-    def load_model(self, name, screen=None, model_prefix="ppo", env=None):
+    def load_model(self, name, screen=None, model_prefix="ppo", env=None, only_agent=False):
         if screen is not None:
             model_path = f"{self.model_direc}{name}/{model_prefix}_screen_{screen}"
             metadata_path = f"{self.model_direc}{name}/{model_prefix}_screen_{screen}_metadata.json"
@@ -246,23 +246,37 @@ class JumpKingRL:
             model_path = f"{self.model_direc}{name}"
             metadata_path = f"{self.model_direc}{name}_metadata.json"
 
-        with open(metadata_path) as f:
-            self.metadata = json.load(f)
+        if not only_agent:
+            with open(metadata_path) as f:
+                self.metadata = json.load(f)
 
         parser = RecordingParser()
         action_map = parser.get_screen_action_map(screen) if screen is not None else None
 
         if env is None:
-            env = JumpKingEnv(
-                episode_mode=self.metadata["episode_mode"],
-                max_episode_actions=self.metadata["hyperparameters"]["max_episode_actions"],
-                per_screen=screen is not None,
-                action_map=action_map,
-                current_screen=screen if screen is not None else 0,
-                dummyenv=False
-            )
+            if only_agent:
+                # use sensible defaults when not loading metadata
+                env = JumpKingEnv(
+                    episode_mode=EpisodeMode.SCREEN,
+                    max_episode_actions=22,
+                    per_screen=screen is not None,
+                    action_map=action_map,
+                    current_screen=screen if screen is not None else 0,
+                    dummyenv=False
+                )
+            else:
+                env = JumpKingEnv(
+                    episode_mode=self.metadata["episode_mode"],
+                    max_episode_actions=self.metadata["hyperparameters"]["max_episode_actions"],
+                    per_screen=screen is not None,
+                    action_map=action_map,
+                    current_screen=screen if screen is not None else 0,
+                    dummyenv=False
+                )
 
-        model_class = self.MODEL_CONFIGS[self.metadata["model_type"]]["class"]
+        # use PPO as default model class when only_agent=True
+        model_class = PPO if only_agent else self.MODEL_CONFIGS[self.metadata["model_type"]]["class"]
+        
         model = model_class.load(
             model_path,
             env=env,
@@ -835,17 +849,67 @@ class JumpKingRL:
             self.overwrite_model(f"{folder_name}/ppo_screen_{screen}", model)
             print(f"Screen {screen} model saved.")
 
+    def play_game_per_screen(self, folder_name, start_screen=0):
+        current_screen = start_screen
+        
+        while True:
+            print(f"\n--- Loading model for screen {current_screen} ---")
+            
+            model_path = f"{self.model_direc}{folder_name}/ppo_screen_{current_screen}"
+            if not os.path.exists(model_path + ".zip"):
+                print(f"No model found for screen {current_screen}, stopping.")
+                break
+
+            time.sleep(0.3)
+            model = self.load_model(folder_name, screen=current_screen, only_agent=True)
+            model.env.envs[0].env.play = True
+            model.policy.set_training_mode(False)
+            model.env.envs[0].env.expected_screen = current_screen
+
+            actual_screen = model.env.envs[0].env.read_gamedata()["current_screen"]
+            print(f"Loaded model for screen: {current_screen}, actual screen: {actual_screen}")
+
+            if actual_screen != current_screen:
+                print(f"Screen mismatch — switching to screen {actual_screen}")
+                current_screen = actual_screen
+                continue
+
+            try:
+                obs = model.env.reset()
+                done = False
+                while not done:
+                    action, _ = model.predict(obs, deterministic=True) #deterministic=True
+                    obs, reward, done, _ = model.env.step(action)
+
+                new_screen = model.env.envs[0].env.current_screen
+                if new_screen > current_screen:
+                    print(f"Transitioning from screen {current_screen} to {new_screen}")
+                    current_screen = new_screen
+                else:
+                    print(f"Fell back to screen {new_screen}, retrying screen {current_screen}")
+
+            except KeyboardInterrupt:
+                self.reset_keys()
+                model.env.envs[0].env.reset_keys()
+                print(f"Interrupted on screen {current_screen}")
+                break
+
 JK = JumpKingRL()
-parser = RecordingParser()
-records = parser.load_recording()
-screen = 31
-env = None
-JK.create_BC_screen(f"screen{screen}_newstate", screen=screen, records=records)
-env = JK.create_RL_screen(f"screen{screen}_newstate", screen=screen, n_steps=2048, n_epochs=5, ent_coef=0.08, target_kl=0.04, episode_mode=EpisodeMode.SCREEN)
-JK.train_model_one_screen(f"screen{screen}_newstate", screen=screen, freeze_updates=0, env=env)
+#parser = RecordingParser()
+#records = parser.load_recording()
+#screen = 5
+#env = None
+#JK.create_BC_screen(f"screen{screen}_newstate", screen=screen, records=records)
+#env = JK.create_RL_screen(f"screen{screen}_newstate", screen=screen, n_steps=2048, n_epochs=5, ent_coef=0.08, target_kl=0.04, episode_mode=EpisodeMode.SCREEN)
+#JK.train_model_one_screen(f"screen{screen}", screen=screen, freeze_updates=0, env=env)
+
+
+folder = "full"
+JK.play_game_per_screen(folder, start_screen=0)
+
 
 # parser = RecordingParser()
-# action_map = parser.get_screen_action_map(31)
+# action_map = parser.get_screen_action_map(5)
 # print (action_map)
 
 # env = JumpKingEnv(episode_mode="action", max_episode_actions=8, spacing=0.05)

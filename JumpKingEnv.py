@@ -25,10 +25,10 @@ class ScreenTransitionException(Exception):
 
 class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
-    def __init__(self, episode_mode, max_episode_actions=10, curriculum_screens=5, spacing=0.05, per_screen=False, action_map=None, current_screen=None, dummyenv=False):
+    def __init__(self, episode_mode, max_episode_actions=10, curriculum_screens=5, spacing=0.05, per_screen=False, action_map=None, current_screen=None, dummyenv=False, play=False):
         print(f"JumpKingEnv created")
         self.teleport_path = "C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/teleport.txt"
-        self.receiver = GameStateReceiver(host="127.0.0.1", port=7777)
+        self.receiver = GameStateReceiver.get_shared()
         self.spacing = spacing
         #self.action_map = self.init_action_map()
         self.state = None
@@ -58,6 +58,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.speed_reward = 100
         self.force_teleport = False
         self.dummyenv = dummyenv
+        self.play = play
 
         self.recent_walk_actions = []
         self.recent_jump_actions = []
@@ -145,7 +146,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         self.action_counter += 1
 
-        if self.per_screen:
+        if self.per_screen and not self.play:
             self.total_screen_actions += 1
 
         #print ("now waiting for landing")
@@ -219,7 +220,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.reset_keys()
         
         # only teleport if we're on the wrong screen
-        if self.per_screen and (self.current_screen != self.expected_screen or self.force_teleport) and not self.dummyenv:
+        if self.per_screen and (self.current_screen != self.expected_screen or self.force_teleport) and not self.dummyenv and not self.play:
             self.teleport(self.expected_screen)
             self.gamedata = self.read_gamedata()
             self.load_game_attributes()
