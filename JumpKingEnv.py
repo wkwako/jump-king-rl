@@ -25,7 +25,7 @@ class ScreenTransitionException(Exception):
 
 class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
-    def __init__(self, episode_mode, max_episode_actions=10, curriculum_screens=5, spacing=0.05, per_screen=False, action_map=None, current_screen=None, dummyenv=False, play=False):
+    def __init__(self, episode_mode, max_episode_actions=10, curriculum_screens=5, spacing=0.05, per_screen=False, action_map=None, current_screen=None, dummyenv=False, play=False, action_cutoff=22):
         print(f"JumpKingEnv created")
         self.teleport_path = "C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/teleport.txt"
         self.receiver = GameStateReceiver.get_shared()
@@ -64,7 +64,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.recent_walk_actions = []
         self.recent_jump_actions = []
         self.action_repeat_penalty = -10
-        self.action_cutoff = 48 #20-30 depending on screen
+        self.action_cutoff = action_cutoff #20-30 depending on screen
         self.action_cutoff_penalty = -50
 
         self.x = self.y = self.vel_x = self.vel_y = None
@@ -266,7 +266,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         elif self.current_screen < self.expected_screen:
             reward += self.falling_screen_penalty
             print (f"Falling screen penalty: {self.falling_screen_penalty}")
-            
+
         return reward
     
     def get_goal_proximity_reward(self):
