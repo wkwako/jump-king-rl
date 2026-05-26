@@ -749,7 +749,7 @@ class JumpKingRL:
  
     def create_RL_screen(self, name, screen, n_steps=2048, episode_mode=EpisodeMode.SCREEN,
                          freeze_updates=5, ent_coef=0.02, learning_rate=0.0001, vf_coef=0.5,
-                        n_epochs=10, clip_range=0.2, target_kl=0.02):
+                        n_epochs=10, clip_range=0.2, target_kl=0.02, action_cutoff=22):
         """Creates a PPO model for one screen with BC weight transfer and value pretraining.
         Saves to models/<name>/."""
         folder_path = self.model_direc + name
@@ -775,6 +775,7 @@ class JumpKingRL:
             per_screen=True,
             action_map=action_map,
             current_screen=screen,
+            action_cuttoff=action_cutoff,
         )
  
         model_name = f"{name}/ppo_screen_{screen}"
