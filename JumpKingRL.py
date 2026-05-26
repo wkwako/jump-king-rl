@@ -16,6 +16,7 @@ import torch
 import torch.nn as nn
 from stable_baselines3.common.utils import obs_as_tensor
 import static_variables
+pydirectinput.PAUSE=0
 
 import sys
 sys.path.append("C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL")
@@ -897,11 +898,11 @@ class JumpKingRL:
 JK = JumpKingRL()
 parser = RecordingParser()
 records = parser.load_recording()
-screen = 6
+screen = 12
 env = None
-JK.create_BC_screen(f"screen{screen}", screen=screen, records=records)
-env = JK.create_RL_screen(f"screen{screen}", screen=screen, n_steps=2048, n_epochs=5, ent_coef=0.04, target_kl=0.02, episode_mode=EpisodeMode.SCREEN)
-JK.train_model_one_screen(f"screen{screen}", screen=screen, freeze_updates=2, env=env)
+#JK.create_BC_screen(f"screen{screen}", screen=screen, records=records)
+#env = JK.create_RL_screen(f"screen{screen}", screen=screen, n_steps=2048, n_epochs=5, ent_coef=0.04, target_kl=0.02, vf_coef=1.0, learning_rate=0.001, episode_mode=EpisodeMode.SCREEN)
+JK.train_model_one_screen(f"screen{screen}", screen=screen, freeze_updates=0, env=env)
 
 
 #folder = "full"

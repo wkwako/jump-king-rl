@@ -240,6 +240,7 @@ class PlatformParser:
 
     def read_platform_data(self, player_position, current_screen):
         player_x, player_y = player_position
+        #print (f"player_y: {player_y}")
 
         def to_relative(tiles):
             return [
@@ -256,9 +257,9 @@ class PlatformParser:
         self.current_tiles = current_screen_tiles
         self.next_tiles = next_screen_tiles
 
-        return self.parse_platforms_from_tiles(current_screen_tiles, next_screen_tiles)
+        return self.parse_platforms_from_tiles(current_screen_tiles, next_screen_tiles, player_x, player_y)
 
-    def parse_platforms_from_tiles(self, current_screen_tiles, next_screen_tiles):
+    def parse_platforms_from_tiles(self, current_screen_tiles, next_screen_tiles, player_x=0, player_y=0):
         if not current_screen_tiles:
             return None
 
@@ -301,6 +302,16 @@ class PlatformParser:
 
         wide_ceiling_dist = self.detect_wide_ceiling(current_screen_tiles)
         sectors = self.assign_sectors(current_platforms, next_platforms, wide_ceiling_dist)
+
+        # debug: print standing platform info
+        # print(f"Player position passed in: x={player_x:.2f} y={player_y:.2f}")
+        # print(f"Below platforms found: {len(below_platforms)}")
+        # if below_platforms:
+        #     standing = min(below_platforms, key=lambda p: abs(p[0]))
+        #     print(f"Selected platform (relative): {standing}")
+        #     print(f"Platform absolute coords: x_start={standing[2] + player_x:.2f} x_end={standing[3] + player_x:.2f} y={player_y:.2f}")
+        # if standing_platform:
+        #     print(f"Standing platform edges (relative to player): x_start={platform_x_start:.2f} x_end={platform_x_end:.2f}")
 
         return (left_wall_dist, right_wall_dist, ceiling_dist, platform_x_start, platform_x_end), sectors
 

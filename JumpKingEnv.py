@@ -35,7 +35,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.gamedata = None
         #self.gamedata_prev = None
         self.new_screen_reward_val = 150 #was 150
-        self.falling_screen_penalty = -100
+        self.falling_screen_penalty = -50
         self.jumped = False
         self.sleep_time = 0.1
         self.jump_counter_metadata = 0
@@ -59,11 +59,12 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.force_teleport = False
         self.dummyenv = dummyenv
         self.play = play
+        self.expected_screen = current_screen
 
         self.recent_walk_actions = []
         self.recent_jump_actions = []
         self.action_repeat_penalty = -10
-        self.action_cutoff = 22 #20-30 depending on screen
+        self.action_cutoff = 48 #20-30 depending on screen
         self.action_cutoff_penalty = -50
 
         self.x = self.y = self.vel_x = self.vel_y = None
@@ -142,7 +143,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         
         # executes action
         #time.sleep(1)
-        self.execute_action(action)
+        #print (f"current pos: {self.x, self.y}")
+        prev_write_count = self.execute_action(action)
 
         self.action_counter += 1
 
@@ -150,7 +152,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             self.total_screen_actions += 1
 
         #print ("now waiting for landing")
-        self.wait_for_landing()
+        self.wait_for_landing(prev_write_count)
         #print ("character has landed")
 
         #reads gamedata
@@ -161,6 +163,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         #set game data into individual variables
         self.load_game_attributes()
+        #print (f"new pos: {self.x, self.y}")
 
         if self.dummyenv:
             self.platform_parser.update_registry(self.current_screen, (self.x, self.y))
@@ -174,8 +177,10 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         # height reward for all agents
         height_reward = self.new_height_reward()
         if height_reward != 0:
-            print(f"Height reward/penalty: {height_reward:.2f}")
-            reward += height_reward
+            # only apply height reward if character is grounded
+            if self.is_on_ground:
+                print(f"Height reward/penalty: {height_reward:.2f}")
+                reward += height_reward
 
         reward += self.new_screen_reward()
 
@@ -208,13 +213,14 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             print ("--- EPISODE END ---")
 
         #gives bonus reward for faster screen completion
-        if terminated and self.episode_mode == "screen" and self.current_screen > self.current_screen_prev:
-            reward += self.speed_reward / self.action_counter
-            print(f"Speed bonus: {self.speed_reward / self.action_counter:.2f} ({self.action_counter} actions)")
+        # if terminated and self.episode_mode == "screen" and self.current_screen > self.current_screen_prev:
+        #     reward += self.speed_reward / self.action_counter
+        #     print(f"Speed bonus: {self.speed_reward / self.action_counter:.2f} ({self.action_counter} actions)")
 
         return self.state, reward, terminated, False, {}
 
     def reset(self, seed=None, options=None):
+        self.platform_parser.parse_result = None
         self.gamedata = self.read_gamedata()
         self.load_game_attributes()
         self.reset_keys()
@@ -249,11 +255,19 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         return self.state, {}
     
     def new_screen_reward(self):
-        if self.current_screen > self.current_screen_prev:
-            return self.new_screen_reward_val
-        elif self.current_screen < self.current_screen_prev:
-            return self.falling_screen_penalty
-        return 0
+        reward = 0
+        if self.current_screen == self.expected_screen + 1:
+            reward += self.new_screen_reward_val
+            print (f"New screen reward: {self.new_screen_reward_val}")
+            
+            reward += self.speed_reward / self.action_counter
+            print (f"Speed bonus: {self.speed_reward / self.action_counter:.2f} ({self.action_counter} actions)")
+
+        elif self.current_screen < self.expected_screen:
+            reward += self.falling_screen_penalty
+            print (f"Falling screen penalty: {self.falling_screen_penalty}")
+            
+        return reward
     
     def get_goal_proximity_reward(self):
         next_screen = self.expected_screen + 1
@@ -277,14 +291,21 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     def teleport(self, screen):
         x, y, radius = static_variables.SCREEN_START_POSITIONS[screen]
         x += random.randint(-radius, radius)
-        time.sleep(0.4)
-        self.receiver.send_teleport(x, y)
-        time.sleep(0.6)  # keep 0.5s, teleport needs more time than 0.1s
-        self.gamedata = self.read_gamedata()
-        self.load_game_attributes()
         
-        if self.current_screen != screen:
-            print(f"Teleport warning: expected screen {screen}, got {self.current_screen}")
+        for attempt in range(10):
+            self.receiver.send_teleport(x, y)
+            time.sleep(0.75)  # longer wait
+            self.gamedata = self.read_gamedata()
+            self.load_game_attributes()
+            self.load_game_attributes_prev()
+            
+            if self.current_screen == screen:
+                return
+            
+            print(f"Teleport attempt {attempt+1} failed: expected {screen}, got {self.current_screen}")
+            time.sleep(0.5)  # extra wait before retry
+        
+        print(f"Teleport failed after 10 attempts — manually waiting...")
         
     def get_direction_reward(self):
         direction = static_variables.SCREEN_PROGRESS_DIRECTION.get(self.current_screen, None)
@@ -377,11 +398,11 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         )
         
         if self.platform_parser.parse_result is not None:
+            left_wall_dist = self.platform_parser.parse_result[0][0]
+            right_wall_dist = self.platform_parser.parse_result[0][1]
             ceiling = self.platform_parser.parse_result[0][2]
-            platform_x_start = self.platform_parser.parse_result[0][0]
-            platform_x_end = self.platform_parser.parse_result[0][1]
-            rel_x_start = self.x - platform_x_start
-            rel_x_end = platform_x_end - self.x
+            rel_x_start = self.platform_parser.parse_result[0][3]
+            rel_x_end = self.platform_parser.parse_result[0][4]
         else:
             ceiling = 9999
             rel_x_start = 9999
@@ -393,7 +414,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         elif self.current_screen in static_variables.ICE_SCREENS:
             return np.array([self.x, self.y, self.vel_x, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
         else:
-            return np.array([self.x, self.y, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
+            return np.array([self.x, self.y, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end], dtype=np.float32)
 
     def build_state_ray(self):
         #ray state building
@@ -487,8 +508,9 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     
     #     return False
 
-    def wait_for_landing(self):
-        self.receiver.wait_for_landing(self.jumped)
+    def wait_for_landing(self, prev_write_count):
+        self.receiver.wait_for_landing(self.jumped, prev_write_count)
+        time.sleep(0.1)
     
     def reset_keys(self):
         #stops pressing all keys
@@ -538,8 +560,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             reward *= self.max_jump_bonus
 
         #temporary for wind screens - no height penalty:
-        if self.current_screen in static_variables.WIND_SCREENS and reward < 0:
-            reward = 0
+        # if self.current_screen in static_variables.WIND_SCREENS and reward < 0:
+        #     reward = 0
 
         return reward
 
@@ -555,13 +577,13 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         return self.gamedata
                 
     def execute_action(self, action):
-        #prev_write_count = self.gamedata.get("write_count", 0) if self.gamedata else 0
+        prev_write_count = self.gamedata.get("write_count", 0) if self.gamedata else 0
         
         left, right, jump = self.action_map[action]
-        print(f"Executing action: left={left}, right={right}, jump={jump}")
+        #print(f"Executing action: left={left}, right={right}, jump={jump}")
 
         if (left, right, jump) == (0, 0, 0):
-            print ("no-op")
+            #print ("no-op")
             time.sleep(0.05)
 
         if not jump:
@@ -580,6 +602,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             else:
                 self.key_press("space", jump)
             time.sleep(0.1) #was 1
+
+        return prev_write_count
         
     
     def key_press(self, key, duration, key2=None):

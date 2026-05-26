@@ -17,7 +17,7 @@ class RecordingParser:
         elif screen in static_variables.ICE_SCREENS:
             return 6  # x, y, vel_x, ceiling, rel_x_start, rel_x_end
         else:
-            return 5  # x, y, ceiling, rel_x_start, rel_x_end
+            return 7  # x, y, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end
 
     def equalize_actions(self, actions):
         """For jump actions, sets arrow key duration equal to spacebar duration."""
@@ -123,11 +123,11 @@ class RecordingParser:
         )
         
         if self.platform_parser.parse_result is not None:
+            left_wall_dist = float(self.platform_parser.parse_result[0][0])
+            right_wall_dist = float(self.platform_parser.parse_result[0][1])
             ceiling = float(self.platform_parser.parse_result[0][2])
-            platform_x_start = float(self.platform_parser.parse_result[0][0])
-            platform_x_end = float(self.platform_parser.parse_result[0][1])
-            rel_x_start = x - platform_x_start
-            rel_x_end = platform_x_end - x
+            rel_x_start = float(self.platform_parser.parse_result[0][3])
+            rel_x_end = float(self.platform_parser.parse_result[0][4])
         else:
             ceiling = 9999.0
             rel_x_start = 9999.0
@@ -142,7 +142,7 @@ class RecordingParser:
             vel_x = float(state_dict["vel_x"])
             return np.array([x, y, vel_x, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
         else:
-            return np.array([x, y, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
+            return np.array([x, y, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end], dtype=np.float32)
 
     def generate_dataset_per_screen(self, records, action_indices, screen):
         """Generates minimal state vectors for all records on a given screen."""

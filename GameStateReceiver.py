@@ -104,31 +104,23 @@ class GameStateReceiver:
                 return self._buffer[0]
         return None
 
-    def wait_for_landing(self, jumped, timeout=15.0):
-        """Waits for action to complete.
-        For jumps: waits for character to leave ground then land.
-        For walks: just waits a short fixed time for movement to complete.
-        """
+    def wait_for_landing(self, jumped, prev_write_count, timeout=15.0):
         if not jumped:
             time.sleep(0.05)
             return
-
+        
         start = time.time()
-
-        # phase 1: wait for character to leave ground
+        # phase 1: leave ground
         while time.time() - start < timeout:
             data = self.read_gamedata()
             if data is not None and not data.get("is_on_ground"):
                 break
             time.sleep(0.005)
-        else:
-            print(f"wait_for_landing: character never left ground")
-            return
-
-        # phase 2: wait for landing
+        
+        # phase 2: wait for genuine landing (write_count incremented)
         while time.time() - start < timeout:
             data = self.read_gamedata()
-            if data is not None and data.get("is_on_ground"):
+            if data is not None and data.get("is_on_ground") and data.get("write_count", 0) > prev_write_count:
                 return
             time.sleep(0.005)
 
