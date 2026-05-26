@@ -775,7 +775,7 @@ class JumpKingRL:
             per_screen=True,
             action_map=action_map,
             current_screen=screen,
-            action_cuttoff=action_cutoff,
+            action_cutoff=action_cutoff,
         )
  
         model_name = f"{name}/ppo_screen_{screen}"
