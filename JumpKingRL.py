@@ -230,11 +230,24 @@ class JumpKingRL:
                 "exploration_reward": env.exploration_reward,
             },
             "model_type": model_type,
-            "model_hyperparameters" : model_hyperparameters,
-
+            "model_hyperparameters": model_hyperparameters,
             "architectural": {
                 "observation_space": int(env.observation_space.shape[0]),
                 "action_space": int(env.action_space.n)
+            },
+            "env_config": {
+                "episode_mode": env.episode_mode,
+                "max_episode_actions": env.max_episode_actions,
+                "action_cutoff": env.action_cutoff,
+                "per_screen": env.per_screen,
+                "current_screen": env.current_screen,
+                "n_steps": model.n_steps,
+                "n_epochs": model.n_epochs,
+                "ent_coef": model.ent_coef,
+                "learning_rate": model.learning_rate if isinstance(model.learning_rate, float) else 0.0001,
+                "vf_coef": model.vf_coef,
+                "clip_range": model.clip_range if isinstance(model.clip_range, float) else 0.2,
+                "target_kl": model.target_kl,
             }
         }
         return metadata
@@ -256,13 +269,18 @@ class JumpKingRL:
 
         if env is None:
             if only_agent:
-                # use sensible defaults when not loading metadata
+                # load env config from metadata
+                with open(metadata_path) as f:
+                    saved_metadata = json.load(f)
+                
+                env_config = saved_metadata.get("env_config", {})
                 env = JumpKingEnv(
-                    episode_mode=EpisodeMode.SCREEN,
-                    max_episode_actions=22,
-                    per_screen=screen is not None,
+                    episode_mode=env_config.get("episode_mode", EpisodeMode.SCREEN),
+                    max_episode_actions=env_config.get("max_episode_actions", 22),
+                    per_screen=env_config.get("per_screen", True),
                     action_map=action_map,
-                    current_screen=screen if screen is not None else 0,
+                    current_screen=env_config.get("current_screen", screen),
+                    action_cutoff=env_config.get("action_cutoff", 22),
                     dummyenv=False
                 )
             else:
@@ -802,24 +820,16 @@ class JumpKingRL:
         print(f"Screen {screen} PPO model saved to {self.model_direc}{model_name}")
         return env
 
-    def train_model_one_screen(self, folder_name, screen, total_timesteps=500000, freeze_updates=0, env=None):
-        """Trains a single per-screen model using teleporter for resets."""
-        
+    def train_model_one_screen(self, folder_name, screen, total_timesteps=500000, freeze_updates=0):
         model_path = f"{self.model_direc}{folder_name}/ppo_screen_{screen}"
         if not os.path.exists(model_path + ".zip"):
             print(f"No model found for screen {screen}, stopping.")
             return
 
-        model = self.load_model(folder_name, screen=screen, env=env)
+        model = self.load_model(folder_name, screen=screen, only_agent=True)
         model.env.envs[0].env.expected_screen = screen
         model.env.envs[0].env.total_screen_actions = 0
-        # print(f"episode_mode from metadata: {self.metadata['episode_mode']}")
-        # print(f"per_screen: {model.env.envs[0].env.per_screen}")
-        # print(f"expected_screen: {model.env.envs[0].env.expected_screen}")
 
-        # verify we're on the right screen before starting
-        # while model.env.envs[0].env.read_gamedata() is None:
-        #     time.sleep(0.1)
         actual_screen = model.env.envs[0].env.read_gamedata()["current_screen"]
         if actual_screen != screen:
             print(f"Warning: expected screen {screen}, got {actual_screen}. Teleporting...")
@@ -900,10 +910,9 @@ JK = JumpKingRL()
 parser = RecordingParser()
 records = parser.load_recording()
 screen = 7
-env = None
-JK.create_BC_screen(f"screen{screen}_dummy", screen=screen, records=records)
-env = JK.create_RL_screen(f"screen{screen}_dummy", screen=screen, n_steps=2048, n_epochs=5, ent_coef=0.04, target_kl=0.02, vf_coef=1.0, learning_rate=0.001, episode_mode=EpisodeMode.SCREEN)
-JK.train_model_one_screen(f"screen{screen}_dummy", screen=screen, freeze_updates=0, env=env)
+#JK.create_BC_screen(f"screen{screen}_dummy", screen=screen, records=records)
+#env = JK.create_RL_screen(f"screen{screen}_dummy", screen=screen, n_steps=2048, n_epochs=5, ent_coef=0.04, target_kl=0.02, learning_rate=0.001, episode_mode=EpisodeMode.SCREEN)
+JK.train_model_one_screen(f"screen{screen}_dummy", screen=screen, freeze_updates=0)
 
 
 #folder = "full"

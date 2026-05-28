@@ -165,7 +165,7 @@ SCREEN_ACTION_MAPS = {
     },
     7: {
         "walks": [0.1, 0.2],
-        "jumps": [0.6],
+        "jumps": [0.45, 0.6],
     },
     8: {
         "walks": [0.1, 0.2],
