@@ -169,6 +169,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             self.platform_parser.update_registry(self.current_screen, (self.x, self.y))
 
         self.state = self.build_state_per_screen() if self.per_screen else self.build_state()
+        print (f"state: {self.state}")
         #print (f"state: {self.state}")
         #provides a small bonus in direction of progress
         #reward += self.get_direction_reward()
@@ -413,6 +414,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             return np.array([self.x, self.y, self.wind_velocity*1000, self.wind_acceleration*10000], dtype=np.float32)
         elif self.current_screen in static_variables.ICE_SCREENS:
             return np.array([self.x, self.y, self.vel_x, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
+        elif self.current_screen in static_variables.FIVE_STATE_SCREENS:
+            return np.array([self.x, self.y, ceiling, left_wall_dist, right_wall_dist], dtype=np.float32)
         else:
             return np.array([self.x, self.y, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end], dtype=np.float32)
 

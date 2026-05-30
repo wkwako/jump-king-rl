@@ -7,6 +7,8 @@ TENT_BOUNDS = {
 
 NO_DROP_TERMINATION_SCREENS = {8, 16, 17}
 
+FIVE_STATE_SCREENS = {0, 1, 2, 3, 4, 5, 6, 32}
+
 SCREEN_START_POSITIONS = {
     #Redcrown Woods
     0: (231,302, 0),
@@ -165,7 +167,7 @@ SCREEN_ACTION_MAPS = {
     },
     7: {
         "walks": [0.1, 0.2],
-        "jumps": [0.45, 0.6],
+        "jumps": [0.50, 0.6],
     },
     8: {
         "walks": [0.1, 0.2],

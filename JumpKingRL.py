@@ -861,19 +861,20 @@ class JumpKingRL:
             self.overwrite_model(f"{folder_name}/ppo_screen_{screen}", model)
             print(f"Screen {screen} model saved.")
 
-    def play_game_per_screen(self, folder_name, start_screen=0):
+    def play_game_per_screen(self, start_screen=0):
         current_screen = start_screen
         
         while True:
             print(f"\n--- Loading model for screen {current_screen} ---")
             
-            model_path = f"{self.model_direc}{folder_name}/ppo_screen_{current_screen}"
+            model_path = f"{self.model_direc}/screen{current_screen}/ppo_screen_{current_screen}"
             if not os.path.exists(model_path + ".zip"):
                 print(f"No model found for screen {current_screen}, stopping.")
                 break
 
             time.sleep(0.3)
-            model = self.load_model(folder_name, screen=current_screen, only_agent=True)
+            model = self.load_model(f"screen{current_screen}", screen=current_screen, only_agent=True)
+            
             model.env.envs[0].env.play = True
             model.policy.set_training_mode(False)
             model.env.envs[0].env.expected_screen = current_screen
@@ -909,14 +910,13 @@ class JumpKingRL:
 JK = JumpKingRL()
 parser = RecordingParser()
 records = parser.load_recording()
-screen = 7
-#JK.create_BC_screen(f"screen{screen}_dummy", screen=screen, records=records)
-#env = JK.create_RL_screen(f"screen{screen}_dummy", screen=screen, n_steps=2048, n_epochs=5, ent_coef=0.04, target_kl=0.02, learning_rate=0.001, episode_mode=EpisodeMode.SCREEN)
-JK.train_model_one_screen(f"screen{screen}_dummy", screen=screen, freeze_updates=0)
+screen = 5
+#JK.create_BC_screen(f"screen{screen}", screen=screen, records=records)
+#env = JK.create_RL_screen(f"screen{screen}", screen=screen, n_steps=2048, n_epochs=5, ent_coef=0.04, target_kl=0.02, learning_rate=0.001, episode_mode=EpisodeMode.SCREEN)
+JK.train_model_one_screen(f"screen{screen}", screen=screen, freeze_updates=0)
 
 
-#folder = "full"
-#JK.play_game_per_screen(folder, start_screen=0)
+#JK.play_game_per_screen(start_screen=0)
 
 
 # parser = RecordingParser()
