@@ -107,23 +107,30 @@ class GameStateReceiver:
     def wait_for_landing(self, jumped, prev_write_count, timeout=15.0):
         if not jumped:
             time.sleep(0.05)
-            return
-        
-        start = time.time()
-        # phase 1: leave ground
-        while time.time() - start < timeout:
+            # check if character fell off edge during walk
             data = self.read_gamedata()
             if data is not None and not data.get("is_on_ground"):
-                break
-            time.sleep(0.005)
+                # character fell — wait for genuine landing
+                jumped = True  # treat as jump for landing detection
+            else:
+                return
         
-        # phase 2: wait for genuine landing (write_count incremented)
+        start = time.time()
+        # phase 1: wait for character to leave ground (skip if already airborne)
+        if jumped:
+            while time.time() - start < timeout:
+                data = self.read_gamedata()
+                if data is not None and not data.get("is_on_ground"):
+                    break
+                time.sleep(0.005)
+        
+        # phase 2: wait for genuine landing via write_count
         while time.time() - start < timeout:
             data = self.read_gamedata()
             if data is not None and data.get("is_on_ground") and data.get("write_count", 0) > prev_write_count:
                 return
             time.sleep(0.005)
-
+        
         print(f"wait_for_landing timed out after {timeout}s")
 
     def send_teleport(self, x, y):

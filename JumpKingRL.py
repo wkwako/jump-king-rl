@@ -109,6 +109,7 @@ class EpisodeMode:
     ACTION_HEIGHT = "action_height"
     CURRICULUM = "curriculum"
     PER_SCREEN = "per_screen"
+    JUMPED = "jumped"
 
 class JumpKingRL:
 
@@ -142,6 +143,7 @@ class JumpKingRL:
         }
 
     def reset_keys(self):
+        #print ("RESETTING KEYS")
         pydirectinput.keyUp("space")
         pydirectinput.keyUp("right")
         pydirectinput.keyUp("left")
@@ -905,15 +907,15 @@ class JumpKingRL:
                 self.reset_keys()
                 model.env.envs[0].env.reset_keys()
                 print(f"Interrupted on screen {current_screen}")
-                break
-
+                break      
+  
 JK = JumpKingRL()
 parser = RecordingParser()
 records = parser.load_recording()
-screen = 5
-#JK.create_BC_screen(f"screen{screen}", screen=screen, records=records)
-#env = JK.create_RL_screen(f"screen{screen}", screen=screen, n_steps=2048, n_epochs=5, ent_coef=0.04, target_kl=0.02, learning_rate=0.001, episode_mode=EpisodeMode.SCREEN)
-JK.train_model_one_screen(f"screen{screen}", screen=screen, freeze_updates=0)
+screen = 21
+JK.create_BC_screen(f"screen{screen}_dummy", screen=screen, records=records)
+env = JK.create_RL_screen(f"screen{screen}_dummy", screen=screen, action_cutoff=200, n_steps=64, n_epochs=5, ent_coef=0.30, target_kl=0.04, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN)
+JK.train_model_one_screen(f"screen{screen}_dummy", screen=screen, freeze_updates=0)
 
 
 #JK.play_game_per_screen(start_screen=0)
