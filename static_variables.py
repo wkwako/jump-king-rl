@@ -7,6 +7,8 @@ TENT_BOUNDS = {
 
 NO_DROP_TERMINATION_SCREENS = {8, 16, 17}
 
+FIVE_STATE_SCREENS = {0, 1, 2, 3, 4, 5, 6, 32}
+
 SCREEN_START_POSITIONS = {
     #Redcrown Woods
     0: (231,302, 0),
@@ -142,8 +144,8 @@ SCREEN_ACTION_MAPS = {
         "jumps": [0.3, 0.45, 0.6],
     },
     2: {
-        "walks": [0.1, 0.2], #removed 0.2 for testing
-        "jumps": [0.15, 0.35, 0.45, 0.6],
+        "walks": [0.1, 0.2],
+        "jumps": [0.15, 0.38, 0.48, 0.6],
     },
     3: {
         "walks": [0.1, 0.2],
@@ -165,7 +167,7 @@ SCREEN_ACTION_MAPS = {
     },
     7: {
         "walks": [0.1, 0.2],
-        "jumps": [0.45, 0.6],
+        "jumps": [0.50, 0.6],
     },
     8: {
         "walks": [0.1, 0.2],
@@ -205,7 +207,7 @@ SCREEN_ACTION_MAPS = {
     },
     16: {
         "walks": [0.1, 0.2],
-        "jumps": [0.45, 0.5, 0.6],
+        "jumps": [0.30, 0.45, 0.52, 0.6],
     },
     17: {
         "walks": [0.1, 0.2],
@@ -213,13 +215,13 @@ SCREEN_ACTION_MAPS = {
     },
     18: {
         "walks": [0.1, 0.2],
-        "jumps": [0.45, 0.5, 0.6],
+        "jumps": [0.5, 0.6],
     },
 
     #Great Frontier
     19: {
         "walks": [0.1, 0.2],
-        "jumps": [0.15, 0.48, 0.6],
+        "jumps": [0.20, 0.48, 0.6],
     },
     20: {
         "walks": [0.1, 0.2],
@@ -227,7 +229,7 @@ SCREEN_ACTION_MAPS = {
     },
     21: {
         "walks": [0.1, 0.2],
-        "jumps": [0.23, 0.5, 0.6],
+        "jumps": [0.32, 0.52, 0.6],
     },
     22: {
         "walks": [0.1, 0.2],
@@ -274,8 +276,8 @@ SCREEN_ACTION_MAPS = {
         "only_jump": [0.6],
     },
     31: {
-        "walks": [0.1, 0.2],
-        "jumps": [0.6], #could try without this. did make it once
+        "walks": [],
+        "jumps": [], #could try without this. did make it once
         "only_jump": [0.6],
     },
 
