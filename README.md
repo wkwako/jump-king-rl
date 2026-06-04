@@ -1,51 +1,28 @@
-Tools used:
-1. dnSpy
+# Description
 
-TO DO:
-1. Generate more game play
-2. Test sector assignment
-3. Test entire ray implementation
-4. write ImitationLearning class. should contain method for transformating recording.txt into state data, and do Imitationlearning stuff
+I created a reinforcement learning (RL) agent to play Jump King, a difficult platformer that requires precise jumps, practice, and persistence to beat. The agent is provided game data in real-time that it uses to select actions and execute them, and learns to maximize reward signals that it receives from completing these actions.
 
-# Training term definitions
+Jump King is deterministic in theory, but its physics engine can't be perfectly simulated from outside the game without a full recreation, making planning intractable. It's a game that looks like it should be plannable, but isn't. This makes it an interesting testbed for comparing learned approaches like RL, BC, and hybrid methods.
 
-### rollout section — describes the experience collected this iteration:
+*Trained BC+RL agent playing Jump King, screens 8-9*
+![Agent playing Jump King](agent_demo.gif)
 
-**ep_len_mean**: average number of steps per episode.
+# Results
 
-**ep_rew_mean**: average total reward per episode. The most important metric for tracking whether your agent is improving.
+The agent has completed 11 of the 43 screens in the base game. Most screens can be completed 95% of the time without falls. Chained together, these 11 screens are reliably completed in ~3 minutes. Behavioral cloning (BC) initialization from user-recorded inputs significantly reduces training time versus pure RL. Full comparative results (BC, RL, BC+RL, hardcoded baseline) are in progress and will be documented in the full technical writeup.
 
-**time section** — bookkeeping:
+# Architecture
 
-**fps**: steps per second. Ours is 0-1 because each Jump King step takes several real seconds.
+* **C# game mod**: extracts real-time game data (player position, velocity, screen, etc.) and sends it to Python via a named pipe
 
-**iterations**: how many n_steps buffers have been collected so far.
+* **Python Environment**: Utilizes a custom Gymnasium framework to receive game data, generate state information for PPO, execute actions, and compute rewards
 
-**time_elapsed**: seconds since training started.
+* **BC Pretraining**: Policy network initialized using ~10 human playthroughs before RL training begins
 
-**total_timesteps**: total steps taken this session.
+* **PPO agent (stable-baselines3)**: Fine-tunes the BC policy via reinforcement learning, optimizing a reward function primarily based on height gain, proximity to goal, and screen completion 
 
-**train section** — describes the neural network update:
+* **Model manager**: Manages creation, loading, saving, and overwriting of models and metadata, in addition to switching, logging, and per-screen training
 
-**approx_kl**: how much the policy changed during this update. Too high means unstable updates, too low means barely learning. Ideally stays small but nonzero.
+# Links:
 
-**clip_fraction**: fraction of updates that hit PPO's clipping threshold. Near 0 means the policy is barely changing — could indicate the learning rate is too low or the policy has stagnated.
-
-**clip_range**: the clipping threshold itself, fixed at 0.2 by default.
-
-**entropy_loss**: measures how random the policy is. High magnitude means more exploratory, decreasing over time means the policy is becoming more confident.
-
-**explained_variance**: how well the value function predicts actual returns. Near 0 means it's essentially guessing. Near 1 means it's accurately predicting future rewards — this is what you want.
-
-**learning_rate**: your current learning rate, fixed at 0.0003.
-
-**loss**: combined loss of the policy and value function. Variable and hard to interpret in isolation.
-
-**n_updates**: cumulative number of gradient updates applied to the network.
-
-**policy_gradient_loss**: how much the policy is being pushed to change. Small values mean small policy updates.
-
-**value_loss**: how wrong the value function's predictions are. High and variable means the value function is struggling, which directly hurts learning quality.
-
-# Strategies used
-* State space design decisions. Started with (x, y, x_vel, y_vel), then added current screen. If JK is being played optimally, we'll never see the same set of coordinates, so agent can never extrapolate what it's learned from optimal play under one state to optimal play under another state. Therefore, we need to add platform information. New state space is now: (x, y, x_vel, y_vel, dist_to_left_wall, dist_to_right_wall, current_screen, closest_platform_up_left, closest_platform_up_right, closest_platform_left, closest_platform_right, closest_platform_up_left_next_screen, closest_platform_up_right_next_screen). Each closest platform is a tuple of coordinates, flattened when passed to the agent. Platform information is taken from a custom C# mod that writes game data and platform info to a file.
+* **Technical writeup**: *in progress*
