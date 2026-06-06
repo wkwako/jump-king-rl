@@ -23,9 +23,9 @@ class RecordingParser:
 
     def get_wind_state(self, state_dict):
         wind_velocity = float(state_dict["wind_velocity"])
-        if wind_velocity >= 0.09:
+        if wind_velocity >= 0.07:
             return 100.0
-        elif wind_velocity <= -0.09:
+        elif wind_velocity <= -0.07:
             return -100.0
         return 0.0
 
