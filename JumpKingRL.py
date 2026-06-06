@@ -25,6 +25,8 @@ import gymnasium as gym
 from stable_baselines3 import PPO, DQN
 from stable_baselines3.common.logger import configure
 
+from GameStateReceiver import GameStateReceiver
+
 from Ray import Ray
 from stable_baselines3.common.callbacks import BaseCallback, CallbackList
 
@@ -250,6 +252,8 @@ class JumpKingRL:
                 "vf_coef": model.vf_coef,
                 "clip_range": model.clip_range if isinstance(model.clip_range, float) else 0.2,
                 "target_kl": model.target_kl,
+                "gamma": model.gamma,
+                "gae_lambda": model.gae_lambda,
             }
         }
         return metadata
@@ -303,7 +307,9 @@ class JumpKingRL:
             env=env,
             custom_objects={
                 "action_space": env.action_space,
-                "observation_space": env.observation_space
+                "observation_space": env.observation_space,
+                "gamma": env_config.get("gamma", 0.99),
+                "gae_lambda": env_config.get("gae_lambda", 0.95)
             }
         )
 
@@ -704,6 +710,60 @@ class JumpKingRL:
     #         finally:
     #             model.env.envs[0].env.reset_keys()
 
+    def pretrain_wind_value(self, model, screen, epochs=50):
+        """Pretrain value function for wind screens.
+        High value when wind_state=100, low value for 0 and -100.
+        """
+        import torch
+        import torch.nn as nn
+        import torch.optim as optim
+        import numpy as np
+
+        typical_x = float(static_variables.SCREEN_START_POSITIONS[screen][0])
+        typical_y = float(static_variables.SCREEN_START_POSITIONS[screen][1])
+
+        X = []
+        Y = []
+
+        # ~1/3 positive wind states (good)
+        for _ in range(260):
+            state = np.array([typical_x, typical_y, 100.0], dtype=np.float32)
+            X.append(state)
+            Y.append(100.0)
+
+        # ~2/3 negative/transitioning wind states (bad)
+        for _ in range(520):
+            wind_state = float(np.random.choice([-100.0, 0.0]))
+            state = np.array([typical_x, typical_y, wind_state], dtype=np.float32)
+            X.append(state)
+            Y.append(-100.0)
+
+        X = torch.FloatTensor(np.array(X))
+        Y = torch.FloatTensor(np.array(Y)).unsqueeze(1)
+
+        # extract value network from PPO model
+        value_net = model.policy.mlp_extractor.value_net
+        value_head = model.policy.value_net
+        optimizer = optim.Adam(
+            list(value_net.parameters()) + list(value_head.parameters()),
+            lr=0.001
+        )
+        loss_fn = nn.MSELoss()
+
+        print(f"Pretraining wind value function for screen {screen}...")
+        for epoch in range(epochs):
+            optimizer.zero_grad()
+            features = value_net(X)
+            predictions = value_head(features)
+            loss = loss_fn(predictions, Y)
+            loss.backward()
+            optimizer.step()
+
+            if epoch % 10 == 0:
+                print(f"  Epoch {epoch}: loss={loss.item():.4f}")
+
+        print(f"Wind value pretraining complete.")
+
     def create_BC_screen(self, name, screen, records, epochs=100, batch_size=32, lr=1e-3):
         """Trains a single BC model for one screen and saves to models/<name>/."""
         folder_path = self.model_direc + name
@@ -721,7 +781,7 @@ class JumpKingRL:
             wind_records = parser.load_wind_recording(self.wind_path)
             wind_screen_records = [(ts, s, a) for ts, s, a in wind_records
                                 if int(s.get("current_screen", -1)) == screen]
-            screen_records = parser.fill_wind_noops(wind_screen_records, screen, noop_divisor=30)
+            screen_records = parser.fill_wind_noops(wind_screen_records, screen, noop_divisor=22)
         else:
             screen_records = by_screen[screen]
 
@@ -769,7 +829,8 @@ class JumpKingRL:
  
     def create_RL_screen(self, name, screen, n_steps=2048, episode_mode=EpisodeMode.SCREEN,
                          freeze_updates=5, ent_coef=0.02, learning_rate=0.0001, vf_coef=0.5,
-                        n_epochs=10, clip_range=0.2, target_kl=0.02, action_cutoff=22):
+                        n_epochs=10, clip_range=0.2, target_kl=0.02, action_cutoff=22,
+                        gamma=0.99, gae_lambda=0.95, use_bc=True):
         """Creates a PPO model for one screen with BC weight transfer and value pretraining.
         Saves to models/<name>/."""
         folder_path = self.model_direc + name
@@ -808,6 +869,8 @@ class JumpKingRL:
             ent_coef=ent_coef,
             learning_rate=learning_rate,
             vf_coef=vf_coef,
+            gamma=gamma,
+            gae_lambda=gae_lambda,
             clip_range=clip_range,
             target_kl=target_kl, #added this. default is none
             policy_kwargs={"net_arch": [256, 256]}
@@ -815,7 +878,14 @@ class JumpKingRL:
  
         bc_state = torch.load(bc_model_path)
         print(f"BC input layer shape: {bc_state['net.0.weight'].shape}")
-        bc.transfer_weights_to_ppo(model, bc_model_path)
+
+        if use_bc:
+            bc.transfer_weights_to_ppo(model, bc_model_path)
+
+        #trying wind screen pretraining
+        # if screen in static_variables.WIND_SCREENS:
+        #     self.pretrain_wind_value(model, screen)
+
         #self.pretrain_value_function(model, self.X_by_screen[screen], per_screen=True)
  
         self.overwrite_model(model_name, model)
@@ -865,11 +935,17 @@ class JumpKingRL:
 
     def play_game_per_screen(self, start_screen=0):
         current_screen = start_screen
+
+        start_x, start_y, _ = static_variables.SCREEN_START_POSITIONS[start_screen]
+
+        gsr = GameStateReceiver.get_shared()
+        gsr.send_teleport(start_x, start_y)
         
         while True:
             print(f"\n--- Loading model for screen {current_screen} ---")
             
-            model_path = f"{self.model_direc}/screen{current_screen}/ppo_screen_{current_screen}"
+            #model_path = f"{self.model_direc}/screen{current_screen}/ppo_screen_{current_screen}"
+            model_path = f"{self.model_direc}/screen{current_screen}/_best"
             if not os.path.exists(model_path + ".zip"):
                 print(f"No model found for screen {current_screen}, stopping.")
                 break
@@ -908,14 +984,19 @@ class JumpKingRL:
                 model.env.envs[0].env.reset_keys()
                 print(f"Interrupted on screen {current_screen}")
                 break      
-  
+
 JK = JumpKingRL()
 parser = RecordingParser()
 records = parser.load_recording()
-screen = 21
-JK.create_BC_screen(f"screen{screen}_dummy", screen=screen, records=records)
-env = JK.create_RL_screen(f"screen{screen}_dummy", screen=screen, action_cutoff=200, n_steps=64, n_epochs=5, ent_coef=0.30, target_kl=0.04, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN)
-JK.train_model_one_screen(f"screen{screen}_dummy", screen=screen, freeze_updates=0)
+screen = 36
+name = f"screen{screen}_cutoffpenalty"
+JK.create_BC_screen(name, screen=screen, records=records)
+#env = JK.create_RL_screen(name, screen=screen, action_cutoff=200, n_steps=4096, n_epochs=5, ent_coef=0.40, target_kl=0.04, learning_rate=0.0001, gamma=0.9995, gae_lambda=0.95, episode_mode=EpisodeMode.SCREEN)
+env = JK.create_RL_screen(name, screen=screen, action_cutoff=30, n_steps=2048, n_epochs=5, ent_coef=0.10, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN)
+#env = JK.create_RL_screen(name, screen=screen, action_cutoff=20, n_steps=2048, n_epochs=5, ent_coef=0.10, target_kl=0.02, learning_rate=0.0001, use_bc=False, episode_mode=EpisodeMode.SCREEN)
+JK.train_model_one_screen(name, screen=screen, freeze_updates=0)
+
+
 
 
 #JK.play_game_per_screen(start_screen=0)

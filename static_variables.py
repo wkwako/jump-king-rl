@@ -149,7 +149,7 @@ SCREEN_ACTION_MAPS = {
     },
     3: {
         "walks": [0.1, 0.2],
-        "jumps": [0.15, 0.6], #could add 0.4 here for full path coverage
+        "jumps": [0.20, 0.6], #could add 0.4 here for full path coverage
     },
     4: {
         "walks": [0.1, 0.2],
@@ -159,7 +159,7 @@ SCREEN_ACTION_MAPS = {
     #Colossal Drain
     5: {
         "walks": [0.1, 0.2],
-        "jumps": [0.3, 0.45, 0.6],
+        "jumps": [0.35, 0.48, 0.6],
     },
     6: {
         "walks": [0.1, 0.2],
@@ -171,7 +171,7 @@ SCREEN_ACTION_MAPS = {
     },
     8: {
         "walks": [0.1, 0.2],
-        "jumps": [0.1, 0.15, 0.5, 0.6],
+        "jumps": [0.1, 0.18, 0.5, 0.6],
     },
     9: {
         "walks": [0.1, 0.2],
@@ -181,7 +181,7 @@ SCREEN_ACTION_MAPS = {
     #False Kings' Keep
     10: {
         "walks": [0.1, 0.2],
-        "jumps": [0.15, 0.48, 0.6],
+        "jumps": [0.20, 0.52, 0.6],
     },
     11: {
         "walks": [0.1, 0.2],
@@ -276,7 +276,7 @@ SCREEN_ACTION_MAPS = {
         "only_jump": [0.6],
     },
     31: {
-        "walks": [],
+        "walks": [0.1],
         "jumps": [], #could try without this. did make it once
         "only_jump": [0.6],
     },
@@ -301,17 +301,17 @@ SCREEN_ACTION_MAPS = {
 
     #Blue Ruin
     36: {
-        "walks": [0.2],
-        "jumps": [0.1, 0.45, 0.5],
+        "walks": [0.1, 0.2],
+        "jumps": [0.05, 0.2, 0.3, 0.45, 0.5],
     },
     37: {
-        "walks": [0.2],
-        "jumps": [0.1, 0.6],
-        "only_jump": [0.1],
+        "walks": [0.1, 0.2],
+        "jumps": [0.05, 0.6],
+        "only_jump": [0.2],
     },
     38: {
-        "walks": [0.2],
-        "jumps": [0.1, 0.28, 0.6],
+        "walks": [0.1, 0.2],
+        "jumps": [0.05, 0.28, 0.6],
     },
 
     #The Tower
