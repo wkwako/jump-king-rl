@@ -12,6 +12,8 @@ class RecordingParser:
         self.platform_parser = PlatformParser()
 
     def get_state_size(self, screen):
+        # if screen in static_variables.SIMPLE_STATE_SCREENS:
+        #     return 2 #x, y
         if screen in static_variables.WIND_SCREENS:
             return 3  # x, y, wind_velocity, wind_acceleration, ceiling, rel_x_start, rel_x_end
         elif screen in static_variables.ICE_SCREENS:
@@ -143,6 +145,12 @@ class RecordingParser:
             rel_x_start = 9999.0
             rel_x_end = 9999.0
         
+        # if screen in static_variables.SIMPLE_STATE_SCREENS:
+        #     return np.array([x, y % 360]) #x, y
+
+        if screen in static_variables.OLD_STATE_SCREENS:
+            return np.array([x, y, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end], dtype=np.float32)
+
         if screen in static_variables.WIND_SCREENS:
             wind_velocity = float(state_dict["wind_velocity"])
             wind_acceleration = float(state_dict.get("wind_acceleration", 0.0))
@@ -154,7 +162,7 @@ class RecordingParser:
         # elif screen in static_variables.FIVE_STATE_SCREENS:
         #     return np.array([x, y, ceiling, left_wall_dist, right_wall_dist], dtype=np.float32)
         else:
-            return np.array([x, y, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end], dtype=np.float32)
+            return np.array([x, y % 360, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end], dtype=np.float32)
 
     def generate_dataset_per_screen(self, records, action_indices, screen):
         """Generates minimal state vectors for all records on a given screen."""

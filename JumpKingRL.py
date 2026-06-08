@@ -988,18 +988,18 @@ class JumpKingRL:
 JK = JumpKingRL()
 parser = RecordingParser()
 records = parser.load_recording()
-screen = 36
-name = f"screen{screen}_cutoffpenalty"
+screen = 10
+name = f"screen{screen}_simplestate4"
 JK.create_BC_screen(name, screen=screen, records=records)
-#env = JK.create_RL_screen(name, screen=screen, action_cutoff=200, n_steps=4096, n_epochs=5, ent_coef=0.40, target_kl=0.04, learning_rate=0.0001, gamma=0.9995, gae_lambda=0.95, episode_mode=EpisodeMode.SCREEN)
-env = JK.create_RL_screen(name, screen=screen, action_cutoff=30, n_steps=2048, n_epochs=5, ent_coef=0.10, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN)
-#env = JK.create_RL_screen(name, screen=screen, action_cutoff=20, n_steps=2048, n_epochs=5, ent_coef=0.10, target_kl=0.02, learning_rate=0.0001, use_bc=False, episode_mode=EpisodeMode.SCREEN)
+#env = JK.create_RL_screen(name, screen=screen, action_cutoff=200, n_steps=4096, n_epochs=5, ent_coef=0.40, target_kl=0.04, learning_rate=0.0001, gamma=0.9995, gae_lambda=0.95, episode_mode=EpisodeMode.SCREEN) #wind
+#env = JK.create_RL_screen(name, screen=screen, action_cutoff=20, n_steps=2048, n_epochs=5, ent_coef=0.10, target_kl=0.02, learning_rate=0.0001, use_bc=False, episode_mode=EpisodeMode.SCREEN) #ice
+env = JK.create_RL_screen(name, screen=screen, action_cutoff=15, n_steps=1024, n_epochs=5, ent_coef=0.10, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN) #normal
 JK.train_model_one_screen(name, screen=screen, freeze_updates=0)
 
 
 
 
-#JK.play_game_per_screen(start_screen=0)
+JK.play_game_per_screen(start_screen=0)
 
 
 # parser = RecordingParser()

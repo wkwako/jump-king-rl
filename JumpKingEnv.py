@@ -37,7 +37,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.gamedata = None
         #self.gamedata_prev = None
         self.new_screen_reward_val = 150 #was 150
-        self.falling_screen_penalty = -50
+        self.falling_screen_penalty = -150 #was -50
         self.jumped = False
         self.jumped_prev = False
         self.sleep_time = 0.1
@@ -75,7 +75,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.recent_jump_actions = []
         self.action_repeat_penalty = -10
         self.action_cutoff = action_cutoff #20-30 depending on screen
-        self.action_cutoff_penalty = -50
+        self.action_cutoff_penalty = -200 #was -50
         self.ice_action_reward = 15
         self.ice_stuck_penalty = -20
 
@@ -188,7 +188,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #self.check_ice_stuck_penalty()
 
         #if the player drops from too high, they get stunned. wait for that to fade before starting a new action
-        #self.wait_for_stun()
+        self.wait_for_stun()
 
         if self.dummyenv:
             self.platform_parser.update_registry(self.current_screen, (self.x, self.y))
@@ -554,15 +554,20 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             rel_x_start = 9999
             rel_x_end = 9999
         
-        if self.current_screen in static_variables.WIND_SCREENS:
+        # if self.current_screen in static_variables.SIMPLE_STATE_SCREENS:
+        #     return np.array([self.x, self.y % 360]) #x, y
+
+        if self.expected_screen in static_variables.OLD_STATE_SCREENS:
+            return np.array([self.x, self.y, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end], dtype=np.float32)
+        elif self.expected_screen in static_variables.WIND_SCREENS:
             #return np.array([self.x, self.y, self.wind_velocity, self.wind_acceleration, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
             return np.array([self.x, self.y, self.get_wind_state()], dtype=np.float32)
-        elif self.current_screen in static_variables.ICE_SCREENS:
+        elif self.expected_screen in static_variables.ICE_SCREENS:
             return np.array([self.x, self.y, self.vel_x, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
         # elif self.current_screen in static_variables.FIVE_STATE_SCREENS:
         #     return np.array([self.x, self.y, ceiling, left_wall_dist, right_wall_dist], dtype=np.float32)
         else:
-            return np.array([self.x, self.y, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end], dtype=np.float32)
+            return np.array([self.x, self.y % 360, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end], dtype=np.float32)
 
     def get_wind_state(self):
         if self.wind_velocity >= 0.07:
@@ -679,7 +684,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     def get_grid_cell(self, x, y):
         return (int(x // self.grid_size), int(y // self.grid_size))
 
-    def new_height_reward(self):
+    def new_height_reward(self, negatives=True):
         if self.y == self.y_prev:
             return 0
 
@@ -703,6 +708,9 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         if reward < -100:
             reward = -100
+
+        if not negatives and reward < 0:
+            reward = 0
 
         return reward
 
