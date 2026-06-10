@@ -104,19 +104,19 @@ class GameStateReceiver:
                 return self._buffer[0]
         return None
 
-    def wait_for_landing(self, jumped, prev_write_count, timeout=15.0):
+    def wait_for_landing(self, jumped, prev_write_count, wait_for_v0, timeout=15.0):
         if not jumped:
             time.sleep(0.05)
             # check if character fell off edge during walk
             data = self.read_gamedata()
             if data is not None and not data.get("is_on_ground"):
                 # character fell — wait for genuine landing
-                jumped = True  # treat as jump for landing detection
+                jumped = True
             else:
                 return
         
         start = time.time()
-        # phase 1: wait for character to leave ground (skip if already airborne)
+        # phase 1: wait for character to leave ground
         if jumped:
             while time.time() - start < timeout:
                 data = self.read_gamedata()
@@ -127,7 +127,20 @@ class GameStateReceiver:
         # phase 2: wait for genuine landing via write_count
         while time.time() - start < timeout:
             data = self.read_gamedata()
-            if data is not None and data.get("is_on_ground") and data.get("write_count", 0) > prev_write_count:
+            if data is not None and data.get("is_on_ground") and \
+            data.get("write_count", 0) > prev_write_count:
+                
+                # if short hop after large jump, wait for velocity to reach 0
+                if wait_for_v0:
+                    v0_start = time.time()
+                    while time.time() - v0_start < 3.0:
+                        v_data = self.read_gamedata()
+                        if v_data is not None:
+                            vel_x = abs(float(v_data.get("vel_x", 0)))
+                            if vel_x < 0.01:
+                                break
+                        time.sleep(0.005)
+                    wait_for_v0 = False
                 return
             time.sleep(0.005)
         
