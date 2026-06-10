@@ -141,6 +141,13 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #     dtype=np.float32
         # )
 
+    def _get_safe_default_state(self):
+        """Returns a safe default state when current screen is invalid."""
+        if self.state is not None:
+            return self.state  # return last known good state
+        # fallback zeros matching observation space size
+        return np.zeros(self.observation_space.shape, dtype=np.float32)
+
     def build_observation_space(self):
         if self.per_screen:
             size = self.recording_parser.get_state_size(self.current_screen)
@@ -220,6 +227,14 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         if self.dummyenv:
             self.platform_parser.update_registry(self.current_screen, (self.x, self.y))
+
+        #entered alternate map
+        if self.current_screen > 42 or self.current_screen < 0:
+            print(f"Entered alternate map (screen {self.current_screen}), treating as fall")
+            reward += self.new_screen_reward()  # fires fall penalty since current < expected
+            self.force_teleport = True
+            self.state = self._get_safe_default_state()  # return last known good state
+            return self.state, reward, True, False, {}
 
         self.state = self.build_state_per_screen() if self.per_screen else self.build_state()
         #print (f"state: {self.state}")
