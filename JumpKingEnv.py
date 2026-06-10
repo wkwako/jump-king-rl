@@ -21,6 +21,7 @@ from RecordingParser import RecordingParser
 from Ray import Ray
 import static_variables
 from GameStateReceiver import GameStateReceiver
+import GeneratePlatformIDs
 
 class ScreenTransitionException(Exception):
     pass
@@ -30,6 +31,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     def __init__(self, episode_mode, max_episode_actions=20, curriculum_screens=5, spacing=0.05, per_screen=False, action_map=None, current_screen=None, dummyenv=False, play=False, action_cutoff=22):
         print(f"JumpKingEnv created")
         self.teleport_path = "C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/teleport.txt"
+        #self.registry_path = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/registry.txt"
+        #self.registry_path = "C:/Users/wkwak/Documents/CodingWork/Environments/PythonStuff/jump-king-rl/registry.txt"
         self.receiver = GameStateReceiver.get_shared()
         self.spacing = spacing
         #self.action_map = self.init_action_map()
@@ -71,6 +74,9 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.wind_noop_reward = 0.5 #was 20
         self.wind_height_scale = 5
 
+        self.ice_stability_reward = 20
+        self.new_platform_reward = 30
+
         self.recent_walk_actions = []
         self.recent_jump_actions = []
         self.action_repeat_penalty = -10
@@ -101,6 +107,12 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.pending_transition_screen = None
 
         self.current_screen = current_screen if current_screen is not None else 0
+
+        self.platform_ids = GeneratePlatformIDs.generate_platform_ids(self.platform_parser.registry)
+        self.visited_platforms = set()  # reset each episode
+        self.prev_platform_id = -1
+        self.wait_for_v0 = False
+        self.last_jump_was_large = False
 
         #is action_map is passed in, it's a per-screen agent. otherwise, normal agent
         if action_map is not None:
@@ -155,6 +167,18 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         #ice-specific rewards and penalties. must happen before action occurs
         reward += self.ice_velocity_reward(action)
+
+        # update platform tracking
+        current_platform_id = GeneratePlatformIDs.get_platform_id(
+            self.x, self.y, self.current_screen,
+            self.platform_parser.registry, self.platform_ids
+        )
+
+        # ice rewards
+        reward += self.ice_short_hop_reward(action)
+
+        # update prev platform
+        self.prev_platform_id = current_platform_id
         
         # executes action
         #time.sleep(1)
@@ -170,6 +194,10 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #print ("now waiting for landing")
         self.wait_for_landing(prev_write_count)
         #print ("character has landed")
+
+        #ice rewards 2
+        #reward += self.ice_v0_reward()  # fires if wait_for_v0 was set. not working bc v is always 0, not updating state enough
+        reward += self.ice_new_platform_reward()
 
         #wind-specific rewards and penalties
         reward += self.wind_jump()
@@ -273,6 +301,11 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.pending_transition = False
         self.pending_transition_screen = None
 
+        self.visited_platforms = set()
+        self.prev_platform_id = -1
+        self.wait_for_v0 = False
+        self.last_jump_was_large = False
+
         if self.per_screen:
             self.state = self.build_state_per_screen()
         else:
@@ -311,6 +344,77 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         if diagonal < 80:
             print(f"Ice stuck penalty: {self.check_ice_stuck_penalty}")
             return self.ice_stuck_penalty
+        
+        return 0
+    
+    def ice_short_hop_reward(self, action):
+        """Reward for successful velocity correction after large jump."""
+        if self.expected_screen not in static_variables.ICE_SCREENS:
+            return 0
+        
+        left, right, jump = self.action_map[action]
+        is_short_hop = (left == 0.05 and jump == 0.05) or \
+                    (right == 0.05 and jump == 0.05)
+                
+        if not is_short_hop:
+            # check if this was a large jump to set flag for next action
+            if jump >= 0.3:
+                self.last_jump_was_large = True
+            else:
+                self.last_jump_was_large = False
+            return 0
+        
+        # this is a short hop — check if it follows a large jump
+        if self.last_jump_was_large:
+            self.wait_for_v0 = True
+            self.last_jump_was_large = False
+            return 0  # reward fires after wait_for_v0 completes, not here
+        
+        return 0
+
+    def ice_v0_reward(self):
+        """Bonus for successfully stopping on a platform after short hop correction."""
+        if self.expected_screen not in static_variables.ICE_SCREENS:
+            return 0
+        
+        current_platform_id = GeneratePlatformIDs.get_platform_id(
+            self.x, self.y, self.current_screen,
+            self.platform_parser.registry,
+            self.platform_ids
+        )
+        
+        # still on same platform and velocity is zero
+        if current_platform_id == self.prev_platform_id and \
+        current_platform_id != -1 and \
+        self.vel_x == 0:
+            print(f"Ice stability bonus: {self.ice_stability_reward}")
+            return self.ice_stability_reward
+        
+        return 0
+
+    def ice_new_platform_reward(self):
+        """Reward for jumping to a new unvisited platform, fires on landing."""
+        if self.expected_screen not in static_variables.ICE_SCREENS:
+            return 0
+        
+        if not self.jumped:
+            print ("no reward: agent did not jump")
+            return 0
+        
+        current_platform_id = GeneratePlatformIDs.get_platform_id(
+            self.x, self.y, self.current_screen,
+            self.platform_parser.registry,
+            self.platform_ids
+        )
+        
+        if current_platform_id == -1:
+            return 0
+        
+        if current_platform_id not in self.visited_platforms:
+            self.visited_platforms.add(current_platform_id)
+            print(f"New platform reward: {self.new_platform_reward}")
+            return self.new_platform_reward
+        
         
         return 0
 
@@ -561,9 +665,9 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             return np.array([self.x, self.y, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end], dtype=np.float32)
         elif self.expected_screen in static_variables.WIND_SCREENS:
             #return np.array([self.x, self.y, self.wind_velocity, self.wind_acceleration, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
-            return np.array([self.x, self.y, self.get_wind_state()], dtype=np.float32)
+            return np.array([self.x, self.y % 360, self.get_wind_state()], dtype=np.float32)
         elif self.expected_screen in static_variables.ICE_SCREENS:
-            return np.array([self.x, self.y, self.vel_x, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
+            return np.array([self.x, self.y % 360, self.vel_x, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
         # elif self.current_screen in static_variables.FIVE_STATE_SCREENS:
         #     return np.array([self.x, self.y, ceiling, left_wall_dist, right_wall_dist], dtype=np.float32)
         else:
@@ -650,7 +754,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         return self.terminate_action_episode() or self.terminate_height_episode()
 
     def wait_for_landing(self, prev_write_count):
-        self.receiver.wait_for_landing(self.jumped, prev_write_count)
+        self.receiver.wait_for_landing(self.jumped, prev_write_count, self.wait_for_v0)
         time.sleep(0.1)
     
     def reset_keys(self):
@@ -710,6 +814,10 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             reward = -100
 
         if not negatives and reward < 0:
+            reward = 0
+
+        #temporarily removing height penalties for ice screens
+        if self.expected_screen in static_variables.ICE_SCREENS and reward < 0:
             reward = 0
 
         return reward
