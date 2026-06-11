@@ -1,0 +1,3 @@
+time/time_elapsed,time/iterations,custom/max_height,rollout/ep_len_mean,time/fps,rollout/ep_rew_mean,time/total_timesteps,custom/current_screen,train/clip_range,train/explained_variance,train/learning_rate,train/entropy_loss,train/loss,train/policy_gradient_loss,train/value_loss,train/n_updates,train/approx_kl,train/clip_fraction
+1223,1,6594.0,4.47,0,-133.79753867000002,1024,19,,,,,,,,,,
+2431,2,6594.0,4.88,0,-88.57149119999998,2048,19,0.2,-0.0005564689636230469,0.0001,-0.39768869678179425,17933.857421875,-0.006603918141788906,36814.42361111111,36,0.0073684994,0.05381944444444445
