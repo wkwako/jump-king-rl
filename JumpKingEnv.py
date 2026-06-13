@@ -60,7 +60,6 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.recording_parser = RecordingParser()
         self.total_screen_actions = 0
         self.expected_screen = None
-        self.direction_reward = 0.01
         self.speed_reward = 100
         self.force_teleport = False
         self.dummyenv = dummyenv
@@ -102,6 +101,11 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.stuck_threshold = 10  # pixels — how close counts as "same spot"
         self.per_screen = per_screen
         self.step_counter = 0
+
+        self.frame_count = None
+        self.frame_count_prev = None
+        self.wind_frame = None
+        self.wind_frame_prev = None
 
         self.pending_transition = False
         self.pending_transition_screen = None
@@ -189,9 +193,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         
         # executes action
         #time.sleep(1)
-        #print (f"current pos: {self.x, self.y}")
         prev_write_count = self.execute_action(action)
-        #time.sleep(0.5)
 
         self.action_counter += 1
 
@@ -240,7 +242,6 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #print (f"state: {self.state}")
 
         #provides a small bonus in direction of progress
-        #reward += self.get_direction_reward()
         #reward += self.get_goal_proximity_reward()
 
         # height reward for all agents
@@ -413,7 +414,6 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             return 0
         
         if not self.jumped:
-            print ("no reward: agent did not jump")
             return 0
         
         current_platform_id = GeneratePlatformIDs.get_platform_id(
@@ -568,19 +568,6 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             time.sleep(0.5)  # extra wait before retry
         
         print(f"Teleport failed after 10 attempts — manually waiting...")
-        
-    def get_direction_reward(self):
-        direction = static_variables.SCREEN_PROGRESS_DIRECTION.get(self.current_screen, None)
-        if direction is None:
-            return 0
-        
-        dx = self.x - self.x_prev
-        
-        if direction == "right" and dx > 0:
-            return dx * self.direction_reward
-        elif direction == "left" and dx < 0:
-            return abs(dx) * self.direction_reward
-        return 0
     
     def check_alternating_walk_penalty(self, action):
         left_walks = {(t, 0, 0) for t in [0.1, 0.2]}
@@ -673,18 +660,12 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             rel_x_start = 9999
             rel_x_end = 9999
         
-        # if self.current_screen in static_variables.SIMPLE_STATE_SCREENS:
-        #     return np.array([self.x, self.y % 360]) #x, y
-
         if self.expected_screen in static_variables.OLD_STATE_SCREENS:
             return np.array([self.x, self.y, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end], dtype=np.float32)
         elif self.expected_screen in static_variables.WIND_SCREENS:
-            #return np.array([self.x, self.y, self.wind_velocity, self.wind_acceleration, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
-            return np.array([self.x, self.y % 360, self.get_wind_state()], dtype=np.float32)
+            return np.array([self.x, self.y % 360, self.wind_frame], dtype=np.float32)
         elif self.expected_screen in static_variables.ICE_SCREENS:
             return np.array([self.x, self.y % 360, self.vel_x, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
-        # elif self.current_screen in static_variables.FIVE_STATE_SCREENS:
-        #     return np.array([self.x, self.y, ceiling, left_wall_dist, right_wall_dist], dtype=np.float32)
         else:
             return np.array([self.x, self.y % 360, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end], dtype=np.float32)
 
@@ -769,7 +750,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         return self.terminate_action_episode() or self.terminate_height_episode()
 
     def wait_for_landing(self, prev_write_count):
-        self.receiver.wait_for_landing(self.jumped, prev_write_count, self.wait_for_v0)
+        self.receiver.wait_for_landing(self.jumped, prev_write_count)
         time.sleep(0.1)
     
     def reset_keys(self):
@@ -799,7 +780,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             return True
 
         return False
-    
+
     def get_grid_cell(self, x, y):
         return (int(x // self.grid_size), int(y // self.grid_size))
 
@@ -829,10 +810,6 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             reward = -100
 
         if not negatives and reward < 0:
-            reward = 0
-
-        #temporarily removing height penalties for ice screens
-        if self.expected_screen in static_variables.ICE_SCREENS and reward < 0:
             reward = 0
 
         return reward
@@ -930,6 +907,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.is_in_water = self.gamedata["is_in_water"]
         self.wind_velocity = self.gamedata["wind_velocity"]
         self.wind_acceleration = self.gamedata["wind_acceleration"]
+        self.frame_count = self.gamedata.get("frame_count", 0)
+        self.wind_frame = self.gamedata.get("wind_frame", 0)
 
     def load_game_attributes_prev(self):
         """Unpacks current gamedata dict into instance variables."""
@@ -948,6 +927,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.is_in_water_prev = self.gamedata["is_in_water"]
         self.wind_velocity_prev = self.gamedata["wind_velocity"]
         self.wind_acceleration_prev = self.gamedata["wind_acceleration"]
+        self.frame_count_prev = self.gamedata.get("frame_count", 0)
+        self.wind_frame = self.gamedata.get("wind_frame", 0)
 
     def close(self):
         self.receiver.close()

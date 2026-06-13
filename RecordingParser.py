@@ -15,7 +15,7 @@ class RecordingParser:
         # if screen in static_variables.SIMPLE_STATE_SCREENS:
         #     return 2 #x, y
         if screen in static_variables.WIND_SCREENS:
-            return 3  # x, y, wind_velocity, wind_acceleration, ceiling, rel_x_start, rel_x_end
+            return 3  # x, y, wind_frame
         elif screen in static_variables.ICE_SCREENS:
             return 6  # x, y, vel_x, ceiling, rel_x_start, rel_x_end
         # elif screen in static_variables.FIVE_STATE_SCREENS:
@@ -151,11 +151,10 @@ class RecordingParser:
         if screen in static_variables.OLD_STATE_SCREENS:
             return np.array([x, y, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end], dtype=np.float32)
 
-        if screen in static_variables.WIND_SCREENS:
-            wind_velocity = float(state_dict["wind_velocity"])
-            wind_acceleration = float(state_dict.get("wind_acceleration", 0.0))
-            #return np.array([x, y, wind_velocity, wind_acceleration, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
-            return np.array([x, y % 360, self.get_wind_state(state_dict)], dtype=np.float32)
+        elif screen in static_variables.WIND_SCREENS:
+            wind_frame = float(state_dict.get("wind_frame", 0))
+            return np.array([x, y % 360, wind_frame], dtype=np.float32)
+
         elif screen in static_variables.ICE_SCREENS:
             vel_x = float(state_dict["vel_x"])
             return np.array([x, y % 360, vel_x, ceiling, rel_x_start, rel_x_end], dtype=np.float32)

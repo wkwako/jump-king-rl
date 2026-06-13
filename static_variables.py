@@ -1,3 +1,6 @@
+WIND_CYCLE_PATH = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/wind_cycle.txt"
+WIND_CYCLE_LENGTH = 770
+
 WIND_SCREENS = {25, 26, 27, 28, 29, 30, 31}
 ICE_SCREENS = {36, 37, 38}
 
@@ -27,7 +30,7 @@ SCREEN_START_POSITIONS = {
     10: (366,-3282, 10),
     11: (265,-3674, 15),
     12: (443.5,-4002, 5),
-    13: (258.5,-4442, 7),
+    13: (277.0,-4442, 1),
 
     #Bargainburg
     14: (108,-4738, 5),
@@ -42,7 +45,7 @@ SCREEN_START_POSITIONS = {
     21: (287.5,-7266, 1),
     22: (151.5999,-7626, 6),
     23: (252.25,-7994, 10),
-    24: (-91.75,-8362, 22),
+    24: (91.75,-8362, 22),
 
     #Windswept Bluff/Stormwall Pass
     25: (224,-8714, 15),
@@ -69,68 +72,6 @@ SCREEN_START_POSITIONS = {
     40: (327.5,-14082, 6),
     41: (101.75,-14442, 10),
     42: (146.25,-14802, 10),
-}
-
-SCREEN_PROGRESS_DIRECTION = {
-    #Redcrown Woods
-    0: "up",
-    1: "left",
-    2: "right",
-    3: "right",
-    4: "left",
-    #Colossal Drain
-    5: "right",
-    6: "left",
-    7: "right", #might need to bisect this one
-    8: "right",
-    9: "up",
-
-    #False Kings' Keep
-    10: "up",
-    11: "up",
-    12: "up",
-    13: "up",
-
-    #Bargainburg
-    14: "up",
-    15: "right",
-    16: "left",
-    17: "right",
-    18: "up",
-
-    #Great Frontier
-    19: "right",
-    20: "up",
-    21: "up",
-    22: "up",
-    23: "up",
-    24: "right",
-
-    #Windswept Bluff/Stormwall Pass
-    25: "up",
-    26: "up",
-    27: "right",
-    28: "up",
-    29: "up",
-    30: "up",
-    31: "right",
-
-    #Chapel Perilous
-    32: "left", #switch to right if entering from left
-    33: "up",
-    34: "up",
-    35: "right",
-
-    #Blue Ruin
-    36: "left", #kind of need both here
-    37: "left",
-    38: "up",
-
-    #The Tower
-    39: "up",
-    40: "right",
-    41: "up",
-    42: "right"
 }
 
 SCREEN_ACTION_MAPS = {
@@ -221,7 +162,7 @@ SCREEN_ACTION_MAPS = {
     #Great Frontier
     19: {
         "walks": [0.1, 0.2],
-        "jumps": [0.20, 0.48, 0.6],
+        "jumps": [0.15, 0.48, 0.6],
     },
     20: {
         "walks": [0.1, 0.2],
@@ -229,11 +170,11 @@ SCREEN_ACTION_MAPS = {
     },
     21: {
         "walks": [0.1, 0.2],
-        "jumps": [0.32, 0.52, 0.6],
+        "jumps": [0.34, 0.54, 0.6],
     },
     22: {
         "walks": [0.1, 0.2],
-        "jumps": [0.3, 0.48, 0.6],
+        "jumps": [0.3, 0.5, 0.6],
     },
     23: {
         "walks": [0.1, 0.2],
@@ -241,7 +182,7 @@ SCREEN_ACTION_MAPS = {
     },
     24: {
         "walks": [0.1, 0.2],
-        "jumps": [0.23, 0.43, 0.6],
+        "jumps": [0.23, 0.40, 0.43, 0.6],
     },
 
     #Windswept Bluff/Stormwall Pass
@@ -276,9 +217,9 @@ SCREEN_ACTION_MAPS = {
         "only_jump": [0.6],
     },
     31: {
-        "walks": [0.1],
+        "walks": [],
         "jumps": [], #could try without this. did make it once
-        "only_jump": [0.6],
+        "only_jump": [],
     },
 
     #Chapel Perilous
@@ -302,7 +243,7 @@ SCREEN_ACTION_MAPS = {
     #Blue Ruin
     36: {
         "walks": [0.1, 0.2],
-        "jumps": [0.05, 0.20, 0.30, 0.45, 0.5],
+        "jumps": [0.05, 0.20, 0.30, 0.45, 0.5, 0.6],
     },
     37: {
         "walks": [0.1, 0.2],
