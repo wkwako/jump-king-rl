@@ -61,6 +61,10 @@ namespace JumpKingDataMod
         private bool _firstAirborneFrame = false;
         private float _prevWindVelocity = 0f;
         private int _globalFrameCount = 0;
+        private bool _cycleValid = false;
+        private float _windTimer = 0f;
+        private bool _prevWindNegative = false;
+        const float DELTA_TIME = 1f / 60f;
 
         private Type _jumpChargeCalcType;
         private PropertyInfo _jumpFramesProp;
@@ -313,8 +317,23 @@ namespace JumpKingDataMod
                 float windAcceleration = windVelocity - _prevWindVelocity;
                 _prevWindVelocity = windVelocity;
 
+                bool windNegative = windVelocity < 0f;
 
-                string state = $@"{{""x"":{x:F2},""y"":{-y:F2},""vel_x"":{velX:F2},""vel_y"":{-velY:F2},""is_on_ground"":{isOnGround.ToString().ToLower()},""current_screen"":{currentScreen},""total_screens"":{totalScreens},""jump_frames"":{jumpFrames},""jump_percentage"":{jumpPercentage:F4},""max_height"":{-maxHeight:F2},""is_on_ice"":{isOnIce.ToString().ToLower()},""is_in_snow"":{isInSnow.ToString().ToLower()},""is_in_water"":{isInWater.ToString().ToLower()},""wind_velocity"":{windVelocity:F4},""wind_acceleration"":{windAcceleration:F6},""write_count"":{_writeCount}, ""frame_count"":{_globalFrameCount}, ""wind_frame"":{_globalFrameCount % 770}}}";
+                // detect negative -> positive crossing
+                if (_prevWindNegative && !windNegative)
+                {
+                    _cycleValid = true;
+                    _windTimer = 0f;
+                }
+
+                if (_cycleValid)
+                    _windTimer += DELTA_TIME;
+
+                _prevWindNegative = windNegative;
+
+                float windTimerOut = _cycleValid ? _windTimer : -1f;
+                string windTimerStr = (_cycleValid ? _windTimer : -1f).ToString("F2");
+                string state = $@"{{""x"":{x:F2},""y"":{-y:F2},""vel_x"":{velX:F2},""vel_y"":{-velY:F2},""is_on_ground"":{isOnGround.ToString().ToLower()},""current_screen"":{currentScreen},""total_screens"":{totalScreens},""jump_frames"":{jumpFrames},""jump_percentage"":{jumpPercentage:F4},""max_height"":{-maxHeight:F2},""is_on_ice"":{isOnIce.ToString().ToLower()},""is_in_snow"":{isInSnow.ToString().ToLower()},""is_in_water"":{isInWater.ToString().ToLower()},""wind_velocity"":{windVelocity:F4},""wind_acceleration"":{windAcceleration:F6},""write_count"":{_writeCount}, ""frame_count"":{_globalFrameCount}, ""wind_timer"":{windTimerStr}}}";
 
                 // keylogger runs every frame
                 _keylogger.Update(state, isOnGround);

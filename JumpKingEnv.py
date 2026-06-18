@@ -45,7 +45,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.jumped_prev = False
         self.sleep_time = 0.1
         self.jump_counter_metadata = 0
-        self.jump_penalty = 0
+        self.jump_penalty = -5
         self.max_jump_bonus = 1.0
         self.episode_mode = episode_mode
         self.max_episode_actions = max_episode_actions
@@ -68,10 +68,18 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         self.wind_jump_reward = 50 #was 80
         self.wind_jump_penalty = -100 #was -80
-        self.wind_screen_reward = 3000
+        self.wind_screen_reward = 500 #was 3000
         self.wind_screen_penalty = -300 #was -300
         self.wind_noop_reward = 0.5 #was 20
-        self.wind_height_scale = 5
+        self.wind_height_scale = 2 #was 5
+        self.last_jump_time = time.time()
+        self.noop_cycle_penalty = -80
+        self.noop_cycle_limit = 15  # seconds
+        self.wind_walk_penalty = -0.5 #not in use. add later.
+
+        self.jump_counter = 0
+        self.jump_cutoff = 8
+        self.jump_cutoff_penalty = -70
 
         self.ice_stability_reward = 20
         self.new_platform_reward = 30
@@ -209,8 +217,10 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         reward += self.ice_new_platform_reward()
 
         #wind-specific rewards and penalties
-        reward += self.wind_jump()
-        reward += self.wind_noop()
+        #reward += self.wind_jump()
+        #reward += self.wind_noop()
+        reward += self.check_noop_cycle_penalty()
+        reward += self.check_wind_walk_penalty(action)
 
         #reads gamedata
         self.gamedata = self.read_gamedata()
@@ -239,7 +249,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             return self.state, reward, True, False, {}
 
         self.state = self.build_state_per_screen() if self.per_screen else self.build_state()
-        #print (f"state: {self.state}")
+        print (f"state: {self.state}")
+        print (f"wind timer: {self.wind_timer}")
 
         #provides a small bonus in direction of progress
         #reward += self.get_goal_proximity_reward()
@@ -267,9 +278,18 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         # termination
         terminated = self.set_terminated()
 
+        #apply jump action cutoff
+        jump_cutoff_reward, jump_cutoff_terminate = self.check_jump_cutoff()
+        reward += jump_cutoff_reward
+        if jump_cutoff_terminate:
+            terminated = True
+            self.force_teleport = True
+
         # jump penalty/metadata
         if self.jumped:
-            reward += self.jump_penalty
+            if self.expected_screen in static_variables.WIND_SCREENS:
+                print (f"jump penalty: {self.jump_penalty}")
+                reward += self.jump_penalty
             self.jump_counter_metadata += 1
             self.jumped_prev = True
             self.jumped = False
@@ -277,6 +297,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         else:
             self.jumped_prev = False
 
+        #apply action cutoff
         if self.action_counter >= self.action_cutoff:
             if self.expected_screen in static_variables.ICE_SCREENS:
                 reward += self.action_cutoff_penalty*4
@@ -302,6 +323,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.load_game_attributes()
         self.reset_keys()
         self.jumped_prev = False
+        self.jump_counter = 0
         
         # only teleport if we're on the wrong screen
         if self.per_screen and (self.current_screen != self.expected_screen or self.force_teleport) and not self.dummyenv and not self.play:
@@ -467,6 +489,16 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         return reward
 
+    def check_jump_cutoff(self):
+        if self.expected_screen not in static_variables.WIND_SCREENS:
+            return 0, False
+        if self.jumped:
+            self.jump_counter += 1
+        if self.jump_counter >= self.jump_cutoff:
+            self.jump_counter = 0
+            print(f"Jump cutoff penalty: {self.jump_cutoff_penalty}")
+            return self.jump_cutoff_penalty, True
+        return 0, False
 
     def wind_jump(self):
         reward = 0
@@ -493,6 +525,19 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             print (f"wind noop penalty: {-self.wind_noop_reward}")
             reward += -self.wind_noop_reward
         return reward
+    
+    def check_wind_walk_penalty(self, action):
+        reward = 0
+
+        if self.expected_screen not in static_variables.WIND_SCREENS:
+            return 0
+
+        left, right, jump = self.action_map[action]
+        if jump == 0 and (left > 0 or right > 0):
+            reward += self.wind_walk_penalty
+            print (f"walk penalty: {self.wind_walk_penalty}")
+
+        return reward
 
     def new_screen_reward(self):
         reward = 0
@@ -518,6 +563,27 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
                 print (f"Falling screen penalty: {self.falling_screen_penalty}")
 
         return reward
+    
+    def check_noop_cycle_penalty(self):
+        if self.expected_screen not in static_variables.WIND_SCREENS:
+            return 0
+        
+        now = time.time()
+        
+        if self.last_jump_time is None:
+            self.last_jump_time = now
+            return 0
+        
+        if self.jumped:
+            self.last_jump_time = now
+            return 0
+        
+        if now - self.last_jump_time >= self.noop_cycle_limit:
+            self.last_jump_time = now  # reset so it doesn't fire every step
+            print(f"Noop cycle penalty: {self.noop_cycle_penalty}")
+            return self.noop_cycle_penalty
+        
+        return 0
     
     def get_goal_proximity_reward(self):
         #do not apply reward for non wind screens
@@ -560,6 +626,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             self.gamedata = self.read_gamedata()
             self.load_game_attributes()
             self.load_game_attributes_prev()
+            time.sleep(0.25)
             
             if self.current_screen == screen:
                 return
@@ -663,7 +730,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         if self.expected_screen in static_variables.OLD_STATE_SCREENS:
             return np.array([self.x, self.y, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end], dtype=np.float32)
         elif self.expected_screen in static_variables.WIND_SCREENS:
-            return np.array([self.x, self.y % 360, self.wind_frame], dtype=np.float32)
+            return np.array([self.x, self.y % 360, self.wind_timer], dtype=np.float32)
         elif self.expected_screen in static_variables.ICE_SCREENS:
             return np.array([self.x, self.y % 360, self.vel_x, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
         else:
@@ -751,7 +818,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
     def wait_for_landing(self, prev_write_count):
         self.receiver.wait_for_landing(self.jumped, prev_write_count)
-        time.sleep(0.1)
+        time.sleep(0.03)
     
     def reset_keys(self):
         #stops pressing all keys
@@ -803,7 +870,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             if dist > 0 and dist < 20:
                 reward = 0
 
-        if self.expected_screen in static_variables.WIND_SCREENS and reward > 0:
+        if self.expected_screen in static_variables.WIND_SCREENS:
             reward *= self.wind_height_scale
 
         if reward < -100:
@@ -840,7 +907,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
                 self.key_press("left", left)
             elif right:
                 self.key_press("right", right)
-            time.sleep(0.1) #was 0.3
+            time.sleep(0.1) #was 0.1
         else:
             self.jumped = True
             if left:
@@ -850,7 +917,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
                 self.key_press("space", jump, "right")
             else:
                 self.key_press("space", jump)
-            time.sleep(0.1) #was 1
+            time.sleep(0.07) #was 0.1
 
         return prev_write_count
         
@@ -909,6 +976,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.wind_acceleration = self.gamedata["wind_acceleration"]
         self.frame_count = self.gamedata.get("frame_count", 0)
         self.wind_frame = self.gamedata.get("wind_frame", 0)
+        self.wind_timer = self.gamedata.get("wind_timer", -1)
 
     def load_game_attributes_prev(self):
         """Unpacks current gamedata dict into instance variables."""

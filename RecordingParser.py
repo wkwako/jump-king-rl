@@ -145,21 +145,16 @@ class RecordingParser:
             rel_x_start = 9999.0
             rel_x_end = 9999.0
         
-        # if screen in static_variables.SIMPLE_STATE_SCREENS:
-        #     return np.array([x, y % 360]) #x, y
-
         if screen in static_variables.OLD_STATE_SCREENS:
             return np.array([x, y, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end], dtype=np.float32)
 
         elif screen in static_variables.WIND_SCREENS:
-            wind_frame = float(state_dict.get("wind_frame", 0))
-            return np.array([x, y % 360, wind_frame], dtype=np.float32)
+            wind_timer = float(state_dict.get("wind_timer", -1))
+            return np.array([x, y % 360, wind_timer], dtype=np.float32)
 
         elif screen in static_variables.ICE_SCREENS:
             vel_x = float(state_dict["vel_x"])
             return np.array([x, y % 360, vel_x, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
-        # elif screen in static_variables.FIVE_STATE_SCREENS:
-        #     return np.array([x, y, ceiling, left_wall_dist, right_wall_dist], dtype=np.float32)
         else:
             return np.array([x, y % 360, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end], dtype=np.float32)
 
@@ -356,8 +351,9 @@ class RecordingParser:
 
         Rules:
         1. Gap > 0.4s between consecutive actions → fill with no-ops
-        2. Cap at 1 wind cycle (780 frames) regardless of actual gap
+        2. Cap at 1 wind cycle worth of time regardless of actual gap
         3. Insert 1 no-op per noop_divisor frames to avoid overrepresentation
+        4. Each no-op gets an incremented wind_timer value
 
         Args:
             records: list of (timestamp, state_dict, action) tuples
@@ -371,6 +367,7 @@ class RecordingParser:
         WIND_CYCLE_FRAMES = 780
         FRAMES_PER_SECOND = 60
         NOOP_THRESHOLD_FRAMES = int(0.4 * FRAMES_PER_SECOND)  # 24 frames
+        SECONDS_PER_FRAME = 1.0 / FRAMES_PER_SECOND
         noop_action = (0, 0, 0)
 
         filled = []
@@ -400,16 +397,22 @@ class RecordingParser:
                 continue
 
             noops_to_insert = gap_frames // noop_divisor
+            base_timer = float(state_dict.get("wind_timer", 0))
 
-            for _ in range(noops_to_insert):
-                filled.append((state_dict, noop_action))
+            for j in range(noops_to_insert):
+                noop_state = dict(state_dict)  # copy to avoid mutating original
+                noop_state["wind_timer"] = round(
+                    base_timer + (j + 1) * (noop_divisor * SECONDS_PER_FRAME), 2
+                )
+                filled.append((noop_state, noop_action))
             total_noops += noops_to_insert
 
             if verbose:
                 print(f"  Record {i}: gap={gap_seconds:.2f}s → "
-                      f"inserted {noops_to_insert} no-ops "
-                      f"(wind_vel={state_dict.get('wind_velocity', 0):.4f})")
+                    f"inserted {noops_to_insert} no-ops "
+                    f"(wind_timer={base_timer:.2f} → "
+                    f"{round(base_timer + noops_to_insert * noop_divisor * SECONDS_PER_FRAME, 2):.2f})")
 
         print(f"Screen {screen}: {len(records)} records → {len(filled)} "
-              f"after no-op fill ({total_noops} no-ops inserted)")
+            f"after no-op fill ({total_noops} no-ops inserted)")
         return filled

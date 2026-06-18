@@ -1,2 +1,0 @@
-time/iterations,rollout/ep_rew_mean,custom/current_screen,time/fps,custom/max_height,time/time_elapsed,rollout/ep_len_mean,time/total_timesteps
-1,229.93135400000003,2,0,538.0,147,9.461538461538462,128
