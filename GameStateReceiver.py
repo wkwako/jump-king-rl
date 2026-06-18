@@ -139,6 +139,7 @@ class GameStateReceiver:
         try:
             cmd = f"teleport:{x:.2f},{y:.2f}\n"
             self._socket.sendall(cmd.encode('utf-8'))
+            time.sleep(0.25)
         except Exception as e:
             print(f"Teleport send error: {e}")
 

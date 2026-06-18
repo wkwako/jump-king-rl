@@ -187,9 +187,9 @@ SCREEN_ACTION_MAPS = {
 
     #Windswept Bluff/Stormwall Pass
     25: {
-        "walks": [0.2],
-        "jumps": [0.25],
-        "only_jump": [0.6],
+        "walks": [0.2], #was 0.2
+        "jumps": [], #was 0.15
+        "only_jump": [0.35, 0.6], #was 0.25, 0.6
     },
     26: {
         "walks": [],
@@ -217,9 +217,9 @@ SCREEN_ACTION_MAPS = {
         "only_jump": [0.6],
     },
     31: {
-        "walks": [],
+        "walks": [0.1],
         "jumps": [], #could try without this. did make it once
-        "only_jump": [],
+        "only_jump": [0.6],
     },
 
     #Chapel Perilous
@@ -247,8 +247,8 @@ SCREEN_ACTION_MAPS = {
     },
     37: {
         "walks": [0.1, 0.2],
-        "jumps": [0.05, 0.6],
-        "only_jump": [0.2],
+        "jumps": [0.05, 0.085, 0.15, 0.8],
+        "only_jump": [],
     },
     38: {
         "walks": [0.1, 0.2],

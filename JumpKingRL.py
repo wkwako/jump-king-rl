@@ -782,7 +782,7 @@ class JumpKingRL:
             wind_records = parser.load_wind_recording(self.wind_path)
             wind_screen_records = [(ts, s, a) for ts, s, a in wind_records
                                 if int(s.get("current_screen", -1)) == screen]
-            screen_records = parser.fill_wind_noops(wind_screen_records, screen, noop_divisor=22)
+            screen_records = parser.fill_wind_noops(wind_screen_records, screen, noop_divisor=30)
         else:
             screen_records = by_screen[screen]
 
@@ -970,7 +970,7 @@ class JumpKingRL:
                 obs = model.env.reset()
                 done = False
                 while not done:
-                    action, _ = model.predict(obs, deterministic=True) #deterministic=True
+                    action, _ = model.predict(obs, deterministic=False) #deterministic=True
                     obs, reward, done, _ = model.env.step(action)
 
                 new_screen = model.env.envs[0].env.current_screen
@@ -989,15 +989,15 @@ class JumpKingRL:
 JK = JumpKingRL()
 parser = RecordingParser()
 records = parser.load_recording()
-screen = 13
-name = f"screen{screen}"
+screen = 25
+name = f"screen{screen}_overnight2"
 #JK.create_BC_screen(name, screen=screen, records=records)
-#env = JK.create_RL_screen(name, screen=screen, action_cutoff=500, n_steps=4096, n_epochs=5, ent_coef=0.40, target_kl=0.04, learning_rate=0.0001, gamma=0.9995, gae_lambda=0.95, episode_mode=EpisodeMode.SCREEN) #wind
-#env = JK.create_RL_screen(name, screen=screen, action_cutoff=40, n_steps=1024, n_epochs=5, ent_coef=0.10, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN) #normal
-JK.train_model_one_screen(name, screen=screen, freeze_updates=0)
+#env = JK.create_RL_screen(name, screen=screen, action_cutoff=200, n_steps=2048, n_epochs=5, ent_coef=0.20, target_kl=0.04, learning_rate=0.0001, gamma=0.9995, gae_lambda=0.95, episode_mode=EpisodeMode.SCREEN) #wind
+#env = JK.create_RL_screen(name, screen=screen, action_cutoff=100, n_steps=1024, n_epochs=5, ent_coef=0.10, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN) #normal
+#JK.train_model_one_screen(name, screen=screen, freeze_updates=0)
 
 
-#JK.play_game_per_screen(start_screen=13)
+JK.play_game_per_screen(start_screen=14)
 
 # parser = RecordingParser()                                                                                                                                                                                                                                                                                                                          
 # action_map = parser.get_screen_action_map(5)
