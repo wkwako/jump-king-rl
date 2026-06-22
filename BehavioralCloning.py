@@ -98,10 +98,9 @@ class BehavioralCloning:
         return dqn_model
         
     def train(self, X, y, action_dim, model_path, 
-          epochs=100, batch_size=64, lr=1e-3, hidden_dim=256):
+      epochs=100, batch_size=64, lr=1e-3, hidden_dim=256, use_class_weights=False):
         """Trains BC policy on dataset and saves weights."""
 
-        # train/val split
         X_train, X_val, y_train, y_val = train_test_split(
             X, y, test_size=0.2, random_state=42
         )
@@ -111,9 +110,19 @@ class BehavioralCloning:
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
         val_loader = DataLoader(val_dataset, batch_size=batch_size)
 
-        # model, loss, optimizer
         model = BCPolicy(input_dim=X.shape[1], output_dim=action_dim, hidden_dim=hidden_dim)
-        criterion = nn.CrossEntropyLoss()
+
+        if use_class_weights:
+            class_counts = np.bincount(y_train, minlength=action_dim)
+            class_counts = np.maximum(class_counts, 1)  # avoid div by zero
+            class_weights = 1.0 / class_counts
+            class_weights = class_weights / class_weights.sum() * action_dim  # normalize
+            weight_tensor = torch.FloatTensor(class_weights)
+            criterion = nn.CrossEntropyLoss(weight=weight_tensor)
+            print(f"Using class weights: {class_weights}")
+        else:
+            criterion = nn.CrossEntropyLoss()
+
         optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
         best_val_loss = float('inf')

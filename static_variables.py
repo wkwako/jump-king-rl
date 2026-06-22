@@ -233,7 +233,7 @@ SCREEN_ACTION_MAPS = {
     },
     34: {
         "walks": [0.1, 0.2],
-        "jumps": [0.45, 0.6],
+        "jumps": [0.48, 0.6],
     },
     35: {
         "walks": [0.1, 0.2],
@@ -252,21 +252,21 @@ SCREEN_ACTION_MAPS = {
     },
     38: {
         "walks": [0.1, 0.2],
-        "jumps": [0.05, 0.28, 0.6],
+        "jumps": [0.05, 0.30, 0.6],
     },
 
     #The Tower
     39: {
         "walks": [0.1, 0.2],
-        "jumps": [0.33, 0.45, 0.5, 0.6], #could set 0.48 here instead of 0.45 and 0.5
+        "jumps": [0.33, 0.45, 0.54, 0.6], #could set 0.48 here instead of 0.45 and 0.5
     },
     40: {
         "walks": [0.1, 0.2],
-        "jumps": [0.3, 0.48, 0.6],
+        "jumps": [0.3, 0.50, 0.6],
     },
     41: {
         "walks": [0.1, 0.2],
-        "jumps": [0.38, 0.48, 0.6],
+        "jumps": [0.38, 0.50, 0.6],
     },
     42: {
         "walks": [0.1, 0.2],

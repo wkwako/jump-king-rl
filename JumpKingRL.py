@@ -92,15 +92,15 @@ class JumpKingCallback(BaseCallback):
             self.logger.record("custom/max_height", env.gamedata["y"])
         
         #print action probabilities
-        # obs = self.locals.get("obs_tensor")
-        # if obs is not None:
-        #     with torch.no_grad():
-        #         dist = self.model.policy.get_distribution(obs)
-        #         probs = dist.distribution.probs[0].cpu().numpy()
-        #         action_map = env.action_map
-        #         print("Action probs:")
-        #         for i, (prob, action) in enumerate(zip(probs, action_map)):
-        #             print(f"  {i} {action}: {prob:.4f}")
+        obs = self.locals.get("obs_tensor")
+        if obs is not None:
+            with torch.no_grad():
+                dist = self.model.policy.get_distribution(obs)
+                probs = dist.distribution.probs[0].cpu().numpy()
+                action_map = env.action_map
+                print("Action probs:")
+                for i, (prob, action) in enumerate(zip(probs, action_map)):
+                    print(f"  {i} {action}: {prob:.4f}")
         
         return True
 
@@ -782,7 +782,7 @@ class JumpKingRL:
             wind_records = parser.load_wind_recording(self.wind_path)
             wind_screen_records = [(ts, s, a) for ts, s, a in wind_records
                                 if int(s.get("current_screen", -1)) == screen]
-            screen_records = parser.fill_wind_noops(wind_screen_records, screen, noop_divisor=30)
+            screen_records = parser.fill_wind_noops(wind_screen_records, screen, noop_divisor=10)
         else:
             screen_records = by_screen[screen]
 
@@ -824,7 +824,8 @@ class JumpKingRL:
             hidden_dim=256,
             epochs=epochs,
             batch_size=batch_size,
-            lr=lr
+            lr=lr,
+            use_class_weights=(screen in static_variables.WIND_SCREENS),
         )
         print(f"BC model saved to {model_path}")
  
@@ -989,15 +990,49 @@ class JumpKingRL:
 JK = JumpKingRL()
 parser = RecordingParser()
 records = parser.load_recording()
-screen = 25
-name = f"screen{screen}_overnight2"
+screen = 41
+name = f"screen{screen}"
 #JK.create_BC_screen(name, screen=screen, records=records)
-#env = JK.create_RL_screen(name, screen=screen, action_cutoff=200, n_steps=2048, n_epochs=5, ent_coef=0.20, target_kl=0.04, learning_rate=0.0001, gamma=0.9995, gae_lambda=0.95, episode_mode=EpisodeMode.SCREEN) #wind
+#env = JK.create_RL_screen(name, screen=screen, action_cutoff=200, n_steps=2048, n_epochs=5, ent_coef=0.25, target_kl=0.04, learning_rate=0.0001, gamma=0.9995, gae_lambda=0.95, episode_mode=EpisodeMode.SCREEN) #wind
 #env = JK.create_RL_screen(name, screen=screen, action_cutoff=100, n_steps=1024, n_epochs=5, ent_coef=0.10, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN) #normal
-#JK.train_model_one_screen(name, screen=screen, freeze_updates=0)
+JK.train_model_one_screen(name, screen=screen, freeze_updates=0)
+
+# === CONFIG — update these for your setup ===
+# MODEL_PATH = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/models/screen25_dummy/bc_screen_25.pth"
+# INPUT_DIM = 3       # [x, y%360, wind_timer*100]
+# OUTPUT_DIM = 5       # number of discrete actions for this screen — update to match action_map length
+# HIDDEN_DIM = 256
+# # typical x, y values seen during wind screen play — adjust based on your data
+# TYPICAL_X = 300.0
+# TYPICAL_Y = 90.0
+# # action map for screen 25 — update to match what RecordingParser.get_screen_action_map(25) returns
+# ACTION_MAP = [
+#     (0.2, 0, 0),
+#     (0, 0.2, 0),
+#     (0, 0, 0.35),
+#     (0, 0, 0.6),
+#     (0, 0, 0),
+# ]
+# bc = BehavioralCloning()
+# bc.load_model(MODEL_PATH, input_dim=INPUT_DIM, output_dim=OUTPUT_DIM, hidden_dim=HIDDEN_DIM)
+# print(f"{'wind_timer':>10} | " + " | ".join(f"action{i}" for i in range(OUTPUT_DIM)))
+# print("-" * 70)
+# # sweep wind_timer across the full cycle (already scaled by 100 if that's what your state uses)
+# for wind_timer_raw in np.arange(0, 13, 0.5):
+#     wind_timer_scaled = wind_timer_raw * 100  # remove this line if you didn't apply the x100 scale
+#     state = np.array([TYPICAL_X, TYPICAL_Y, wind_timer_scaled], dtype=np.float32)
+#     state_tensor = torch.FloatTensor(state).unsqueeze(0)
+
+#     with torch.no_grad():
+#         logits = bc.model(state_tensor)
+#         probs = torch.softmax(logits, dim=1).squeeze().numpy()
+
+#     probs_str = " | ".join(f"{p:.4f}" for p in probs)
+#     print(f"{wind_timer_raw:>10.2f} | {probs_str}")
 
 
-JK.play_game_per_screen(start_screen=14)
+
+#JK.play_game_per_screen(start_screen=14)
 
 # parser = RecordingParser()                                                                                                                                                                                                                                                                                                                          
 # action_map = parser.get_screen_action_map(5)
