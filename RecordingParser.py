@@ -150,7 +150,7 @@ class RecordingParser:
 
         elif screen in static_variables.WIND_SCREENS:
             wind_timer = float(state_dict.get("wind_timer", -1))
-            return np.array([x, y % 360, wind_timer], dtype=np.float32)
+            return np.array([x, y % 360, wind_timer*100], dtype=np.float32)
 
         elif screen in static_variables.ICE_SCREENS:
             vel_x = float(state_dict["vel_x"])
