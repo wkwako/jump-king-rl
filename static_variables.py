@@ -12,6 +12,8 @@ NO_DROP_TERMINATION_SCREENS = {8, 16, 17}
 
 OLD_STATE_SCREENS = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 13, 14}
 
+XY_STATE_SCREENS = [40, 41, 42]
+
 SCREEN_START_POSITIONS = {
     #Redcrown Woods
     0: (231,302, 0),

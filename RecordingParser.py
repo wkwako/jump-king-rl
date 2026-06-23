@@ -18,8 +18,10 @@ class RecordingParser:
             return 3  # x, y, wind_frame
         elif screen in static_variables.ICE_SCREENS:
             return 6  # x, y, vel_x, ceiling, rel_x_start, rel_x_end
-        # elif screen in static_variables.FIVE_STATE_SCREENS:
-        #     return 5 #x, y, ceiling, left_wall_dist, right_wall_dist
+
+        elif screen in static_variables.XY_STATE_SCREENS:
+            return 2 #x, y
+
         else:
             return 7  # x, y, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end
 
@@ -145,13 +147,20 @@ class RecordingParser:
             rel_x_start = 9999.0
             rel_x_end = 9999.0
         
+        #trained before y % 360 switch
         if screen in static_variables.OLD_STATE_SCREENS:
             return np.array([x, y, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end], dtype=np.float32)
 
+        #only use x,y coord for these screens
+        elif screen in static_variables.XY_STATE_SCREENS:
+            return np.array([x, y % 360])
+
+        #wind screens need wind_timer
         elif screen in static_variables.WIND_SCREENS:
             wind_timer = float(state_dict.get("wind_timer", -1))
             return np.array([x, y % 360, wind_timer*100], dtype=np.float32)
 
+        #ice screens need x velocity
         elif screen in static_variables.ICE_SCREENS:
             vel_x = float(state_dict["vel_x"])
             return np.array([x, y % 360, vel_x, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
