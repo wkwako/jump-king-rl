@@ -732,6 +732,10 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         
         if self.expected_screen in static_variables.OLD_STATE_SCREENS:
             return np.array([self.x, self.y, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end], dtype=np.float32)
+        
+        elif self.expected_screen in static_variables.XY_STATE_SCREENS:
+            return np.array([self.x, self.y % 360])
+
         elif self.expected_screen in static_variables.WIND_SCREENS:
             return np.array([self.x, self.y % 360, self.wind_timer*100], dtype=np.float32)
         elif self.expected_screen in static_variables.ICE_SCREENS:
