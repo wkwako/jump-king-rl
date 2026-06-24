@@ -9,7 +9,10 @@ class RecordingParser:
     def __init__(self):
         self.filepath = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/recording.txt"
         #self.filepath = "C:/Users/wkwak/Documents/CodingWork/PythonStuff/jump-king-rl/recording.txt"
+        self.wind_path = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/recording_wind_only.txt"
+        #self.wind_path = "C:/Users/wkwak/Documents/CodingWork/Environments/PythonStuff/jump-king-rl/recording_wind_only.txt"
         self.platform_parser = PlatformParser()
+        self.height_id_maps = {}
 
     def get_state_size(self, screen):
         # if screen in static_variables.SIMPLE_STATE_SCREENS:
@@ -24,6 +27,87 @@ class RecordingParser:
 
         else:
             return 7  # x, y, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end
+        
+    def generate_state_per_screen(self, state_dict, screen):
+        x = float(state_dict["x"])
+        y = float(state_dict["y"])
+        
+        self.platform_parser.parse_result = self.platform_parser.read_platform_data(
+            (x, y), screen
+        )
+        
+        if self.platform_parser.parse_result is not None:
+            left_wall_dist = float(self.platform_parser.parse_result[0][0])
+            right_wall_dist = float(self.platform_parser.parse_result[0][1])
+            ceiling = float(self.platform_parser.parse_result[0][2])
+            rel_x_start = float(self.platform_parser.parse_result[0][3])
+            rel_x_end = float(self.platform_parser.parse_result[0][4])
+        else:
+            ceiling = 9999.0
+            rel_x_start = 9999.0
+            rel_x_end = 9999.0
+        
+        #trained before y % 360 switch
+        if screen in static_variables.OLD_STATE_SCREENS:
+            return np.array([x, y, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end], dtype=np.float32)
+
+        #only use x,y coord for these screens
+        elif screen in static_variables.XY_STATE_SCREENS:
+            return np.array([x, y % 360])
+
+        #wind screens need wind_timer
+        elif screen in static_variables.WIND_SCREENS:
+            height_id = self.get_height_id(y, screen)
+            wind_timer = float(state_dict.get("wind_timer", -1))
+            return np.array([x/480, height_id, wind_timer/13], dtype=np.float32)
+
+        #ice screens need x velocity
+        elif screen in static_variables.ICE_SCREENS:
+            vel_x = float(state_dict["vel_x"])
+            return np.array([x, y % 360, vel_x, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
+        else:
+            return np.array([x, y % 360, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end], dtype=np.float32)
+        
+    def build_height_id_map(self, records, screen, round_to=5):
+        """Builds a per-screen mapping from rounded y values to sequential integer IDs.
+        
+        Args:
+            records: list of (state_dict, action) tuples for this screen
+            screen: screen number
+            round_to: round y to nearest multiple of this value before grouping
+        
+        Returns:
+            dict mapping rounded_y -> height_id (starting at 1)
+        """
+        y_values = set()
+        for state_dict, action in records:
+            y = float(state_dict["y"])
+            rounded_y = round(y / round_to) * round_to
+            y_values.add(rounded_y)
+        
+        unique_ys = sorted(y_values)
+        height_id_map = {y: i + 1 for i, y in enumerate(unique_ys)}
+        
+        self.height_id_maps[screen] = height_id_map
+        print(f"Screen {screen}: {len(unique_ys)} unique heights mapped to IDs 1-{len(unique_ys)}")
+        return height_id_map
+
+    def get_height_id(self, y, screen, round_to=5):
+        """Looks up the height ID for a given y value on a given screen.
+        Falls back to nearest-neighbor match if exact rounded value isn't in the map.
+        """
+        rounded_y = round(y / round_to) * round_to
+        height_map = self.height_id_maps.get(screen, {})
+        
+        if rounded_y in height_map:
+            return height_map[rounded_y]
+        
+        # fallback: nearest neighbor if this exact rounded value wasn't seen in recordings
+        if height_map:
+            closest_y = min(height_map.keys(), key=lambda k: abs(k - rounded_y))
+            return height_map[closest_y]
+        
+        return 0  # no mapping exists at all
 
     def get_wind_state(self, state_dict):
         wind_velocity = float(state_dict["wind_velocity"])
@@ -127,48 +211,12 @@ class RecordingParser:
             state = self.generate_state(state_dict)
             states.append(state)
         return np.array(states), np.array(action_indices)
-    
-    def generate_state_per_screen(self, state_dict, screen):
-        x = float(state_dict["x"])
-        y = float(state_dict["y"])
-        
-        self.platform_parser.parse_result = self.platform_parser.read_platform_data(
-            (x, y), screen
-        )
-        
-        if self.platform_parser.parse_result is not None:
-            left_wall_dist = float(self.platform_parser.parse_result[0][0])
-            right_wall_dist = float(self.platform_parser.parse_result[0][1])
-            ceiling = float(self.platform_parser.parse_result[0][2])
-            rel_x_start = float(self.platform_parser.parse_result[0][3])
-            rel_x_end = float(self.platform_parser.parse_result[0][4])
-        else:
-            ceiling = 9999.0
-            rel_x_start = 9999.0
-            rel_x_end = 9999.0
-        
-        #trained before y % 360 switch
-        if screen in static_variables.OLD_STATE_SCREENS:
-            return np.array([x, y, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end], dtype=np.float32)
-
-        #only use x,y coord for these screens
-        elif screen in static_variables.XY_STATE_SCREENS:
-            return np.array([x, y % 360])
-
-        #wind screens need wind_timer
-        elif screen in static_variables.WIND_SCREENS:
-            wind_timer = float(state_dict.get("wind_timer", -1))
-            return np.array([x, y % 360, wind_timer*100], dtype=np.float32)
-
-        #ice screens need x velocity
-        elif screen in static_variables.ICE_SCREENS:
-            vel_x = float(state_dict["vel_x"])
-            return np.array([x, y % 360, vel_x, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
-        else:
-            return np.array([x, y % 360, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end], dtype=np.float32)
 
     def generate_dataset_per_screen(self, records, action_indices, screen):
         """Generates minimal state vectors for all records on a given screen."""
+        if screen in static_variables.WIND_SCREENS and screen not in self.height_id_maps:
+            self.build_height_id_map(records, screen)
+
         states = []
         for i, (state_dict, _) in enumerate(records):
             if i % 100 == 0:
