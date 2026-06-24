@@ -66,6 +66,18 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.play = play
         self.expected_screen = current_screen
 
+        # build height ID map for wind screens before RL starts
+        if self.expected_screen in static_variables.WIND_SCREENS:
+            raw_records = self.recording_parser.load_wind_recording(self.recording_parser.wind_path)
+            screen_records = [
+                (state_dict, action) for ts, state_dict, action in raw_records
+                if int(state_dict.get("current_screen", -1)) == self.expected_screen
+            ]
+            if screen_records:
+                self.recording_parser.build_height_id_map(screen_records, self.expected_screen)
+            else:
+                print(f"Warning: no recordings found for screen {self.expected_screen}, height_id map will be empty")
+
         self.wind_jump_reward = 50 #was 80
         self.wind_jump_penalty = -100 #was -80
         self.wind_screen_reward = 500 #was 3000
@@ -737,7 +749,9 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             return np.array([self.x, self.y % 360])
 
         elif self.expected_screen in static_variables.WIND_SCREENS:
-            return np.array([self.x, self.y % 360, self.wind_timer*100], dtype=np.float32)
+            height_id = self.recording_parser.get_height_id(self.y, self.expected_screen)
+            return np.array([self.x/480, height_id, self.wind_timer/13], dtype=np.float32)
+        
         elif self.expected_screen in static_variables.ICE_SCREENS:
             return np.array([self.x, self.y % 360, self.vel_x, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
         else:
