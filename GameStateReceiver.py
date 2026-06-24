@@ -104,33 +104,45 @@ class GameStateReceiver:
                 return self._buffer[0]
         return None
 
-    def wait_for_landing(self, jumped, prev_write_count, timeout=15.0):
+    def wait_for_landing(self, jumped, prev_write_count, end_zone=None, end_zone_radius=80, timeout=15.0):
+        def check_end_zone():
+            data = self.read_gamedata()
+            if data is None or end_zone is None:
+                return False
+            dist = ((data["x"] - end_zone[0])**2 + (data["y"] - -end_zone[1])**2) ** 0.5
+            return dist <= end_zone_radius
+
         if not jumped:
             time.sleep(0.05)
+            if check_end_zone():
+                return True
             data = self.read_gamedata()
             if data is not None and not data.get("is_on_ground"):
                 jumped = True
             else:
-                return
-        
+                return False
+
         start = time.time()
-        # phase 1: wait for character to leave ground
         if jumped:
             while time.time() - start < timeout:
+                if check_end_zone():
+                    return True
                 data = self.read_gamedata()
                 if data is not None and not data.get("is_on_ground"):
                     break
                 time.sleep(0.005)
-        
-        # phase 2: wait for genuine landing via write_count
+
         while time.time() - start < timeout:
+            if check_end_zone():
+                return True
             data = self.read_gamedata()
             if data is not None and data.get("is_on_ground") and \
             data.get("write_count", 0) > prev_write_count:
-                return
+                return False
             time.sleep(0.005)
-        
+
         print(f"wait_for_landing timed out after {timeout}s")
+        return False
 
     def send_teleport(self, x, y):
         """Sends a teleport command to C#."""

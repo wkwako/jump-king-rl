@@ -66,6 +66,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.play = play
         self.expected_screen = current_screen
 
+        self.end_zone_reached = False
+
         # build height ID map for wind screens before RL starts
         if self.expected_screen in static_variables.WIND_SCREENS:
             raw_records = self.recording_parser.load_wind_recording(self.recording_parser.wind_path)
@@ -225,6 +227,15 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.wait_for_landing(prev_write_count)
         #print ("character has landed")
 
+        if self.end_zone_reached:
+            print(f"End zone reached on screen {self.expected_screen} — treating as screen complete")
+            self.gamedata = self.read_gamedata()
+            self.load_game_attributes()
+            reward += self.new_screen_reward_val
+            self.force_teleport = True
+            self.state = self._get_safe_default_state()
+            return self.state, reward, True, False, {}
+
         #ice rewards 2
         #reward += self.ice_v0_reward()  # fires if wait_for_v0 was set. not working bc v is always 0, not updating state enough
         reward += self.ice_new_platform_reward()
@@ -339,6 +350,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.reset_keys()
         self.jumped_prev = False
         self.jump_counter = 0
+        self.end_zone_reached = False
         
         # only teleport if we're on the wrong screen
         if self.per_screen and (self.current_screen != self.expected_screen or self.force_teleport) and not self.dummyenv and not self.play:
@@ -838,7 +850,12 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         return self.terminate_action_episode() or self.terminate_height_episode()
 
     def wait_for_landing(self, prev_write_count):
-        self.receiver.wait_for_landing(self.jumped, prev_write_count)
+        end_zone = static_variables.END_ZONE_POSITIONS.get(self.expected_screen)
+        end_zone_radius = static_variables.END_ZONE_RADIUS
+        self.end_zone_reached = self.receiver.wait_for_landing(
+            self.jumped, prev_write_count,
+            end_zone=end_zone, end_zone_radius=end_zone_radius
+        )
         time.sleep(0.03)
     
     def reset_keys(self):

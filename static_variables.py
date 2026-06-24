@@ -8,6 +8,14 @@ TENT_BOUNDS = {
     0: {"x_min": 72, "x_max": 120, "y_min": -302, "y_max": -200}
 }
 
+END_SCREENS = {42}
+
+END_ZONE_POSITIONS = {
+    42: (370, -15002)
+}
+
+END_ZONE_RADIUS = 180
+
 NO_DROP_TERMINATION_SCREENS = {8, 16, 17}
 
 OLD_STATE_SCREENS = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 13, 14}
@@ -272,6 +280,6 @@ SCREEN_ACTION_MAPS = {
     },
     42: {
         "walks": [0.1, 0.2],
-        "jumps": [0.23, 0.6],
+        "jumps": [0.23, 0.4, 0.6],
     },
 }
