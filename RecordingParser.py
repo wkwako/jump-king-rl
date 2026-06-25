@@ -409,8 +409,64 @@ class RecordingParser:
 
         print(f"Loaded {len(records)} wind records from {filepath}")
         return records
+    
+    def build_noop_exclusion_zones(self, records, screen, min_group_size=3, distance_threshold=20):
+        """Identifies clusters of real (non-no-op) jump actions on a screen,
+        and builds wind_timer exclusion zones around each cluster's average timing
+        to prevent no-ops from being inserted where real jumps occur.
+        
+        Args:
+            records: list of (state_dict, action) tuples for this screen
+            screen: screen number
+            min_group_size: minimum cluster size to be considered (ignore outliers)
+            distance_threshold: max euclidean distance (x, y) for grouping into the same cluster
+        
+        Returns:
+            list of (start, end) tuples representing noop-free wind_timer ranges
+        """
+        # step 1: collect only real jump actions (space duration > 0)
+        jump_events = []
+        for state_dict, action in records:
+            left, right, space = action
+            if space > 0:
+                x = float(state_dict["x"])
+                y = float(state_dict["y"])
+                wind_timer = float(state_dict.get("wind_timer", -1))
+                jump_events.append({"x": x, "y": y, "wind_timer": wind_timer, "duration": space})
+        
+        # step 1 (cont): group jump events by proximity in (x, y)
+        groups = []
+        for event in jump_events:
+            placed = False
+            for group in groups:
+                ref = group[0]
+                dist = ((event["x"] - ref["x"])**2 + (event["y"] - ref["y"])**2) ** 0.5
+                if dist <= distance_threshold:
+                    group.append(event)
+                    placed = True
+                    break
+            if not placed:
+                groups.append([event])
+        
+        # filter out small groups (outliers)
+        groups = [g for g in groups if len(g) >= min_group_size]
+        
+        # step 2: average wind_timer and duration per group
+        exclusion_zones = []
+        for group in groups:
+            avg_wind_timer = sum(e["wind_timer"] for e in group) / len(group)
+            avg_duration = sum(e["duration"] for e in group) / len(group)
+            
+            # step 3: build the noop-free band
+            start = avg_wind_timer - 0.05
+            end = avg_wind_timer + avg_duration
+            exclusion_zones.append((start, end))
+        
+        print(f"Screen {screen}: built {len(exclusion_zones)} noop exclusion zones: {exclusion_zones}")
+        return exclusion_zones
 
-    def fill_wind_noops(self, records, screen, noop_divisor=5, verbose=True):
+    def fill_wind_noops(self, records, screen, noop_divisor=5, verbose=True,
+                     min_group_size=3, distance_threshold=20):
         """Inserts no-op actions between recorded wind screen actions.
 
         Rules:
@@ -418,12 +474,15 @@ class RecordingParser:
         2. Cap at 1 wind cycle worth of time regardless of actual gap
         3. Insert 1 no-op per noop_divisor frames to avoid overrepresentation
         4. Each no-op gets an incremented wind_timer value
+        5. No-ops are never inserted inside a real-jump exclusion zone
 
         Args:
             records: list of (timestamp, state_dict, action) tuples
             screen: screen number
             noop_divisor: insert 1 no-op per N frames (default 5)
             verbose: print details per gap
+            min_group_size: minimum cluster size for exclusion zones (ignore outliers)
+            distance_threshold: max (x, y) distance for grouping jumps into the same cluster
 
         Returns:
             list of (state_dict, action) tuples with no-ops inserted
@@ -434,8 +493,25 @@ class RecordingParser:
         SECONDS_PER_FRAME = 1.0 / FRAMES_PER_SECOND
         noop_action = (0, 0, 0)
 
+        # build exclusion zones once, using all real (non-timestamped) actions on this screen
+        plain_records = [(s, a) for ts, s, a in records]
+        exclusion_zones = self.build_noop_exclusion_zones(
+            plain_records, screen, min_group_size=min_group_size, distance_threshold=distance_threshold
+        )
+
+        def is_in_exclusion_zone(wind_timer):
+            for start, end in exclusion_zones:
+                if start <= end:
+                    if start <= wind_timer <= end:
+                        return True
+                else:  # wraps around the 0/13s boundary
+                    if wind_timer >= start or wind_timer <= end:
+                        return True
+            return False
+
         filled = []
         total_noops = 0
+        total_skipped = 0
 
         for i, (ts, state_dict, action) in enumerate(records):
             filled.append((state_dict, action))
@@ -453,7 +529,6 @@ class RecordingParser:
             if gap_seconds <= 0:
                 continue
 
-            # cap at 1 wind cycle
             gap_seconds = min(gap_seconds, WIND_CYCLE_FRAMES / FRAMES_PER_SECOND)
             gap_frames = int(gap_seconds * FRAMES_PER_SECOND)
 
@@ -464,19 +539,97 @@ class RecordingParser:
             base_timer = float(state_dict.get("wind_timer", 0))
 
             for j in range(noops_to_insert):
-                noop_state = dict(state_dict)  # copy to avoid mutating original
-                noop_state["wind_timer"] = round(
+                candidate_timer = round(
                     base_timer + (j + 1) * (noop_divisor * SECONDS_PER_FRAME), 2
                 )
+                wrapped_timer = candidate_timer % 13  # wrap into valid cycle range
+
+                if is_in_exclusion_zone(wrapped_timer):
+                    total_skipped += 1
+                    continue
+
+                noop_state = dict(state_dict)
+                noop_state["wind_timer"] = candidate_timer
                 filled.append((noop_state, noop_action))
             total_noops += noops_to_insert
 
             if verbose:
                 print(f"  Record {i}: gap={gap_seconds:.2f}s → "
-                    f"inserted {noops_to_insert} no-ops "
+                    f"inserted {noops_to_insert - total_skipped} no-ops "
                     f"(wind_timer={base_timer:.2f} → "
                     f"{round(base_timer + noops_to_insert * noop_divisor * SECONDS_PER_FRAME, 2):.2f})")
 
         print(f"Screen {screen}: {len(records)} records → {len(filled)} "
-            f"after no-op fill ({total_noops} no-ops inserted)")
+            f"after no-op fill ({total_noops} no-ops inserted, {total_skipped} skipped due to exclusion zones)")
         return filled
+
+    # def fill_wind_noops(self, records, screen, noop_divisor=5, verbose=True):
+    #     """Inserts no-op actions between recorded wind screen actions.
+
+    #     Rules:
+    #     1. Gap > 0.4s between consecutive actions → fill with no-ops
+    #     2. Cap at 1 wind cycle worth of time regardless of actual gap
+    #     3. Insert 1 no-op per noop_divisor frames to avoid overrepresentation
+    #     4. Each no-op gets an incremented wind_timer value
+
+    #     Args:
+    #         records: list of (timestamp, state_dict, action) tuples
+    #         screen: screen number
+    #         noop_divisor: insert 1 no-op per N frames (default 5)
+    #         verbose: print details per gap
+
+    #     Returns:
+    #         list of (state_dict, action) tuples with no-ops inserted
+    #     """
+    #     WIND_CYCLE_FRAMES = 780
+    #     FRAMES_PER_SECOND = 60
+    #     NOOP_THRESHOLD_FRAMES = int(0.4 * FRAMES_PER_SECOND)  # 24 frames
+    #     SECONDS_PER_FRAME = 1.0 / FRAMES_PER_SECOND
+    #     noop_action = (0, 0, 0)
+
+    #     filled = []
+    #     total_noops = 0
+
+    #     for i, (ts, state_dict, action) in enumerate(records):
+    #         filled.append((state_dict, action))
+
+    #         if i >= len(records) - 1:
+    #             continue
+
+    #         next_ts, next_state_dict, next_action = records[i + 1]
+
+    #         if ts is None or next_ts is None:
+    #             continue
+
+    #         gap_seconds = (next_ts - ts).total_seconds()
+
+    #         if gap_seconds <= 0:
+    #             continue
+
+    #         # cap at 1 wind cycle
+    #         gap_seconds = min(gap_seconds, WIND_CYCLE_FRAMES / FRAMES_PER_SECOND)
+    #         gap_frames = int(gap_seconds * FRAMES_PER_SECOND)
+
+    #         if gap_frames <= NOOP_THRESHOLD_FRAMES:
+    #             continue
+
+    #         noops_to_insert = gap_frames // noop_divisor
+    #         base_timer = float(state_dict.get("wind_timer", 0))
+
+    #         for j in range(noops_to_insert):
+    #             noop_state = dict(state_dict)  # copy to avoid mutating original
+    #             noop_state["wind_timer"] = round(
+    #                 base_timer + (j + 1) * (noop_divisor * SECONDS_PER_FRAME), 2
+    #             )
+    #             filled.append((noop_state, noop_action))
+    #         total_noops += noops_to_insert
+
+    #         if verbose:
+    #             print(f"  Record {i}: gap={gap_seconds:.2f}s → "
+    #                 f"inserted {noops_to_insert} no-ops "
+    #                 f"(wind_timer={base_timer:.2f} → "
+    #                 f"{round(base_timer + noops_to_insert * noop_divisor * SECONDS_PER_FRAME, 2):.2f})")
+
+    #     print(f"Screen {screen}: {len(records)} records → {len(filled)} "
+    #         f"after no-op fill ({total_noops} no-ops inserted)")
+    #     return filled
