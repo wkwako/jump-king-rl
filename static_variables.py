@@ -59,7 +59,7 @@ SCREEN_START_POSITIONS = {
 
     #Windswept Bluff/Stormwall Pass
     25: (224,-8714, 15),
-    26: (237.2,-9074, 10), #start on left?
+    26: (225.2,-9074, 10), #start on left?
     27: (305.7,-9466, 20),
     28: (195.4463,-9778, 20),
     29: (171.9502,-10130, 10),

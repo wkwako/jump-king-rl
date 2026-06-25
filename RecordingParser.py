@@ -18,7 +18,7 @@ class RecordingParser:
         # if screen in static_variables.SIMPLE_STATE_SCREENS:
         #     return 2 #x, y
         if screen in static_variables.WIND_SCREENS:
-            return 3  # x, y, wind_frame
+            return 4  # x, y, wind_frame, actions_since_jump
         elif screen in static_variables.ICE_SCREENS:
             return 6  # x, y, vel_x, ceiling, rel_x_start, rel_x_end
 
@@ -28,7 +28,7 @@ class RecordingParser:
         else:
             return 7  # x, y, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end
         
-    def generate_state_per_screen(self, state_dict, screen):
+    def generate_state_per_screen(self, state_dict, screen, actions_since_jump=0):
         x = float(state_dict["x"])
         y = float(state_dict["y"])
         
@@ -55,11 +55,11 @@ class RecordingParser:
         elif screen in static_variables.XY_STATE_SCREENS:
             return np.array([x, y % 360])
 
-        #wind screens need wind_timer
+        #wind screens need wind_timer and actions_since_jump
         elif screen in static_variables.WIND_SCREENS:
             height_id = self.get_height_id(y, screen)
             wind_timer = float(state_dict.get("wind_timer", -1))
-            return np.array([x/480, height_id, wind_timer/13], dtype=np.float32)
+            return np.array([x/480, height_id, wind_timer/13, actions_since_jump], dtype=np.float32)
 
         #ice screens need x velocity
         elif screen in static_variables.ICE_SCREENS:
@@ -218,11 +218,18 @@ class RecordingParser:
             self.build_height_id_map(records, screen)
 
         states = []
-        for i, (state_dict, _) in enumerate(records):
+        actions_since_jump = 0
+        for i, (state_dict, action) in enumerate(records):
             if i % 100 == 0:
                 print(f"Generating state {i}/{len(records)}...")
-            state = self.generate_state_per_screen(state_dict, screen)
+            
+            state = self.generate_state_per_screen(state_dict, screen, actions_since_jump)
             states.append(state)
+            
+            # update counter based on this record's action
+            is_jump = action[2] > 0  # space duration > 0 means jump
+            actions_since_jump = 0 if is_jump else actions_since_jump + 1
+            
         return np.array(states), np.array(action_indices)
 
     def tally_actions(self, actions, threshold=0):

@@ -66,6 +66,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.play = play
         self.expected_screen = current_screen
 
+        self.actions_since_jump = 0
         self.end_zone_reached = False
 
         # build height ID map for wind screens before RL starts
@@ -227,7 +228,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.wait_for_landing(prev_write_count)
         #print ("character has landed")
 
-        if self.end_zone_reached:
+        if self.end_zone_reached and not self.play:
             print(f"End zone reached on screen {self.expected_screen} — treating as screen complete")
             self.gamedata = self.read_gamedata()
             self.load_game_attributes()
@@ -317,9 +318,11 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             self.jump_counter_metadata += 1
             self.jumped_prev = True
             self.jumped = False
+            self.actions_since_jump = 0
         
         else:
             self.jumped_prev = False
+            self.actions_since_jump += 1
 
         #apply action cutoff
         if self.action_counter >= self.action_cutoff:
@@ -351,6 +354,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.jumped_prev = False
         self.jump_counter = 0
         self.end_zone_reached = False
+        self.actions_since_jump = 0
         
         # only teleport if we're on the wrong screen
         if self.per_screen and (self.current_screen != self.expected_screen or self.force_teleport) and not self.dummyenv and not self.play:
@@ -762,7 +766,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         elif self.expected_screen in static_variables.WIND_SCREENS:
             height_id = self.recording_parser.get_height_id(self.y, self.expected_screen)
-            return np.array([self.x/480, height_id, self.wind_timer/13], dtype=np.float32)
+            return np.array([self.x/480, height_id, self.wind_timer/13, self.actions_since_jump], dtype=np.float32)
         
         elif self.expected_screen in static_variables.ICE_SCREENS:
             return np.array([self.x, self.y % 360, self.vel_x, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
