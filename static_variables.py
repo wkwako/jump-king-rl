@@ -9,11 +9,9 @@ TENT_BOUNDS = {
 }
 
 END_SCREENS = {42}
-
 END_ZONE_POSITIONS = {
     42: (370, -15002)
 }
-
 END_ZONE_RADIUS = 180
 
 NO_DROP_TERMINATION_SCREENS = {8, 16, 17}
@@ -21,6 +19,8 @@ NO_DROP_TERMINATION_SCREENS = {8, 16, 17}
 OLD_STATE_SCREENS = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 13, 14}
 
 XY_STATE_SCREENS = [40, 41, 42]
+
+WIND_PLATFORM_DETECTION_SCREENS = [27, 28, 30]
 
 SCREEN_START_POSITIONS = {
     #Redcrown Woods
@@ -203,7 +203,7 @@ SCREEN_ACTION_MAPS = {
     },
     26: {
         "walks": [],
-        "jumps": [],
+        "jumps": [0.25],
         "only_jump": [0.15, 0.6],
     },
     27: {

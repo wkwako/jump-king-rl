@@ -77,7 +77,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
                 if int(state_dict.get("current_screen", -1)) == self.expected_screen
             ]
             if screen_records:
-                self.recording_parser.build_height_id_map(screen_records, self.expected_screen)
+                self.recording_parser.build_height_id_map(self.expected_screen)
             else:
                 print(f"Warning: no recordings found for screen {self.expected_screen}, height_id map will be empty")
 
@@ -763,10 +763,22 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         
         elif self.expected_screen in static_variables.XY_STATE_SCREENS:
             return np.array([self.x, self.y % 360])
+        
+        # elif self.expected_screen in static_variables.WIND_PLATFORM_DETECTION_SCREENS:
+        #     height_id = self.get_height_id(self.y, self.expected_screen)
+        #     return np.array([self.x/480, height_id, self.wind_timer/13, rel_x_start, rel_x_end])
 
         elif self.expected_screen in static_variables.WIND_SCREENS:
             height_id = self.recording_parser.get_height_id(self.y, self.expected_screen)
-            return np.array([self.x/480, height_id, self.wind_timer/13, self.actions_since_jump], dtype=np.float32)
+            #return np.array([self.x/480, height_id, self.wind_timer/13, self.actions_since_jump], dtype=np.float32)
+            #return np.array([self.x/480, height_id, self.wind_timer/13], dtype=np.float32)
+            return np.array([self.x/480, height_id, self.wind_timer/13], dtype=np.float32)
+        
+            # height_onehot = self.recording_parser.get_height_onehot(self.y, self.expected_screen)
+            # x_norm = self.x / 480
+            # wind_timer_norm = self.wind_timer / 13
+            # base_state = np.array([x_norm, wind_timer_norm, self.actions_since_jump], dtype=np.float32)
+            # return np.concatenate([base_state, height_onehot])
         
         elif self.expected_screen in static_variables.ICE_SCREENS:
             return np.array([self.x, self.y % 360, self.vel_x, ceiling, rel_x_start, rel_x_end], dtype=np.float32)

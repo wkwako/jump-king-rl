@@ -991,36 +991,63 @@ JK = JumpKingRL()
 parser = RecordingParser()
 records = parser.load_recording()
 screen = 26
-name = f"screen{screen}_dummy"
-JK.create_BC_screen(name, screen=screen, records=records, epochs=100)
+name = f"screen{screen}"
+JK.create_BC_screen(name, screen=screen, records=records, epochs=200)
 env = JK.create_RL_screen(name, screen=screen, action_cutoff=200, n_steps=2048, n_epochs=5, ent_coef=0.25, target_kl=0.04, learning_rate=0.0001, gamma=0.9995, gae_lambda=0.95, episode_mode=EpisodeMode.SCREEN) #wind
 #env = JK.create_RL_screen(name, screen=screen, action_cutoff=100, n_steps=1024, n_epochs=5, ent_coef=0.10, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN) #normal
 JK.train_model_one_screen(name, screen=screen, freeze_updates=0)
-
+ 
 # === CONFIG — update these for your setup ===
-# MODEL_PATH = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/models/screen25_dummy/bc_screen_25.pth"
-# INPUT_DIM = 3       # [x, y%360, wind_timer*100]
-# OUTPUT_DIM = 5       # number of discrete actions for this screen — update to match action_map length
+# MODEL_PATH = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/models/screen26_dummy/bc_screen_26.pth"
+# SCREEN = 26
+# OUTPUT_DIM = 3        # number of discrete actions for this screen — update to match action_map length
 # HIDDEN_DIM = 256
-# # typical x, y values seen during wind screen play — adjust based on your data
-# TYPICAL_X = 300.0
-# TYPICAL_Y = 90.0
-# # action map for screen 25 — update to match what RecordingParser.get_screen_action_map(25) returns
+
+# # x position to test, raw (will be normalized by /480)
+# TARGET_X_RAW = 223.6
+
+# # the raw y value for the platform you want to test (e.g. platform 2 after step 2)
+# TARGET_Y_RAW = 9218.0
+
+# # actions_since_jump value to test
+# ACTIONS_SINCE_JUMP = 10  # try several: 0, 5, 10, 20, 30 to see where behavior shifts
+
 # ACTION_MAP = [
-#     (0.2, 0, 0),
-#     (0, 0.2, 0),
-#     (0, 0, 0.35),
+#     (0, 0, 0.15),   # update to match get_screen_action_map(26)
 #     (0, 0, 0.6),
 #     (0, 0, 0),
 # ]
+
+# # === SETUP ===
+# parser = RecordingParser()
+
+# # rebuild the height map exactly as training does, so onehot encoding matches
+# raw_records = parser.load_wind_recording(parser.wind_path)
+# screen_records = [
+#     (state_dict, action) for ts, state_dict, action in raw_records
+#     if int(state_dict.get("current_screen", -1)) == SCREEN
+# ]
+# parser.build_height_id_map(screen_records, SCREEN)
+
+# onehot_size = parser.height_onehot_sizes.get(SCREEN, 2)
+# INPUT_DIM = 3 + onehot_size
+
 # bc = BehavioralCloning()
 # bc.load_model(MODEL_PATH, input_dim=INPUT_DIM, output_dim=OUTPUT_DIM, hidden_dim=HIDDEN_DIM)
+
+# x_norm = TARGET_X_RAW / 480
+# height_onehot = parser.get_height_onehot(TARGET_Y_RAW, SCREEN)
+
+# print(f"Testing at x={TARGET_X_RAW} (norm={x_norm:.3f}), y={TARGET_Y_RAW}, "
+#       f"height_onehot={height_onehot}, actions_since_jump={ACTIONS_SINCE_JUMP}")
+# print(f"Onehot size: {onehot_size}, total input dim: {INPUT_DIM}")
 # print(f"{'wind_timer':>10} | " + " | ".join(f"action{i}" for i in range(OUTPUT_DIM)))
 # print("-" * 70)
-# # sweep wind_timer across the full cycle (already scaled by 100 if that's what your state uses)
+
 # for wind_timer_raw in np.arange(0, 13, 0.5):
-#     wind_timer_scaled = wind_timer_raw * 100  # remove this line if you didn't apply the x100 scale
-#     state = np.array([TYPICAL_X, TYPICAL_Y, wind_timer_scaled], dtype=np.float32)
+#     wind_timer_norm = wind_timer_raw / 13
+#     base_state = np.array([x_norm, wind_timer_norm, ACTIONS_SINCE_JUMP], dtype=np.float32)
+#     state = np.concatenate([base_state, height_onehot])
 #     state_tensor = torch.FloatTensor(state).unsqueeze(0)
 
 #     with torch.no_grad():

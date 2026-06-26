@@ -13,12 +13,16 @@ class RecordingParser:
         #self.wind_path = "C:/Users/wkwak/Documents/CodingWork/Environments/PythonStuff/jump-king-rl/recording_wind_only.txt"
         self.platform_parser = PlatformParser()
         self.height_id_maps = {}
+        self.num_heights = {}
+        self.height_onehot_sizes = {}
 
     def get_state_size(self, screen):
         # if screen in static_variables.SIMPLE_STATE_SCREENS:
         #     return 2 #x, y
         if screen in static_variables.WIND_SCREENS:
-            return 4  # x, y, wind_frame, actions_since_jump
+            return 3
+            #return 4
+            #return 3 + self.height_onehot_sizes.get(screen, 2)  # x, y, wind_frame, actions_since_jump
         elif screen in static_variables.ICE_SCREENS:
             return 6  # x, y, vel_x, ceiling, rel_x_start, rel_x_end
 
@@ -54,12 +58,22 @@ class RecordingParser:
         #only use x,y coord for these screens
         elif screen in static_variables.XY_STATE_SCREENS:
             return np.array([x, y % 360])
+        
+        # elif screen in static_variables.WIND_PLATFORM_DETECTION_SCREENS:
+        #     height_id = self.get_height_id(y, screen)
+        #     return np.array([x/480, height_id, wind_timer/13, rel_x_start, rel_x_end])
 
         #wind screens need wind_timer and actions_since_jump
         elif screen in static_variables.WIND_SCREENS:
             height_id = self.get_height_id(y, screen)
             wind_timer = float(state_dict.get("wind_timer", -1))
-            return np.array([x/480, height_id, wind_timer/13, actions_since_jump], dtype=np.float32)
+            #return np.array([x/480, height_id, wind_timer/13, actions_since_jump], dtype=np.float32)
+            return np.array([x/480, height_id, wind_timer/13], dtype=np.float32)
+            # height_onehot = self.get_height_onehot(y, screen)
+            # x_norm = x / 480
+            # wind_timer_norm = float(state_dict.get("wind_timer", -1)) / 13
+            # base_state = np.array([x_norm, wind_timer_norm, actions_since_jump], dtype=np.float32)
+            # return np.concatenate([base_state, height_onehot])
 
         #ice screens need x velocity
         elif screen in static_variables.ICE_SCREENS:
@@ -68,46 +82,60 @@ class RecordingParser:
         else:
             return np.array([x, y % 360, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end], dtype=np.float32)
         
-    def build_height_id_map(self, records, screen, round_to=5):
-        """Builds a per-screen mapping from rounded y values to sequential integer IDs.
-        
-        Args:
-            records: list of (state_dict, action) tuples for this screen
-            screen: screen number
-            round_to: round y to nearest multiple of this value before grouping
-        
-        Returns:
-            dict mapping rounded_y -> height_id (starting at 1)
+    def build_height_id_map(self, screen):
+        """Builds a per-screen mapping from registry platform y-values to sequential integer IDs.
+        Pulls directly from the platform registry rather than clustering recorded y-values.
         """
-        y_values = set()
-        for state_dict, action in records:
-            y = float(state_dict["y"])
-            rounded_y = round(y / round_to) * round_to
-            y_values.add(rounded_y)
+        platforms = self.platform_parser.registry.get(screen) or self.platform_parser.registry.get(str(screen))
+        if platforms is None:
+            print(f"Warning: no registry entry for screen {screen}")
+            self.height_id_maps[screen] = {}
+            self.num_heights[screen] = 0
+            return {}
         
-        unique_ys = sorted(y_values)
-        height_id_map = {y: i + 1 for i, y in enumerate(unique_ys)}
+        unique_ys = sorted(set(platform[1] for platform in platforms))
+        height_id_map = {y: i+1 for i, y in enumerate(unique_ys)}
         
         self.height_id_maps[screen] = height_id_map
-        print(f"Screen {screen}: {len(unique_ys)} unique heights mapped to IDs 1-{len(unique_ys)}")
+        self.num_heights[screen] = len(unique_ys)
+        
+        print(f"Screen {screen}: {len(unique_ys)} unique heights mapped to IDs 0-{len(unique_ys)-1}: {height_id_map}")
         return height_id_map
 
-    def get_height_id(self, y, screen, round_to=5):
-        """Looks up the height ID for a given y value on a given screen.
-        Falls back to nearest-neighbor match if exact rounded value isn't in the map.
+    def get_height_id(self, y, screen):
+        """Looks up the height ID for a given y value by exact match against the registry.
+        Falls back to nearest registry platform if no exact match (handles minor float imprecision).
         """
-        rounded_y = round(y / round_to) * round_to
         height_map = self.height_id_maps.get(screen, {})
         
-        if rounded_y in height_map:
-            return height_map[rounded_y]
+        if y in height_map:
+            return height_map[y]
         
-        # fallback: nearest neighbor if this exact rounded value wasn't seen in recordings
         if height_map:
-            closest_y = min(height_map.keys(), key=lambda k: abs(k - rounded_y))
+            closest_y = min(height_map.keys(), key=lambda k: abs(k - y))
             return height_map[closest_y]
         
-        return 0  # no mapping exists at all
+        return -1
+    
+    # def get_height_onehot(self, y, screen, round_to=5, unknown_threshold=30):
+    #     onehot_size = self.height_onehot_sizes.get(screen, 2)  # default: 1 height + 1 unknown
+    #     onehot = np.zeros(onehot_size, dtype=np.float32)
+        
+    #     rounded_y = round(y / round_to) * round_to
+    #     height_map = self.height_id_maps.get(screen, {})
+        
+    #     if rounded_y in height_map:
+    #         onehot[height_map[rounded_y]] = 1.0
+    #         return onehot
+        
+    #     if height_map:
+    #         closest_y = min(height_map.keys(), key=lambda k: abs(k - rounded_y))
+    #         if abs(closest_y - rounded_y) <= unknown_threshold:
+    #             onehot[height_map[closest_y]] = 1.0
+    #             return onehot
+        
+    #     onehot[-1] = 1.0  # unknown
+    #     return onehot
 
     def get_wind_state(self, state_dict):
         wind_velocity = float(state_dict["wind_velocity"])
@@ -215,7 +243,7 @@ class RecordingParser:
     def generate_dataset_per_screen(self, records, action_indices, screen):
         """Generates minimal state vectors for all records on a given screen."""
         if screen in static_variables.WIND_SCREENS and screen not in self.height_id_maps:
-            self.build_height_id_map(records, screen)
+            self.build_height_id_map(screen)
 
         states = []
         actions_since_jump = 0
