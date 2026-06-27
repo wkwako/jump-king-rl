@@ -120,7 +120,7 @@ class JumpKingRL:
         self.model_direc = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/models/"
         self.wind_path = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/recording_wind_only.txt"
         #self.model_direc = "C:/Users/wkwak/Documents/CodingWork/PythonStuff/jump-king-rl/models/"
-        #self.wind_path = "C:/Users/wkwak/Documents/CodingWork/Environments/PythonStuff/jump-king-rl/recording_wind_only.txt"
+        #self.wind_path = "C:/Users/wkwak/Documents/CodingWork/PythonStuff/jump-king-rl/recording_wind_only.txt"
 
         self.MODEL_CONFIGS = {
             "PPO": {
@@ -991,9 +991,9 @@ class JumpKingRL:
 JK = JumpKingRL()
 parser = RecordingParser()
 records = parser.load_recording()
-screen = 27
+screen = 31
 name = f"screen{screen}_dummy"
-JK.create_BC_screen(name, screen=screen, records=records, epochs=100)
+JK.create_BC_screen(name, screen=screen, records=records, epochs=200)
 env = JK.create_RL_screen(name, screen=screen, action_cutoff=200, n_steps=2048, n_epochs=5, ent_coef=0.25, target_kl=0.03, learning_rate=0.0001, gamma=0.9995, gae_lambda=0.95, episode_mode=EpisodeMode.SCREEN) #wind
 #env = JK.create_RL_screen(name, screen=screen, action_cutoff=100, n_steps=1024, n_epochs=5, ent_coef=0.10, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN) #normal
 JK.train_model_one_screen(name, screen=screen, freeze_updates=0)
