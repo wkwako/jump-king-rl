@@ -19,7 +19,14 @@ class RecordingParser:
     def get_state_size(self, screen):
         # if screen in static_variables.SIMPLE_STATE_SCREENS:
         #     return 2 #x, y
-        if screen in static_variables.WIND_SCREENS:
+
+        # if screen in static_variables.WIND_PLATFORM_DETECTION_SCREENS:
+        #     return 5 #x, height_id, wind_timer, rel_x_start, rel_x_end
+
+        if screen in static_variables.ONEHOT_SCREENS:
+            return 2 + self.height_onehot_sizes.get(screen, 2)
+
+        elif screen in static_variables.WIND_SCREENS:
             return 3
             #return 4
             #return 3 + self.height_onehot_sizes.get(screen, 2)  # x, y, wind_frame, actions_since_jump
@@ -61,7 +68,14 @@ class RecordingParser:
         
         # elif screen in static_variables.WIND_PLATFORM_DETECTION_SCREENS:
         #     height_id = self.get_height_id(y, screen)
+        #     wind_timer = float(state_dict.get("wind_timer", -1))
         #     return np.array([x/480, height_id, wind_timer/13, rel_x_start, rel_x_end])
+
+        elif screen in static_variables.ONEHOT_SCREENS:
+            wind_timer = float(state_dict.get("wind_timer", -1))
+            height_onehot = self.get_height_onehot(y, screen)
+            base_state = np.array([x/480, wind_timer/13], dtype=np.float32)
+            return np.concatenate([base_state, height_onehot])
 
         #wind screens need wind_timer and actions_since_jump
         elif screen in static_variables.WIND_SCREENS:
@@ -83,14 +97,12 @@ class RecordingParser:
             return np.array([x, y % 360, ceiling, left_wall_dist, right_wall_dist, rel_x_start, rel_x_end], dtype=np.float32)
         
     def build_height_id_map(self, screen):
-        """Builds a per-screen mapping from registry platform y-values to sequential integer IDs.
-        Pulls directly from the platform registry rather than clustering recorded y-values.
-        """
         platforms = self.platform_parser.registry.get(screen) or self.platform_parser.registry.get(str(screen))
         if platforms is None:
             print(f"Warning: no registry entry for screen {screen}")
             self.height_id_maps[screen] = {}
             self.num_heights[screen] = 0
+            self.height_onehot_sizes[screen] = 1  # just the "unknown" slot
             return {}
         
         unique_ys = sorted(set(platform[1] for platform in platforms))
@@ -98,6 +110,7 @@ class RecordingParser:
         
         self.height_id_maps[screen] = height_id_map
         self.num_heights[screen] = len(unique_ys)
+        self.height_onehot_sizes[screen] = len(unique_ys) + 1  # +1 for "unknown" slot
         
         print(f"Screen {screen}: {len(unique_ys)} unique heights mapped to IDs 0-{len(unique_ys)-1}: {height_id_map}")
         return height_id_map
@@ -117,25 +130,24 @@ class RecordingParser:
         
         return -1
     
-    # def get_height_onehot(self, y, screen, round_to=5, unknown_threshold=30):
-    #     onehot_size = self.height_onehot_sizes.get(screen, 2)  # default: 1 height + 1 unknown
-    #     onehot = np.zeros(onehot_size, dtype=np.float32)
+    def get_height_onehot(self, y, screen, unknown_threshold=30):
+        onehot_size = self.height_onehot_sizes.get(screen, 2)
+        onehot = np.zeros(onehot_size, dtype=np.float32)
         
-    #     rounded_y = round(y / round_to) * round_to
-    #     height_map = self.height_id_maps.get(screen, {})
+        height_map = self.height_id_maps.get(screen, {})
         
-    #     if rounded_y in height_map:
-    #         onehot[height_map[rounded_y]] = 1.0
-    #         return onehot
+        if y in height_map:
+            onehot[height_map[y] - 1] = 1.0  # shift back to 0-indexed for array position
+            return onehot
         
-    #     if height_map:
-    #         closest_y = min(height_map.keys(), key=lambda k: abs(k - rounded_y))
-    #         if abs(closest_y - rounded_y) <= unknown_threshold:
-    #             onehot[height_map[closest_y]] = 1.0
-    #             return onehot
+        if height_map:
+            closest_y = min(height_map.keys(), key=lambda k: abs(k - y))
+            if abs(closest_y - y) <= unknown_threshold:
+                onehot[height_map[closest_y] - 1] = 1.0
+                return onehot
         
-    #     onehot[-1] = 1.0  # unknown
-    #     return onehot
+        onehot[-1] = 1.0
+        return onehot
 
     def get_wind_state(self, state_dict):
         wind_velocity = float(state_dict["wind_velocity"])
@@ -439,30 +451,15 @@ class RecordingParser:
         return records
     
     def build_noop_exclusion_zones(self, records, screen, min_group_size=3, distance_threshold=20):
-        """Identifies clusters of real (non-no-op) jump actions on a screen,
-        and builds wind_timer exclusion zones around each cluster's average timing
-        to prevent no-ops from being inserted where real jumps occur.
-        
-        Args:
-            records: list of (state_dict, action) tuples for this screen
-            screen: screen number
-            min_group_size: minimum cluster size to be considered (ignore outliers)
-            distance_threshold: max euclidean distance (x, y) for grouping into the same cluster
-        
-        Returns:
-            list of (start, end) tuples representing noop-free wind_timer ranges
-        """
-        # step 1: collect only real jump actions (space duration > 0)
         jump_events = []
         for state_dict, action in records:
             left, right, space = action
             if space > 0:
                 x = float(state_dict["x"])
                 y = float(state_dict["y"])
-                wind_timer = float(state_dict.get("wind_timer", -1))
+                wind_timer = float(state_dict["wind_timer"])
                 jump_events.append({"x": x, "y": y, "wind_timer": wind_timer, "duration": space})
         
-        # step 1 (cont): group jump events by proximity in (x, y)
         groups = []
         for event in jump_events:
             placed = False
@@ -476,63 +473,97 @@ class RecordingParser:
             if not placed:
                 groups.append([event])
         
-        # filter out small groups (outliers)
         groups = [g for g in groups if len(g) >= min_group_size]
         
-        # step 2: average wind_timer and duration per group
         exclusion_zones = []
         for group in groups:
             avg_wind_timer = sum(e["wind_timer"] for e in group) / len(group)
             avg_duration = sum(e["duration"] for e in group) / len(group)
+            avg_y = sum(e["y"] for e in group) / len(group)  # NEW: track which platform this cluster belongs to
             
-            # step 3: build the noop-free band
             start = avg_wind_timer - 0.05
             end = avg_wind_timer + avg_duration
-            exclusion_zones.append((start, end))
+            exclusion_zones.append((start, end, avg_y))  # now a 3-tuple
         
         print(f"Screen {screen}: built {len(exclusion_zones)} noop exclusion zones: {exclusion_zones}")
         return exclusion_zones
+    
+    # def build_noop_exclusion_zones(self, records, screen, min_group_size=3, distance_threshold=20):
+    #     """Identifies clusters of real (non-no-op) jump actions on a screen,
+    #     and builds wind_timer exclusion zones around each cluster's average timing
+    #     to prevent no-ops from being inserted where real jumps occur.
+        
+    #     Args:
+    #         records: list of (state_dict, action) tuples for this screen
+    #         screen: screen number
+    #         min_group_size: minimum cluster size to be considered (ignore outliers)
+    #         distance_threshold: max euclidean distance (x, y) for grouping into the same cluster
+        
+    #     Returns:
+    #         list of (start, end) tuples representing noop-free wind_timer ranges
+    #     """
+    #     # step 1: collect only real jump actions (space duration > 0)
+    #     jump_events = []
+    #     for state_dict, action in records:
+    #         left, right, space = action
+    #         if space > 0:
+    #             x = float(state_dict["x"])
+    #             y = float(state_dict["y"])
+    #             wind_timer = float(state_dict.get("wind_timer", -1))
+    #             jump_events.append({"x": x, "y": y, "wind_timer": wind_timer, "duration": space})
+        
+    #     # step 1 (cont): group jump events by proximity in (x, y)
+    #     groups = []
+    #     for event in jump_events:
+    #         placed = False
+    #         for group in groups:
+    #             ref = group[0]
+    #             dist = ((event["x"] - ref["x"])**2 + (event["y"] - ref["y"])**2) ** 0.5
+    #             if dist <= distance_threshold:
+    #                 group.append(event)
+    #                 placed = True
+    #                 break
+    #         if not placed:
+    #             groups.append([event])
+        
+    #     # filter out small groups (outliers)
+    #     groups = [g for g in groups if len(g) >= min_group_size]
+        
+    #     # step 2: average wind_timer and duration per group
+    #     exclusion_zones = []
+    #     for group in groups:
+    #         avg_wind_timer = sum(e["wind_timer"] for e in group) / len(group)
+    #         avg_duration = sum(e["duration"] for e in group) / len(group)
+            
+    #         # step 3: build the noop-free band
+    #         start = avg_wind_timer - 0.05
+    #         end = avg_wind_timer + avg_duration
+    #         exclusion_zones.append((start, end))
+        
+    #     print(f"Screen {screen}: built {len(exclusion_zones)} noop exclusion zones: {exclusion_zones}")
+    #     return exclusion_zones
 
     def fill_wind_noops(self, records, screen, noop_divisor=5, verbose=True,
-                     min_group_size=3, distance_threshold=20):
-        """Inserts no-op actions between recorded wind screen actions.
-
-        Rules:
-        1. Gap > 0.4s between consecutive actions → fill with no-ops
-        2. Cap at 1 wind cycle worth of time regardless of actual gap
-        3. Insert 1 no-op per noop_divisor frames to avoid overrepresentation
-        4. Each no-op gets an incremented wind_timer value
-        5. No-ops are never inserted inside a real-jump exclusion zone
-
-        Args:
-            records: list of (timestamp, state_dict, action) tuples
-            screen: screen number
-            noop_divisor: insert 1 no-op per N frames (default 5)
-            verbose: print details per gap
-            min_group_size: minimum cluster size for exclusion zones (ignore outliers)
-            distance_threshold: max (x, y) distance for grouping jumps into the same cluster
-
-        Returns:
-            list of (state_dict, action) tuples with no-ops inserted
-        """
+                 min_group_size=3, distance_threshold=20):
         WIND_CYCLE_FRAMES = 780
         FRAMES_PER_SECOND = 60
-        NOOP_THRESHOLD_FRAMES = int(0.4 * FRAMES_PER_SECOND)  # 24 frames
+        NOOP_THRESHOLD_FRAMES = int(0.4 * FRAMES_PER_SECOND)
         SECONDS_PER_FRAME = 1.0 / FRAMES_PER_SECOND
         noop_action = (0, 0, 0)
 
-        # build exclusion zones once, using all real (non-timestamped) actions on this screen
         plain_records = [(s, a) for ts, s, a in records]
         exclusion_zones = self.build_noop_exclusion_zones(
             plain_records, screen, min_group_size=min_group_size, distance_threshold=distance_threshold
         )
 
-        def is_in_exclusion_zone(wind_timer):
-            for start, end in exclusion_zones:
+        def is_in_exclusion_zone(wind_timer, y):
+            for start, end, zone_y in exclusion_zones:
+                if abs(y - zone_y) > distance_threshold:
+                    continue
                 if start <= end:
                     if start <= wind_timer <= end:
                         return True
-                else:  # wraps around the 0/13s boundary
+                else:
                     if wind_timer >= start or wind_timer <= end:
                         return True
             return False
@@ -566,24 +597,33 @@ class RecordingParser:
             noops_to_insert = gap_frames // noop_divisor
             base_timer = float(state_dict.get("wind_timer", 0))
 
+            # KEY FIX: use the NEXT record's y (the platform actually being waited on),
+            # not the current record's y (the platform being jumped FROM)
+            wait_platform_y = float(next_state_dict["y"])
+            wait_platform_x = float(next_state_dict["x"])
+
+            skipped_this_gap = 0
             for j in range(noops_to_insert):
                 candidate_timer = round(
                     base_timer + (j + 1) * (noop_divisor * SECONDS_PER_FRAME), 2
                 )
-                wrapped_timer = candidate_timer % 13  # wrap into valid cycle range
+                wrapped_timer = candidate_timer % 13
 
-                if is_in_exclusion_zone(wrapped_timer):
+                if is_in_exclusion_zone(wrapped_timer, wait_platform_y):
                     total_skipped += 1
+                    skipped_this_gap += 1
                     continue
 
                 noop_state = dict(state_dict)
+                noop_state["y"] = wait_platform_y  # ← use the landing platform, not the takeoff platform
+                noop_state["x"] = wait_platform_x
                 noop_state["wind_timer"] = candidate_timer
                 filled.append((noop_state, noop_action))
             total_noops += noops_to_insert
 
             if verbose:
-                print(f"  Record {i}: gap={gap_seconds:.2f}s → "
-                    f"inserted {noops_to_insert - total_skipped} no-ops "
+                print(f"  Record {i}: gap={gap_seconds:.2f}s, wait_platform_y={wait_platform_y} → "
+                    f"inserted {noops_to_insert - skipped_this_gap} no-ops "
                     f"(wind_timer={base_timer:.2f} → "
                     f"{round(base_timer + noops_to_insert * noop_divisor * SECONDS_PER_FRAME, 2):.2f})")
 

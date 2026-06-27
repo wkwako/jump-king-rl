@@ -112,10 +112,12 @@ class BehavioralCloning:
 
         model = BCPolicy(input_dim=X.shape[1], output_dim=action_dim, hidden_dim=hidden_dim)
 
+        #use_class_weights = False
         if use_class_weights:
             class_counts = np.bincount(y_train, minlength=action_dim)
             class_counts = np.maximum(class_counts, 1)  # avoid div by zero
             class_weights = 1.0 / class_counts
+            #class_weights = np.maximum(class_weights, class_weights.max() * 0.1) #added this
             class_weights = class_weights / class_weights.sum() * action_dim  # normalize
             weight_tensor = torch.FloatTensor(class_weights)
             criterion = nn.CrossEntropyLoss(weight=weight_tensor)

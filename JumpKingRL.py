@@ -802,6 +802,7 @@ class JumpKingRL:
             print(f"  {i}: left={action[0]}, right={action[1]}, space={action[2]}")
  
         _, actions = parser.separate_actions_and_state(screen_records)
+        actions = parser.equalize_actions(actions) #ADDED THIS LINE
         action_indices = parser.convert_to_discretized_actions(actions, action_map)
  
         counts = np.bincount(action_indices, minlength=len(action_map))
@@ -990,64 +991,210 @@ class JumpKingRL:
 JK = JumpKingRL()
 parser = RecordingParser()
 records = parser.load_recording()
-screen = 26
-name = f"screen{screen}"
-JK.create_BC_screen(name, screen=screen, records=records, epochs=200)
-env = JK.create_RL_screen(name, screen=screen, action_cutoff=200, n_steps=2048, n_epochs=5, ent_coef=0.25, target_kl=0.04, learning_rate=0.0001, gamma=0.9995, gae_lambda=0.95, episode_mode=EpisodeMode.SCREEN) #wind
+screen = 27
+name = f"screen{screen}_dummy"
+JK.create_BC_screen(name, screen=screen, records=records, epochs=100)
+env = JK.create_RL_screen(name, screen=screen, action_cutoff=200, n_steps=2048, n_epochs=5, ent_coef=0.25, target_kl=0.03, learning_rate=0.0001, gamma=0.9995, gae_lambda=0.95, episode_mode=EpisodeMode.SCREEN) #wind
 #env = JK.create_RL_screen(name, screen=screen, action_cutoff=100, n_steps=1024, n_epochs=5, ent_coef=0.10, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN) #normal
 JK.train_model_one_screen(name, screen=screen, freeze_updates=0)
- 
-# === CONFIG — update these for your setup ===
-# MODEL_PATH = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/models/screen26_dummy/bc_screen_26.pth"
-# SCREEN = 26
-# OUTPUT_DIM = 3        # number of discrete actions for this screen — update to match action_map length
+
+# MODEL_PATH = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/models/screen27_dummy/bc_screen_27.pth"
+# SCREEN = 27
+# OUTPUT_DIM = 9
 # HIDDEN_DIM = 256
-
-# # x position to test, raw (will be normalized by /480)
-# TARGET_X_RAW = 223.6
-
-# # the raw y value for the platform you want to test (e.g. platform 2 after step 2)
-# TARGET_Y_RAW = 9218.0
-
-# # actions_since_jump value to test
-# ACTIONS_SINCE_JUMP = 10  # try several: 0, 5, 10, 20, 30 to see where behavior shifts
+# INPUT_DIM = 3  # [x_norm, height_id, wind_timer_norm] — adjust if using onehot
 
 # ACTION_MAP = [
-#     (0, 0, 0.15),   # update to match get_screen_action_map(26)
+#     (0.2, 0, 0),
+#     (0, 0.2, 0),
+#     (0.2, 0, 0.2),
+#     (0, 0.2, 0.2),
+#     (0.35, 0, 0.35),
+#     (0, 0.35, 0.35),
+#     (0, 0, 0.2),
+#     (0, 0, 0.6),
+#     (0, 0, 0),
+# ]
+
+# # === LOAD EVERYTHING THE SAME WAY TRAINING DID ===
+# parser = RecordingParser()
+# parser.build_height_id_map(SCREEN)
+
+# raw_records = parser.load_wind_recording(parser.wind_path)
+# screen_records = [(ts, s, a) for ts, s, a in raw_records
+#                    if int(s.get("current_screen", -1)) == SCREEN]
+
+# filled = parser.fill_wind_noops(screen_records, SCREEN, noop_divisor=50)
+
+# # === FIND REAL TRAINING EXAMPLES AT y=9434, wind_timer near 2.0 ===
+# TARGET_Y = 9434.0
+# TARGET_WIND_TIMER = 2.0
+# Y_TOLERANCE = 5
+# TIMER_TOLERANCE = 0.3
+
+# candidates = []
+# for state_dict, action in filled:
+#     y = float(state_dict["y"])
+#     wt = float(state_dict["wind_timer"])
+#     if abs(y - TARGET_Y) <= Y_TOLERANCE and abs(wt - TARGET_WIND_TIMER) <= TIMER_TOLERANCE:
+#         candidates.append((state_dict, action))
+
+# print(f"Found {len(candidates)} matching training examples near y={TARGET_Y}, wind_timer={TARGET_WIND_TIMER}")
+
+# if not candidates:
+#     print("No matching examples found — widen tolerance or pick a different target.")
+# else:
+#     bc = BehavioralCloning()
+#     bc.load_model(MODEL_PATH, input_dim=INPUT_DIM, output_dim=OUTPUT_DIM, hidden_dim=HIDDEN_DIM)
+
+#     for state_dict, action in candidates[:5]:  # check first 5 matches
+#         # build the state EXACTLY the way generate_state_per_screen does
+#         state_vec = parser.generate_state_per_screen(state_dict, SCREEN)
+        
+#         print(f"\n--- Real training example ---")
+#         print(f"Raw state_dict: y={state_dict['y']}, wind_timer={state_dict['wind_timer']}")
+#         print(f"Recorded action: {action}")
+#         print(f"Constructed state vector fed to model: {state_vec}")
+
+#         state_tensor = torch.FloatTensor(state_vec).unsqueeze(0)
+#         with torch.no_grad():
+#             logits = bc.model(state_tensor)
+#             probs = torch.softmax(logits, dim=1).squeeze().numpy()
+
+#         print(f"Model prediction probabilities:")
+#         for i, p in enumerate(probs):
+#             print(f"  action{i} {ACTION_MAP[i]}: {p:.4f}")
+        
+#         predicted = np.argmax(probs)
+#         print(f"Predicted action: action{predicted}, Actual recorded action: {action}")
+
+#start noop troubleshooting
+# SCREEN = 27
+# TARGET_Y = 9434.0  # the problematic platform
+# Y_TOLERANCE = 5
+
+# parser = RecordingParser()
+# parser.build_height_id_map(SCREEN)
+
+# raw_records = parser.load_wind_recording(parser.wind_path)
+# screen_records = [(ts, s, a) for ts, s, a in raw_records 
+#                    if int(s.get("current_screen", -1)) == SCREEN]
+
+# filled = parser.fill_wind_noops(screen_records, SCREEN, noop_divisor=22)
+
+# # separate real actions vs no-ops at this platform
+# real_actions_here = []
+# noops_here = []
+
+# for state_dict, action in filled:
+#     y = float(state_dict["y"])
+#     if abs(y - TARGET_Y) > Y_TOLERANCE:
+#         continue
+#     wt = float(state_dict["wind_timer"])
+#     if action == (0, 0, 0):
+#         noops_here.append(wt)
+#     else:
+#         real_actions_here.append((wt, action))
+
+# print(f"Platform y={TARGET_Y}:")
+# print(f"  Total real (non-noop) actions: {len(real_actions_here)}")
+# print(f"  Total no-ops: {len(noops_here)}")
+
+# print(f"\nReal action wind_timers: {sorted(wt for wt, a in real_actions_here)}")
+# print(f"\nNo-op wind_timers: {sorted(noops_here)}")
+
+# # bucket no-ops by region of the cycle to see coverage
+# if noops_here:
+#     buckets = {"0-2": 0, "2-5": 0, "5-6.5": 0, "6.5-7.2 (jump window)": 0, "7.2-13": 0}
+#     for wt in noops_here:
+#         if wt < 2: buckets["0-2"] += 1
+#         elif wt < 5: buckets["2-5"] += 1
+#         elif wt < 6.5: buckets["5-6.5"] += 1
+#         elif wt < 7.2: buckets["6.5-7.2 (jump window)"] += 1
+#         else: buckets["7.2-13"] += 1
+#     print(f"\nNo-op distribution by region: {buckets}")
+# else:
+#     print("\n*** NO NO-OPS EXIST AT THIS PLATFORM AT ALL ***")
+#end noop troubleshooting
+
+#start get space, left, right, y, wind_timer info
+# SCREEN = 27
+
+# parser = RecordingParser()
+# records = parser.load_wind_recording(parser.wind_path)
+
+# # filter to this screen only
+# screen_records = [(ts, s, a) for ts, s, a in records 
+#                    if int(s.get("current_screen", -1)) == SCREEN]
+
+# print(f"Total records on screen {SCREEN}: {len(screen_records)}")
+
+# # pull out all jump actions (space > 0), grouped by approximate jump magnitude
+# jump_durations = []
+# for ts, state_dict, action in screen_records:
+#     left, right, space = action
+#     if space > 0:
+#         jump_durations.append({
+#             "left": left,
+#             "right": right,
+#             "space": space,
+#             "y": float(state_dict["y"]),
+#             "wind_timer": float(state_dict.get("wind_timer", -1)),
+#         })
+
+# print(f"\nTotal jump actions found: {len(jump_durations)}")
+
+# # sort by space duration to see the actual distribution
+# jump_durations.sort(key=lambda d: d["space"])
+
+# print(f"\n{'space':>8} | {'left':>6} | {'right':>6} | {'y':>10} | {'wind_timer':>10}")
+# print("-" * 60)
+# for d in jump_durations:
+#     print(f"{d['space']:>8.3f} | {d['left']:>6.3f} | {d['right']:>6.3f} | {d['y']:>10.1f} | {d['wind_timer']:>10.2f}")
+#end get space, left, right, y, wind_timer info
+
+#start bc debugging
+# MODEL_PATH = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/models/screen27_dummy/bc_screen_27.pth"
+# SCREEN = 27
+# OUTPUT_DIM = 9     # number of discrete actions for this screen
+# HIDDEN_DIM = 256
+# INPUT_DIM = 3          # [x_norm, height_id, wind_timer_norm]
+
+# # x position to test, raw (will be normalized by /480)
+# TARGET_X_RAW = 451.0   # update based on actual position before the left-wind max jump
+
+# # the raw y value for the platform you want to test
+# TARGET_Y_RAW = 9434.0  # update — pick the platform right before the max-jump-left decision
+
+# ACTION_MAP = [
+#     (0.2, 0, 0),
+#     (0, 0.2, 0),
+#     (0.2, 0, 0.2),
+#     (0, 0.2, 0.2),
+#     (0.35, 0, 0.35),
+#     (0, 0.35, 0.35),
+#     (0, 0, 0.2),
 #     (0, 0, 0.6),
 #     (0, 0, 0),
 # ]
 
 # # === SETUP ===
 # parser = RecordingParser()
-
-# # rebuild the height map exactly as training does, so onehot encoding matches
-# raw_records = parser.load_wind_recording(parser.wind_path)
-# screen_records = [
-#     (state_dict, action) for ts, state_dict, action in raw_records
-#     if int(state_dict.get("current_screen", -1)) == SCREEN
-# ]
-# parser.build_height_id_map(screen_records, SCREEN)
-
-# onehot_size = parser.height_onehot_sizes.get(SCREEN, 2)
-# INPUT_DIM = 3 + onehot_size
+# parser.build_height_id_map(SCREEN)  # now pulls directly from registry, no records needed
 
 # bc = BehavioralCloning()
 # bc.load_model(MODEL_PATH, input_dim=INPUT_DIM, output_dim=OUTPUT_DIM, hidden_dim=HIDDEN_DIM)
 
 # x_norm = TARGET_X_RAW / 480
-# height_onehot = parser.get_height_onehot(TARGET_Y_RAW, SCREEN)
+# height_id = parser.get_height_id(TARGET_Y_RAW, SCREEN)
 
-# print(f"Testing at x={TARGET_X_RAW} (norm={x_norm:.3f}), y={TARGET_Y_RAW}, "
-#       f"height_onehot={height_onehot}, actions_since_jump={ACTIONS_SINCE_JUMP}")
-# print(f"Onehot size: {onehot_size}, total input dim: {INPUT_DIM}")
+# print(f"Testing at x={TARGET_X_RAW} (norm={x_norm:.3f}), y={TARGET_Y_RAW}, height_id={height_id}")
 # print(f"{'wind_timer':>10} | " + " | ".join(f"action{i}" for i in range(OUTPUT_DIM)))
-# print("-" * 70)
+# print("-" * 100)
 
 # for wind_timer_raw in np.arange(0, 13, 0.5):
 #     wind_timer_norm = wind_timer_raw / 13
-#     base_state = np.array([x_norm, wind_timer_norm, ACTIONS_SINCE_JUMP], dtype=np.float32)
-#     state = np.concatenate([base_state, height_onehot])
+#     state = np.array([x_norm, height_id, wind_timer_norm], dtype=np.float32)
 #     state_tensor = torch.FloatTensor(state).unsqueeze(0)
 
 #     with torch.no_grad():
@@ -1056,8 +1203,7 @@ JK.train_model_one_screen(name, screen=screen, freeze_updates=0)
 
 #     probs_str = " | ".join(f"{p:.4f}" for p in probs)
 #     print(f"{wind_timer_raw:>10.2f} | {probs_str}")
-
-
+#end bc debugging
 
 #JK.play_game_per_screen(start_screen=14)
 
@@ -1069,10 +1215,10 @@ JK.train_model_one_screen(name, screen=screen, freeze_updates=0)
 # bc = BehavioralCloning()
 # parser = RecordingParser()
 # records = parser.load_recording()
-# records = parser.clean_actions(records, increment=0.025)
+# records = parser.clean_actions(records, increment=0.05)
 # by_screen = parser.split_recording_by_screen(records)
 
-# _, actions = parser.separate_actions_and_state(by_screen[31])
+# _, actions = parser.separate_actions_and_state(by_screen[27])
 # left_counts, right_counts, space_counts = parser.tally_actions(actions)
 # print (f"left counts: {left_counts}")
 # print (f"right counts: {right_counts}")

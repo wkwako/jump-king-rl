@@ -20,7 +20,9 @@ OLD_STATE_SCREENS = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 13, 14}
 
 XY_STATE_SCREENS = [40, 41, 42]
 
-WIND_PLATFORM_DETECTION_SCREENS = [27, 28, 30]
+ONEHOT_SCREENS = []
+
+#WIND_PLATFORM_DETECTION_SCREENS = [27, 28, 30]
 
 SCREEN_START_POSITIONS = {
     #Redcrown Woods
@@ -59,9 +61,9 @@ SCREEN_START_POSITIONS = {
 
     #Windswept Bluff/Stormwall Pass
     25: (224,-8714, 15),
-    26: (225.2,-9074, 10), #start on left?
+    26: (225.2,-9074, 10),
     27: (305.7,-9466, 20),
-    28: (195.4463,-9778, 20),
+    28: (190.3675,-9778, 12),
     29: (171.9502,-10130, 10),
     30: (422.1,-10498, 10),
     31: (15,-10858, 5),
@@ -208,8 +210,8 @@ SCREEN_ACTION_MAPS = {
     },
     27: {
         "walks": [0.2],
-        "jumps": [0.35],
-        "only_jump": [0.15, 0.6],
+        "jumps": [0.20, 0.35],
+        "only_jump": [0.20, 0.6],
     },
     28: {
         "walks": [],
