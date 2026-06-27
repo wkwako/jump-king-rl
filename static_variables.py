@@ -68,6 +68,7 @@ SCREEN_START_POSITIONS = {
     30: (422.1,-10498, 10),
     31: (15,-10858, 5),
 
+
     #Chapel Perilous
     32: (394.5565,-11202, 5),
     33: (206.5,-11618, 8),
@@ -229,8 +230,8 @@ SCREEN_ACTION_MAPS = {
         "only_jump": [0.6],
     },
     31: {
-        "walks": [0.1],
-        "jumps": [], #could try without this. did make it once
+        "walks": [0.2],
+        "jumps": [0.6], #could try without this. did make it once
         "only_jump": [0.6],
     },
 

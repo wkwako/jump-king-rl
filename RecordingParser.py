@@ -10,7 +10,7 @@ class RecordingParser:
         self.filepath = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/recording.txt"
         #self.filepath = "C:/Users/wkwak/Documents/CodingWork/PythonStuff/jump-king-rl/recording.txt"
         self.wind_path = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/recording_wind_only.txt"
-        #self.wind_path = "C:/Users/wkwak/Documents/CodingWork/Environments/PythonStuff/jump-king-rl/recording_wind_only.txt"
+        #self.wind_path = "C:/Users/wkwak/Documents/CodingWork/PythonStuff/jump-king-rl/recording_wind_only.txt"
         self.platform_parser = PlatformParser()
         self.height_id_maps = {}
         self.num_heights = {}
