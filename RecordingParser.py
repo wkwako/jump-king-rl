@@ -617,7 +617,7 @@ class RecordingParser:
                 noop_state = dict(state_dict)
                 noop_state["y"] = wait_platform_y  # ← use the landing platform, not the takeoff platform
                 noop_state["x"] = wait_platform_x
-                noop_state["wind_timer"] = candidate_timer
+                noop_state["wind_timer"] = wrapped_timer
                 filled.append((noop_state, noop_action))
             total_noops += noops_to_insert
 
