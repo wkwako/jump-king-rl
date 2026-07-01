@@ -18,11 +18,11 @@ NO_DROP_TERMINATION_SCREENS = {8, 16, 17}
 
 OLD_STATE_SCREENS = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 13}
 
-XY_STATE_SCREENS = [40, 41, 42]
+XY_STATE_SCREENS = [40, 41, 42, 22, 15]
 
 ONEHOT_SCREENS = []
 
-#WIND_PLATFORM_DETECTION_SCREENS = [27, 28, 30]
+NONDETERMINISTIC_SCREENS = [9, 11, 19, 21, 32, 37, 38]
 
 SCREEN_START_POSITIONS = {
     #Redcrown Woods
@@ -90,198 +90,198 @@ SCREEN_ACTION_MAPS = {
     #Redcrown Woods
     0: {
         "walks": [0.2],
-        "jumps": [0.6],
+        "jumps": [0.7],
     },
     1: {
         "walks": [0.1, 0.2],
-        "jumps": [0.3, 0.45, 0.6],
+        "jumps": [0.3, 0.45, 0.7],
     },
     2: {
         "walks": [0.1, 0.2],
-        "jumps": [0.15, 0.38, 0.48, 0.6],
+        "jumps": [0.15, 0.38, 0.48, 0.7],
     },
     3: {
         "walks": [0.1, 0.2],
-        "jumps": [0.20, 0.6], #could add 0.4 here for full path coverage
+        "jumps": [0.20, 0.7], #could add 0.4 here for full path coverage
     },
     4: {
         "walks": [0.1, 0.2],
-        "jumps": [0.15, 0.45, 0.6],
+        "jumps": [0.15, 0.45, 0.7],
     },
     
     #Colossal Drain
     5: {
         "walks": [0.1, 0.2],
-        "jumps": [0.35, 0.48, 0.6],
+        "jumps": [0.35, 0.48, 0.7],
     },
     6: {
         "walks": [0.1, 0.2],
-        "jumps": [0.15, 0.45, 0.5, 0.6],
+        "jumps": [0.15, 0.45, 0.5, 0.7],
     },
     7: {
         "walks": [0.1, 0.2],
-        "jumps": [0.50, 0.6],
+        "jumps": [0.50, 0.7],
     },
     8: {
         "walks": [0.1, 0.2],
-        "jumps": [0.1, 0.18, 0.5, 0.6],
+        "jumps": [0.1, 0.18, 0.5, 0.7],
     },
     9: {
         "walks": [0.1, 0.2],
-        "jumps": [0.2, 0.45, 0.6],
+        "jumps": [0.2, 0.45, 0.7],
     },
     
     #False Kings' Keep
     10: {
         "walks": [0.1, 0.2],
-        "jumps": [0.20, 0.52, 0.6],
+        "jumps": [0.20, 0.52, 0.7],
     },
     11: {
         "walks": [0.1, 0.2],
-        "jumps": [0.53, 0.6],
+        "jumps": [0.53, 0.7],
     },
     12: {
         "walks": [0.1, 0.2],
-        "jumps": [0.45, 0.54, 0.6],
+        "jumps": [0.45, 0.54, 0.7],
     },
     13: {
         "walks": [0.1, 0.2],
-        "jumps": [0.4, 0.6],
+        "jumps": [0.4, 0.7],
     },
 
     #Bargainburg
     14: {
         "walks": [0.1, 0.2],
-        "jumps": [0.4, 0.6],
+        "jumps": [0.4, 0.7],
     },
     15: {
         "walks": [0.1, 0.2],
-        "jumps": [0.1, 0.15, 0.5, 0.6],
+        "jumps": [0.12, 0.5, 0.7],
     },
     16: {
         "walks": [0.1, 0.2],
-        "jumps": [0.30, 0.40, 0.45, 0.52, 0.6],
+        "jumps": [0.30, 0.48, 0.52, 0.7],
     },
     17: {
         "walks": [0.1, 0.2],
-        "jumps": [0.1, 0.15, 0.45, 0.5, 0.6],
+        "jumps": [0.1, 0.15, 0.45, 0.5, 0.7],
     },
     18: {
         "walks": [0.1, 0.2],
-        "jumps": [0.5, 0.6],
+        "jumps": [0.5, 0.7],
     },
 
     #Great Frontier
     19: {
         "walks": [0.1, 0.2],
-        "jumps": [0.15, 0.48, 0.6],
+        "jumps": [0.15, 0.48, 0.7],
     },
     20: {
         "walks": [0.1, 0.2],
-        "jumps": [0.5, 0.6],
+        "jumps": [0.5, 0.7],
     },
     21: {
         "walks": [0.1, 0.2],
-        "jumps": [0.34, 0.54, 0.6],
+        "jumps": [0.34, 0.54, 0.7],
     },
     22: {
         "walks": [0.1, 0.2],
-        "jumps": [0.3, 0.5, 0.6],
+        "jumps": [0.3, 0.5, 0.7],
     },
     23: {
         "walks": [0.1, 0.2],
-        "jumps": [0.5, 0.6],
+        "jumps": [0.5, 0.7],
     },
     24: {
         "walks": [0.1, 0.2],
-        "jumps": [0.23, 0.40, 0.43, 0.6],
+        "jumps": [0.23, 0.40, 0.43, 0.7],
     },
 
     #Windswept Bluff/Stormwall Pass
     25: {
         "walks": [0.2], #was 0.2
         "jumps": [], #was 0.15
-        "only_jump": [0.35, 0.6], #was 0.25, 0.6
+        "only_jump": [0.35, 0.7], #was 0.25, 0.8
     },
     26: {
         "walks": [],
         "jumps": [0.25],
-        "only_jump": [0.15, 0.6],
+        "only_jump": [0.15, 0.7],
     },
     27: {
         "walks": [0.2],
         "jumps": [0.20, 0.35],
-        "only_jump": [0.20, 0.35, 0.6],
+        "only_jump": [0.20, 0.35, 0.7],
     },
     28: {
         "walks": [],
-        "jumps": [0.285, 0.32, 0.5, 0.6],
+        "jumps": [0.285, 0.32, 0.5, 0.7],
         "only_jump": [],
     },
     29: {
         "walks": [],
-        "jumps": [0.6],
-        "only_jump": [0.15, 0.6],
+        "jumps": [0.7],
+        "only_jump": [0.15, 0.7],
     },
     30: {
         "walks": [],
-        "jumps": [0.22, 0.6],
-        "only_jump": [0.15, 0.6],
+        "jumps": [0.22, 0.7],
+        "only_jump": [0.15, 0.7],
     },
     31: {
         "walks": [0.1, 0.25],
-        "jumps": [0.6], #could try without this. did make it once
-        "only_jump": [0.6],
+        "jumps": [0.7], #could try without this. did make it once
+        "only_jump": [0.7],
     },
 
     #Chapel Perilous
     32: {
         "walks": [0.1, 0.2],
-        "jumps": [0.15, 0.45, 0.6],
+        "jumps": [0.15, 0.45, 0.7],
     },
     33: {
         "walks": [0.1, 0.2],
-        "jumps": [0.48, 0.6],
+        "jumps": [0.48, 0.7],
     },
     34: {
         "walks": [0.1, 0.2],
-        "jumps": [0.48, 0.6],
+        "jumps": [0.48, 0.7],
     },
     35: {
         "walks": [0.1, 0.2],
-        "jumps": [0.6],
+        "jumps": [0.7],
     },
 
     #Blue Ruin
     36: {
         "walks": [0.1, 0.2],
-        "jumps": [0.05, 0.20, 0.30, 0.45, 0.5, 0.6],
+        "jumps": [0.05, 0.20, 0.30, 0.45, 0.5, 0.7],
     },
     37: {
         "walks": [0.1, 0.2],
-        "jumps": [0.05, 0.085, 0.15, 0.8],
+        "jumps": [0.05, 0.085, 0.15, 0.7],
         "only_jump": [],
     },
     38: {
         "walks": [0.1, 0.2],
-        "jumps": [0.05, 0.30, 0.6],
+        "jumps": [0.05, 0.30, 0.7],
     },
 
     #The Tower
     39: {
         "walks": [0.1, 0.2],
-        "jumps": [0.33, 0.45, 0.54, 0.6], #could set 0.48 here instead of 0.45 and 0.5
+        "jumps": [0.33, 0.45, 0.54, 0.7], #could set 0.48 here instead of 0.45 and 0.5
     },
     40: {
         "walks": [0.1, 0.2],
-        "jumps": [0.3, 0.50, 0.6],
+        "jumps": [0.3, 0.50, 0.7],
     },
     41: {
         "walks": [0.1, 0.2],
-        "jumps": [0.38, 0.50, 0.6],
+        "jumps": [0.38, 0.50, 0.7],
     },
     42: {
         "walks": [0.1, 0.2],
-        "jumps": [0.23, 0.4, 0.6],
+        "jumps": [0.23, 0.4, 0.7],
     },
 }

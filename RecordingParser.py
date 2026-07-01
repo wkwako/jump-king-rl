@@ -65,11 +65,6 @@ class RecordingParser:
         #only use x,y coord for these screens
         elif screen in static_variables.XY_STATE_SCREENS:
             return np.array([x, y % 360])
-        
-        # elif screen in static_variables.WIND_PLATFORM_DETECTION_SCREENS:
-        #     height_id = self.get_height_id(y, screen)
-        #     wind_timer = float(state_dict.get("wind_timer", -1))
-        #     return np.array([x/480, height_id, wind_timer/13, rel_x_start, rel_x_end])
 
         elif screen in static_variables.ONEHOT_SCREENS:
             wind_timer = float(state_dict.get("wind_timer", -1))
@@ -81,13 +76,7 @@ class RecordingParser:
         elif screen in static_variables.WIND_SCREENS:
             height_id = self.get_height_id(y, screen)
             wind_timer = float(state_dict.get("wind_timer", -1))
-            #return np.array([x/480, height_id, wind_timer/13, actions_since_jump], dtype=np.float32)
             return np.array([x/480, height_id, wind_timer/13], dtype=np.float32)
-            # height_onehot = self.get_height_onehot(y, screen)
-            # x_norm = x / 480
-            # wind_timer_norm = float(state_dict.get("wind_timer", -1)) / 13
-            # base_state = np.array([x_norm, wind_timer_norm, actions_since_jump], dtype=np.float32)
-            # return np.concatenate([base_state, height_onehot])
 
         #ice screens need x velocity
         elif screen in static_variables.ICE_SCREENS:
@@ -171,7 +160,7 @@ class RecordingParser:
                 equalized.append((left, right, space))
         return equalized
     
-    def cap_actions(self, actions, max_jump=0.6, max_walk=0.2):
+    def cap_actions(self, actions, max_jump=0.7, max_walk=0.2):
         """Caps jump durations to max_jump and walk durations to max_walk."""
         capped = []
         for left, right, space in actions:
@@ -355,7 +344,7 @@ class RecordingParser:
                     continue
         return records
     
-    def clean_actions(self, records, max_raw=2.0, max_jump=0.6, max_walk=0.2, increment=0.05):
+    def clean_actions(self, records, max_raw=2.0, max_jump=0.7, max_walk=0.2, increment=0.05):
         """Filters malformed records, then equalizes, caps, and snaps actions in one pass."""
         cleaned = []
         filtered_count = 0

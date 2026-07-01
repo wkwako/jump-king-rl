@@ -768,22 +768,12 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             height_onehot = self.recording_parser.get_height_onehot(self.y, self.expected_screen)
             base_state = np.array([self.x/480, self.wind_timer/13], dtype=np.float32)
             return np.concatenate([base_state, height_onehot])
-        
-        # elif self.expected_screen in static_variables.WIND_PLATFORM_DETECTION_SCREENS:
-        #     height_id = self.recording_parser.get_height_id(self.y, self.expected_screen)
-        #     return np.array([self.x/480, height_id, self.wind_timer/13, rel_x_start, rel_x_end])
 
         elif self.expected_screen in static_variables.WIND_SCREENS:
             height_id = self.recording_parser.get_height_id(self.y, self.expected_screen)
             #return np.array([self.x/480, height_id, self.wind_timer/13, self.actions_since_jump], dtype=np.float32)
             #return np.array([self.x/480, height_id, self.wind_timer/13], dtype=np.float32)
             return np.array([self.x/480, height_id, self.wind_timer/13], dtype=np.float32)
-        
-            # height_onehot = self.recording_parser.get_height_onehot(self.y, self.expected_screen)
-            # x_norm = self.x / 480
-            # wind_timer_norm = self.wind_timer / 13
-            # base_state = np.array([x_norm, wind_timer_norm, self.actions_since_jump], dtype=np.float32)
-            # return np.concatenate([base_state, height_onehot])
         
         elif self.expected_screen in static_variables.ICE_SCREENS:
             return np.array([self.x, self.y % 360, self.vel_x, ceiling, rel_x_start, rel_x_end], dtype=np.float32)

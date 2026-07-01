@@ -938,6 +938,7 @@ class JumpKingRL:
 
     def play_game_per_screen(self, start_screen=0):
         current_screen = start_screen
+        fall_counts = {}  # {screen: number of falls from that screen}
 
         start_x, start_y, _ = static_variables.SCREEN_START_POSITIONS[start_screen]
 
@@ -947,7 +948,6 @@ class JumpKingRL:
         while True:
             print(f"\n--- Loading model for screen {current_screen} ---")
             
-            #model_path = f"{self.model_direc}/screen{current_screen}/ppo_screen_{current_screen}"
             model_path = f"{self.model_direc}/screen{current_screen}/_best"
             if not os.path.exists(model_path + ".zip"):
                 print(f"No model found for screen {current_screen}, stopping.")
@@ -968,50 +968,64 @@ class JumpKingRL:
                 current_screen = actual_screen
                 continue
 
+            deterministic = current_screen not in static_variables.NONDETERMINISTIC_SCREENS
+            print(f"deterministic? {deterministic}")
+
+            actions_taken = False  # only count falls if we actually acted on this screen
+
             try:
                 obs = model.env.reset()
                 done = False
                 while not done:
-                    action, _ = model.predict(obs, deterministic=False) #deterministic=True
+                    action, _ = model.predict(obs, deterministic=deterministic)
                     obs, reward, done, _ = model.env.step(action)
+                    actions_taken = True
 
                 new_screen = model.env.envs[0].env.current_screen
                 if new_screen > current_screen:
                     print(f"Transitioning from screen {current_screen} to {new_screen}")
                     current_screen = new_screen
                 else:
+                    if actions_taken:
+                        fall_counts[current_screen] = fall_counts.get(current_screen, 0) + 1
                     print(f"Fell back to screen {new_screen}, retrying screen {current_screen}")
 
             except KeyboardInterrupt:
                 self.reset_keys()
                 model.env.envs[0].env.reset_keys()
                 print(f"Interrupted on screen {current_screen}")
-                break      
+                print(f"\n--- Fall summary ---")
+                for screen, count in sorted(fall_counts.items()):
+                    print(f"  Screen {screen}: {count} fall(s)")
+                break
+
+        print(f"\n--- Fall summary ---")
+        for screen, count in sorted(fall_counts.items()):
+            print(f"  Screen {screen}: {count}")
 
 JK = JumpKingRL()
 parser = RecordingParser()
 records = parser.load_recording()
-screen = 31
-name = f"screen{screen}_dummy"
-JK.create_BC_screen(name, screen=screen, records=records, epochs=200)
-env = JK.create_RL_screen(name, screen=screen, action_cutoff=200, n_steps=2048, n_epochs=5, ent_coef=0.25, target_kl=0.03, learning_rate=0.0001, gamma=0.9995, gae_lambda=0.95, episode_mode=EpisodeMode.SCREEN) #wind
-#env = JK.create_RL_screen(name, screen=screen, action_cutoff=100, n_steps=1024, n_epochs=5, ent_coef=0.10, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN) #normal
-JK.train_model_one_screen(name, screen=screen, freeze_updates=0)
+screen = 16
+name = f"screen{screen}"
+#JK.create_BC_screen(name, screen=screen, records=records, epochs=100)
+#env = JK.create_RL_screen(name, screen=screen, action_cutoff=200, n_steps=2048, n_epochs=5, ent_coef=0.25, target_kl=0.03, learning_rate=0.0001, gamma=0.9995, gae_lambda=0.95, episode_mode=EpisodeMode.SCREEN) #wind
+#env = JK.create_RL_screen(name, screen=screen, action_cutoff=40, n_steps=1024, n_epochs=5, ent_coef=0.05, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN) #normal
+#JK.train_model_one_screen(name, screen=screen, freeze_updates=0)
 
-# MODEL_PATH = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/models/screen27_dummy/bc_screen_27.pth"
-# SCREEN = 27
-# OUTPUT_DIM = 9
+JK.play_game_per_screen(start_screen=0)
+
+# MODEL_PATH = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/models/screen30_dummy/bc_screen_30.pth"
+# SCREEN = 30
+# OUTPUT_DIM = 6
 # HIDDEN_DIM = 256
 # INPUT_DIM = 3  # [x_norm, height_id, wind_timer_norm] — adjust if using onehot
 
 # ACTION_MAP = [
-#     (0.2, 0, 0),
-#     (0, 0.2, 0),
-#     (0.2, 0, 0.2),
-#     (0, 0.2, 0.2),
-#     (0.35, 0, 0.35),
-#     (0, 0.35, 0.35),
-#     (0, 0, 0.2),
+#     (0.18, 0, 0.18),
+#     (0, 0.18, 0.18),
+#     (0.6, 0, 0.6),
+#     (0, 0.6, 0.6),
 #     (0, 0, 0.6),
 #     (0, 0, 0),
 # ]
@@ -1026,9 +1040,9 @@ JK.train_model_one_screen(name, screen=screen, freeze_updates=0)
 
 # filled = parser.fill_wind_noops(screen_records, SCREEN, noop_divisor=50)
 
-# # === FIND REAL TRAINING EXAMPLES AT y=9434, wind_timer near 2.0 ===
-# TARGET_Y = 9434.0
-# TARGET_WIND_TIMER = 2.0
+# # # === FIND REAL TRAINING EXAMPLES AT y=9434, wind_timer near 2.0 ===
+# TARGET_Y = 10498.0
+# TARGET_WIND_TIMER = 7.0
 # Y_TOLERANCE = 5
 # TIMER_TOLERANCE = 0.3
 
@@ -1069,8 +1083,8 @@ JK.train_model_one_screen(name, screen=screen, freeze_updates=0)
 #         print(f"Predicted action: action{predicted}, Actual recorded action: {action}")
 
 #start noop troubleshooting
-# SCREEN = 27
-# TARGET_Y = 9434.0  # the problematic platform
+# SCREEN = 30
+# TARGET_Y = 10498.0  # the problematic platform
 # Y_TOLERANCE = 5
 
 # parser = RecordingParser()
@@ -1205,7 +1219,7 @@ JK.train_model_one_screen(name, screen=screen, freeze_updates=0)
 #     print(f"{wind_timer_raw:>10.2f} | {probs_str}")
 #end bc debugging
 
-#JK.play_game_per_screen(start_screen=14)
+
 
 # parser = RecordingParser()                                                                                                                                                                                                                                                                                                                          
 # action_map = parser.get_screen_action_map(5)
