@@ -16,13 +16,13 @@ END_ZONE_RADIUS = 180
 
 NO_DROP_TERMINATION_SCREENS = {8, 16, 17}
 
-OLD_STATE_SCREENS = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 13}
+OLD_STATE_SCREENS = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 13}
 
 XY_STATE_SCREENS = [40, 41, 42, 22, 15]
 
 ONEHOT_SCREENS = []
 
-NONDETERMINISTIC_SCREENS = [9, 11, 19, 21, 32, 37, 38]
+NONDETERMINISTIC_SCREENS = [1, 9, 11, 19, 21, 32, 37, 38]
 
 SCREEN_START_POSITIONS = {
     #Redcrown Woods
@@ -168,7 +168,7 @@ SCREEN_ACTION_MAPS = {
     },
     18: {
         "walks": [0.1, 0.2],
-        "jumps": [0.5, 0.7],
+        "jumps": [0.3, 0.5, 0.7],
     },
 
     #Great Frontier
