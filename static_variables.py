@@ -168,7 +168,7 @@ SCREEN_ACTION_MAPS = {
     },
     18: {
         "walks": [0.1, 0.2],
-        "jumps": [0.3, 0.5, 0.7],
+        "jumps": [0.3, 0.48, 0.7],
     },
 
     #Great Frontier
