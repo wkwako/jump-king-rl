@@ -775,6 +775,9 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             #return np.array([self.x/480, height_id, self.wind_timer/13], dtype=np.float32)
             return np.array([self.x/480, height_id, self.wind_timer/13], dtype=np.float32)
         
+        elif self.expected_screen == 37:
+            return np.array([self.x, self.y % 360, self.vel_x], dtype=np.float32)
+
         elif self.expected_screen in static_variables.ICE_SCREENS:
             return np.array([self.x, self.y % 360, self.vel_x, ceiling, rel_x_start, rel_x_end], dtype=np.float32)
         else:

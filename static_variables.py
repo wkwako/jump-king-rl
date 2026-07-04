@@ -16,13 +16,13 @@ END_ZONE_RADIUS = 180
 
 NO_DROP_TERMINATION_SCREENS = {8, 16, 17}
 
-OLD_STATE_SCREENS = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 13}
+OLD_STATE_SCREENS = {0, 1, 2, 3, 4, 5, 6, 7, 9, 13}
 
 XY_STATE_SCREENS = [40, 41, 42, 22, 15]
 
 ONEHOT_SCREENS = []
 
-NONDETERMINISTIC_SCREENS = [1, 9, 11, 19, 21, 32, 37, 38]
+NONDETERMINISTIC_SCREENS = [1, 9, 11, 19, 21, 32, 33, 37, 38]
 
 SCREEN_START_POSITIONS = {
     #Redcrown Woods
@@ -194,7 +194,7 @@ SCREEN_ACTION_MAPS = {
     },
     24: {
         "walks": [0.1, 0.2],
-        "jumps": [0.23, 0.40, 0.43, 0.7],
+        "jumps": [0.23, 0.39, 0.44, 0.7],
     },
 
     #Windswept Bluff/Stormwall Pass
@@ -259,7 +259,7 @@ SCREEN_ACTION_MAPS = {
     },
     37: {
         "walks": [0.1, 0.2],
-        "jumps": [0.05, 0.085, 0.15, 0.7],
+        "jumps": [0.05, 0.08, 0.7],
         "only_jump": [],
     },
     38: {

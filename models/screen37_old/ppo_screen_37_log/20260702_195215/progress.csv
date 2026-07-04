@@ -1,0 +1,2 @@
+time/time_elapsed,time/iterations,time/fps,custom/max_height,time/total_timesteps,rollout/ep_len_mean,rollout/ep_rew_mean,custom/current_screen
+1732,1,1,13058.0,2048,11.3,-32.70978295,37

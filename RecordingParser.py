@@ -30,6 +30,10 @@ class RecordingParser:
             return 3
             #return 4
             #return 3 + self.height_onehot_sizes.get(screen, 2)  # x, y, wind_frame, actions_since_jump
+
+        elif screen == 37:
+            return 3
+
         elif screen in static_variables.ICE_SCREENS:
             return 6  # x, y, vel_x, ceiling, rel_x_start, rel_x_end
 
@@ -77,6 +81,10 @@ class RecordingParser:
             height_id = self.get_height_id(y, screen)
             wind_timer = float(state_dict.get("wind_timer", -1))
             return np.array([x/480, height_id, wind_timer/13], dtype=np.float32)
+
+        elif screen == 37:
+            vel_x = float(state_dict["vel_x"])
+            return np.array([x, y % 360, vel_x], dtype=np.float32)
 
         #ice screens need x velocity
         elif screen in static_variables.ICE_SCREENS:
