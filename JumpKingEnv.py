@@ -245,6 +245,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             self.state = self._get_safe_default_state()
             self.wins += 1
             self.success = True
+            self.episode_t1 = time.time()
+            self.episode_timer = self.episode_t1 - self.episode_t0
             return self.state, reward, True, False, {"success":self.success, "episode_timer":self.episode_timer}
 
         #ice rewards 2
