@@ -936,6 +936,56 @@ class JumpKingRL:
             self.overwrite_model(f"{folder_name}/ppo_screen_{screen}", model)
             print(f"Screen {screen} model saved.")
 
+    def train_no_learning(self, folder_name, screen, n_eval_episodes=50):
+        """Runs a screen's model for a fixed number of episodes with no
+        training — used to estimate success rate (wins vs. losses) for a
+        screen without the cost of a full training run.
+        """
+        model_path = f"{self.model_direc}{folder_name}/ppo_screen_{screen}"
+        if not os.path.exists(model_path + ".zip"):
+            print(f"No model found for screen {screen}, stopping.")
+            return
+
+        model = self.load_model(folder_name, screen=screen, only_agent=True)
+        env = model.env.envs[0].env
+        env.expected_screen = screen
+        env.total_screen_actions = 0
+
+        actual_screen = env.read_gamedata()["current_screen"]
+        if actual_screen != screen:
+            print(f"Warning: expected screen {screen}, got {actual_screen}. Teleporting...")
+            env.teleport(screen)
+
+        # eval runs start from a clean count regardless of anything the env
+        # instance may have accumulated before this call
+        env.wins = 0
+        env.losses = 0
+
+        model.policy.set_training_mode(False)
+        deterministic = screen not in static_variables.NONDETERMINISTIC_SCREENS
+
+        try:
+            for episode in range(n_eval_episodes):
+                obs = model.env.reset()
+                done = False
+                while not done:
+                    action, _ = model.predict(obs, deterministic=deterministic)
+                    obs, reward, done, _ = model.env.step(action)
+
+            print(f"Screen {screen} eval complete: "
+                f"{env.wins} win(s), {env.losses} loss(es) "
+                f"over {n_eval_episodes} attempt(s).")
+
+        except KeyboardInterrupt:
+            print(f"Interrupted during eval on screen {screen}.")
+            print(f"Partial results — {env.wins} win(s), {env.losses} loss(es).")
+
+        finally:
+            self.reset_keys()
+            env.reset_keys()
+
+        return env.wins, env.losses
+
     def play_game_per_screen(self, start_screen=0):
         current_screen = start_screen
         fall_counts = {}  # {screen: number of falls from that screen}
@@ -1006,14 +1056,17 @@ class JumpKingRL:
 JK = JumpKingRL()
 parser = RecordingParser()
 records = parser.load_recording()
-screen = 42
+screen = 0
 name = f"screen{screen}"
 #JK.create_BC_screen(name, screen=screen, records=records, epochs=200)
 #env = JK.create_RL_screen(name, screen=screen, action_cutoff=200, n_steps=2048, n_epochs=5, ent_coef=0.25, target_kl=0.03, learning_rate=0.0001, gamma=0.9995, gae_lambda=0.95, episode_mode=EpisodeMode.SCREEN) #wind
 #env = JK.create_RL_screen(name, screen=screen, action_cutoff=40, n_steps=512, n_epochs=5, ent_coef=0.05, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN) #normal
 #JK.train_model_one_screen(name, screen=screen, freeze_updates=0)
 
-JK.play_game_per_screen(start_screen=0)
+#JK.play_game_per_screen(start_screen=0)
+
+wins, losses = JK.train_no_learning(name, 0, records=records)
+print (wins/(wins+losses))
 
 # MODEL_PATH = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/models/screen30_dummy/bc_screen_30.pth"
 # SCREEN = 30

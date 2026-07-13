@@ -65,6 +65,13 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.dummyenv = dummyenv
         self.play = play
         self.expected_screen = current_screen
+        self.success = False
+ 
+        self.wins = 0
+        self.losses = 0
+        self.episode_timer = 0
+        self.episode_t0 = 0
+        self.episode_t1 = 0
 
         self.actions_since_jump = 0
         self.end_zone_reached = False
@@ -228,6 +235,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.wait_for_landing(prev_write_count)
         #print ("character has landed")
 
+        #screen 42 only
         if self.end_zone_reached and not self.play:
             print(f"End zone reached on screen {self.expected_screen} — treating as screen complete")
             self.gamedata = self.read_gamedata()
@@ -235,7 +243,9 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             reward += self.new_screen_reward_val
             self.force_teleport = True
             self.state = self._get_safe_default_state()
-            return self.state, reward, True, False, {}
+            self.wins += 1
+            self.success = True
+            return self.state, reward, True, False, {"success":self.success, "episode_timer":self.episode_timer}
 
         #ice rewards 2
         #reward += self.ice_v0_reward()  # fires if wait_for_v0 was set. not working bc v is always 0, not updating state enough
@@ -271,7 +281,12 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             reward += self.new_screen_reward()  # fires fall penalty since current < expected
             self.force_teleport = True
             self.state = self._get_safe_default_state()  # return last known good state
-            return self.state, reward, True, False, {}
+            self.losses += 1
+            self.success = False
+            self.episode_t1 = time.time()
+            self.episode_timer = self.episode_t1 - self.episode_t0
+            terminated = True
+            return self.state, reward, terminated, False, {"success":self.success, "episode_timer":self.episode_timer}
 
         self.state = self.build_state_per_screen() if self.per_screen else self.build_state()
         print (f"state: {self.state}")
@@ -335,16 +350,20 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             terminated = True
             self.force_teleport = True
             print (f"Action cutoff penalty: {self.action_cutoff_penalty}")
+            self.losses += 1
+            self.success = False
 
         if terminated:
             print ("--- EPISODE END ---")
+            self.episode_t1 = time.time()
+            self.episode_timer = self.episode_t1 - self.episode_t0
 
         #gives bonus reward for faster screen completion
         # if terminated and self.episode_mode == "screen" and self.current_screen > self.current_screen_prev:
         #     reward += self.speed_reward / self.action_counter
         #     print(f"Speed bonus: {self.speed_reward / self.action_counter:.2f} ({self.action_counter} actions)")
 
-        return self.state, reward, terminated, False, {}
+        return self.state, reward, terminated, False, {"success":self.success, "episode_timer":self.episode_timer}
 
     def reset(self, seed=None, options=None):
         self.platform_parser.parse_result = None
@@ -355,6 +374,10 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.jump_counter = 0
         self.end_zone_reached = False
         self.actions_since_jump = 0
+        self.episode_timer = 0
+        self.episode_t0 = time.time()
+        self.episode_t1 = time.time()
+        self.success = False
         
         # only teleport if we're on the wrong screen
         if self.per_screen and (self.current_screen != self.expected_screen or self.force_teleport) and not self.dummyenv and not self.play:
@@ -580,6 +603,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
                 reward += self.new_screen_reward_val
                 print (f"New screen reward: {self.new_screen_reward_val}")
             
+            self.wins += 1
+            self.success = True
             reward += self.speed_reward / self.action_counter
             print (f"Speed bonus: {self.speed_reward / self.action_counter:.2f} ({self.action_counter} actions)")
 
@@ -592,6 +617,9 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             else:
                 reward += self.falling_screen_penalty
                 print (f"Falling screen penalty: {self.falling_screen_penalty}")
+
+            self.losses += 1
+            self.success = False
 
         return reward
     
