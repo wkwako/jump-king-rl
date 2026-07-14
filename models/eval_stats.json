@@ -1,16 +1,11 @@
 {
   "0": {
-    "wins": 3,
+    "wins": 1,
     "losses": 0,
-    "num_episodes": 3,
+    "num_episodes": 1,
+    "target_episodes": 3,
     "win_percentage": 1.0,
-    "mean_success_time": 4.970624605814616
-  },
-  "1": {
-    "wins": 3,
-    "losses": 0,
-    "num_episodes": 3,
-    "win_percentage": 1.0,
-    "mean_success_time": 7.026073694229126
+    "mean_success_time": 4.995284080505371,
+    "mean_actions_to_success": 5.0
   }
 }

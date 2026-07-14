@@ -150,13 +150,14 @@ class Analysis:
 
     def train_no_learning(self, folder_name, screen, num_episodes=50):
         """Runs a screen's model for a fixed number of episodes with no
-        training — used to estimate success rate and mean time-to-success
-        for a screen. Reads `info["success"]` and `info["episode_timer"]`
-        from JumpKingEnv.step() at each episode's terminal transition.
+        training — used to estimate success rate, mean time-to-success, and
+        mean actions-to-success for a screen. Reads `info["success"]`,
+        `info["episode_timer"]`, and `info["actions"]` from JumpKingEnv.step()
+        at each episode's terminal transition.
 
-        Time accumulates across consecutive failed attempts (since the env
-        doesn't reset its internal clock on failure) and only resolves into
-        a mean-eligible data point once an episode succeeds.
+        Time and action count both accumulate across consecutive failed
+        attempts (since the env doesn't reset either on failure) and only
+        resolve into a mean-eligible data point once an episode succeeds.
         """
         model_path = f"{self.model_dir}{folder_name}/ppo_screen_{screen}"
         screen_path = f"{self.model_dir}{folder_name}"
@@ -175,17 +176,18 @@ class Analysis:
             print(f"Warning: expected screen {screen}, got {actual_screen}. Teleporting...")
             env.teleport(screen)
 
-        # eval runs start from a clean count regardless of anything the env
-        # instance may have accumulated before this call
         env.wins = 0
         env.losses = 0
 
         model.policy.set_training_mode(False)
         deterministic = screen not in static_variables.NONDETERMINISTIC_SCREENS
 
-        success_times = []   # completed time-to-success intervals (mean-eligible)
-        pending_time = 0.0   # time accumulated across consecutive failures, carried forward
+        success_times = []     # completed time-to-success intervals (mean-eligible)
+        success_actions = []   # completed actions-to-success counts (mean-eligible)
+        pending_time = 0.0     # time accumulated across consecutive failures, carried forward
+        pending_actions = 0    # actions accumulated across consecutive failures, carried forward
         mean_success_time = None
+        mean_actions_to_success = None
 
         try:
             for episode in range(num_episodes):
@@ -198,40 +200,51 @@ class Analysis:
                     info = infos[0]
 
                 pending_time += info.get("episode_timer", 0.0)
+                pending_actions += info.get("actions", 0)
 
                 if info.get("success"):
                     success_times.append(pending_time)
+                    success_actions.append(pending_actions)
                     pending_time = 0.0
-
-            if success_times:
-                mean_success_time = sum(success_times) / len(success_times)
+                    pending_actions = 0
 
             print(f"Screen {screen} eval complete: "
-                  f"{env.wins} win(s), {env.losses} loss(es) "
-                  f"over {num_episodes} attempt(s).")
-            if mean_success_time is not None:
-                print(f"Mean time-to-success: {mean_success_time:.2f}s "
-                      f"(n={len(success_times)})")
-            else:
-                print("No successful episodes — no time-to-success data.")
+                f"{env.wins} win(s), {env.losses} loss(es) "
+                f"over {num_episodes} attempt(s).")
 
         except KeyboardInterrupt:
             print(f"Interrupted during eval on screen {screen}.")
             print(f"Partial results — {env.wins} win(s), {env.losses} loss(es).")
 
         finally:
-            #write data to a file
-            self.write_stats(screen, env.wins, env.losses, mean_success_time)
+            # computed here (not inside try) so a partial/interrupted run still
+            # reports a mean over whatever successes it did collect
+            if success_times:
+                mean_success_time = sum(success_times) / len(success_times)
+            if success_actions:
+                mean_actions_to_success = sum(success_actions) / len(success_actions)
+
+            if mean_success_time is not None:
+                print(f"Mean time-to-success: {mean_success_time:.2f}s "
+                    f"(n={len(success_times)})")
+            else:
+                print("No successful episodes — no time-to-success data.")
+
+            self.write_stats(screen, env.wins, env.losses, mean_success_time,
+                            mean_actions_to_success, num_episodes)
             env.reset_keys()
 
         return {
             "wins": env.wins,
             "losses": env.losses,
             "success_times": success_times,
+            "success_actions": success_actions,
             "mean_success_time": mean_success_time,
+            "mean_actions_to_success": mean_actions_to_success,
         }
 
-    def write_stats(self, screen, wins, losses, mean_success_time):
+    def write_stats(self, screen, wins, losses, mean_success_time,
+                    mean_actions_to_success, target_episodes):
         path = os.path.join(self.model_dir, "eval_stats.json")
 
         if os.path.exists(path):
@@ -240,13 +253,15 @@ class Analysis:
         else:
             all_stats = {}
 
-        num_episodes = wins + losses
+        actual_episodes = wins + losses
         all_stats[str(screen)] = {
             "wins": wins,
             "losses": losses,
-            "num_episodes": num_episodes,
-            "win_percentage": wins / num_episodes if num_episodes > 0 else None,
+            "num_episodes": actual_episodes,
+            "target_episodes": target_episodes,
+            "win_percentage": wins / actual_episodes if actual_episodes > 0 else None,
             "mean_success_time": mean_success_time,
+            "mean_actions_to_success": mean_actions_to_success,
         }
 
         with open(path, "w") as f:
@@ -273,12 +288,11 @@ class Analysis:
         print (f"Screens {start_screen} through {end_screen} completed in {round((t1-t0)/60, 4)} minutes.")
         
 
-screen = 0
-name = f"screen{screen}"
+#screen = 0
+#name = f"screen{screen}"
 analysis = Analysis()
-#analysis.train_no_learning(name, screen, 10)
 
-analysis.train_range(start_screen=0, end_screen=1, num_episodes=3)
+analysis.train_range(start_screen=0, end_screen=0, num_episodes=3)
 
 #analysis.combine_all()
 

@@ -247,7 +247,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             self.success = True
             self.episode_t1 = time.time()
             self.episode_timer = self.episode_t1 - self.episode_t0
-            return self.state, reward, True, False, {"success":self.success, "episode_timer":self.episode_timer}
+            return self.state, reward, True, False, {"success":self.success, "episode_timer":self.episode_timer, "actions": self.action_counter}
 
         #ice rewards 2
         #reward += self.ice_v0_reward()  # fires if wait_for_v0 was set. not working bc v is always 0, not updating state enough
@@ -288,7 +288,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             self.episode_t1 = time.time()
             self.episode_timer = self.episode_t1 - self.episode_t0
             terminated = True
-            return self.state, reward, terminated, False, {"success":self.success, "episode_timer":self.episode_timer}
+            return self.state, reward, terminated, False, {"success":self.success, "episode_timer":self.episode_timer, "actions": self.action_counter}
 
         self.state = self.build_state_per_screen() if self.per_screen else self.build_state()
         print (f"state: {self.state}")
@@ -365,7 +365,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #     reward += self.speed_reward / self.action_counter
         #     print(f"Speed bonus: {self.speed_reward / self.action_counter:.2f} ({self.action_counter} actions)")
 
-        return self.state, reward, terminated, False, {"success":self.success, "episode_timer":self.episode_timer}
+        return self.state, reward, terminated, False, {"success":self.success, "episode_timer":self.episode_timer, "actions": self.action_counter}
 
     def reset(self, seed=None, options=None):
         self.platform_parser.parse_result = None
