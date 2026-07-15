@@ -69,6 +69,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
  
         self.wins = 0
         self.losses = 0
+        self.fall_losses = 0
+        self.action_timeout_losses = 0
         self.episode_timer = 0
         self.episode_t0 = 0
         self.episode_t1 = 0
@@ -284,6 +286,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             self.force_teleport = True
             self.state = self._get_safe_default_state()  # return last known good state
             self.losses += 1
+            self.fall_losses += 1
             self.success = False
             self.episode_t1 = time.time()
             self.episode_timer = self.episode_t1 - self.episode_t0
@@ -353,6 +356,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             self.force_teleport = True
             print (f"Action cutoff penalty: {self.action_cutoff_penalty}")
             self.losses += 1
+            self.action_timeout_losses += 1
             self.success = False
 
         if terminated:
@@ -365,6 +369,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #     reward += self.speed_reward / self.action_counter
         #     print(f"Speed bonus: {self.speed_reward / self.action_counter:.2f} ({self.action_counter} actions)")
 
+        #we return vars in the dict that reset() doesn't set to 0
         return self.state, reward, terminated, False, {"success":self.success, "episode_timer":self.episode_timer, "actions": self.action_counter}
 
     def reset(self, seed=None, options=None):
@@ -621,6 +626,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
                 print (f"Falling screen penalty: {self.falling_screen_penalty}")
 
             self.losses += 1
+            self.fall_losses += 1
             self.success = False
 
         return reward

@@ -1,11 +1,15 @@
 {
   "0": {
-    "wins": 1,
+    "wins": 2,
     "losses": 0,
-    "num_episodes": 1,
+    "fall_losses": 0,
+    "action_timeout_losses": 0,
+    "num_episodes": 2,
     "target_episodes": 3,
     "win_percentage": 1.0,
-    "mean_success_time": 4.995284080505371,
-    "mean_actions_to_success": 5.0
+    "mean_success_time": 5.590584874153137,
+    "std_success_time": 0.858459654524443,
+    "mean_actions_to_success": 6.5,
+    "std_actions_to_success": 2.1213203435596424
   }
 }
