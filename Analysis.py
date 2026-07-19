@@ -294,32 +294,33 @@ class Analysis:
         with open(path, "w") as f:
             json.dump(all_stats, f, indent=2)
 
-    def train_range(self, start_screen, end_screen, num_episodes):
+    def train_range(self, start_screen, end_screen, num_episodes, skip_screens=None):
+        skip_screens = skip_screens or set()
         t0 = time.time()
         screens_to_eval = range(start_screen, end_screen+1)
         for screen in screens_to_eval:
+            if screen in skip_screens:
+                print(f"Skipping screen {screen} (already have good data)")
+                continue
             try:
                 name = f"screen{screen}"
-                stats = self.train_no_learning(name, screen, num_episodes)                
+                stats = self.train_no_learning(name, screen, num_episodes)
             except Exception as e:
                 err_msg = f"Screen {screen} eval failed: {traceback.format_exc()}"
                 error_log_path = f"{self.model_dir}/error_log.txt"
-
                 with open(error_log_path, "a") as f:
                     f.write(f"\n[{datetime.now()}] {err_msg}")
-
                 print(err_msg)
                 continue
 
         t1 = time.time()
-        print (f"Screens {start_screen} through {end_screen} completed in {round((t1-t0)/60, 4)} minutes.")
+        print(f"Screens {start_screen} through {end_screen} completed in {round((t1-t0)/60, 4)} minutes.")
         
-
 #screen = 0
 #name = f"screen{screen}"
 analysis = Analysis()
 
-analysis.train_range(start_screen=0, end_screen=7, num_episodes=500)
+analysis.train_range(start_screen=15, end_screen=20, num_episodes=500)
 
 #analysis.combine_all()
 
