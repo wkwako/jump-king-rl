@@ -320,7 +320,7 @@ class Analysis:
 #name = f"screen{screen}"
 analysis = Analysis()
 
-analysis.train_range(start_screen=15, end_screen=20, num_episodes=500)
+analysis.train_range(start_screen=28, end_screen=31, num_episodes=500)
 
 #analysis.combine_all()
 
