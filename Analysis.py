@@ -309,7 +309,7 @@ class Analysis:
                 err_msg = f"Screen {screen} eval failed: {traceback.format_exc()}"
                 error_log_path = f"{self.model_dir}/error_log.txt"
                 with open(error_log_path, "a") as f:
-                    f.write(f"\n[{datetime.now()}] {err_msg}")
+                    f.write(f"\n[{datetime.datetime.now()}] {err_msg}")
                 print(err_msg)
                 continue
 
@@ -320,7 +320,7 @@ class Analysis:
 #name = f"screen{screen}"
 analysis = Analysis()
 
-analysis.train_range(start_screen=28, end_screen=31, num_episodes=500)
+analysis.train_range(start_screen=35, end_screen=37, num_episodes=500)
 
 #analysis.combine_all()
 
