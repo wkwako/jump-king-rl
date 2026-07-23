@@ -11,8 +11,6 @@ import static_variables
 import JumpKingRL
 
 class Analysis:
-    model_dir = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/models/"
-
     # columns to keep, in this order (order doesn't matter for pandas access,
     # but this keeps written CSVs readable)
     KEEP_COLUMNS = [
@@ -39,8 +37,10 @@ class Analysis:
     # and need a running offset applied so they're monotonic across sessions
     CUMULATIVE_COLUMNS = ["time/total_timesteps", "train/n_updates", "time/iterations"]
 
-    def __init__(self):
-        pass
+    def __init__(self, model_folder):
+        model_base_direc = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/"
+        self.model_folder = model_folder
+        self.model_dir = f"{model_base_direc}{model_folder}/"
 
     def _log_dir(self, screen_num):
         return os.path.join(self.model_dir, f"screen{screen_num}", f"ppo_screen_{screen_num}_log")
@@ -167,7 +167,7 @@ class Analysis:
             print(f"No model found for screen {screen}, stopping.")
             return
 
-        jk = JumpKingRL.JumpKingRL()
+        jk = JumpKingRL.JumpKingRL(self.model_folder)
         model = jk.load_model(folder_name, screen=screen, only_agent=True)
         env = model.env.envs[0].env
         env.expected_screen = screen
@@ -318,9 +318,10 @@ class Analysis:
         
 #screen = 0
 #name = f"screen{screen}"
-analysis = Analysis()
+model_folder = "models"
+analysis = Analysis(model_folder)
 
-analysis.train_range(start_screen=35, end_screen=37, num_episodes=500)
+analysis.train_range(start_screen=0, end_screen=0, num_episodes=500)
 
 #analysis.combine_all()
 

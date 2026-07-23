@@ -104,7 +104,7 @@ class GameStateReceiver:
                 return self._buffer[0]
         return None
 
-    def wait_for_landing(self, jumped, prev_write_count, end_zone=None, end_zone_radius=80, timeout=15.0):
+    def wait_for_landing(self, jumped, prev_write_count, end_zone=None, end_zone_radius=60, timeout=10.0):
         def check_end_zone():
             data = self.read_gamedata()
             if data is None or end_zone is None:

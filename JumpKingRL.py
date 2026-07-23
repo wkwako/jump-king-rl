@@ -61,10 +61,10 @@ class FreezePolicyCallback(BaseCallback):
         return True
 
 class JumpKingCallback(BaseCallback):
-    def __init__(self, verbose=0):
+    def __init__(self, model_folder, verbose=0):
         super().__init__(verbose)
         self.best_reward = -np.inf
-        JK = JumpKingRL()
+        JK = JumpKingRL(model_folder)
         self.save_path = JK.model_direc
 
     # def _on_step(self) -> bool:
@@ -113,10 +113,11 @@ class EpisodeMode:
     JUMPED = "jumped"
 
 class JumpKingRL:
-
-    def __init__(self):
+    def __init__(self, model_folder="models"):
         self.X_by_screen = {}
-        self.model_direc = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/models/"
+        model_base_direc = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/"
+        self.model_folder = model_folder
+        self.model_direc = f"{model_base_direc}{model_folder}/"
         self.wind_path = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/recording_wind_only.txt"
         #self.model_direc = "C:/Users/wkwak/Documents/CodingWork/PythonStuff/jump-king-rl/models/"
         #self.wind_path = "C:/Users/wkwak/Documents/CodingWork/PythonStuff/jump-king-rl/recording_wind_only.txt"
@@ -258,13 +259,15 @@ class JumpKingRL:
         }
         return metadata
 
-    def load_model(self, name, screen=None, model_prefix="ppo", env=None, only_agent=False):
+    def load_model(self, name, screen=None, model_prefix="ppo", env=None, only_agent=False, filename=None):
         if screen is not None:
-            model_path = f"{self.model_direc}{name}/{model_prefix}_screen_{screen}"
             metadata_path = f"{self.model_direc}{name}/{model_prefix}_screen_{screen}_metadata.json"
+            default_model_path = f"{self.model_direc}{name}/{model_prefix}_screen_{screen}"
         else:
-            model_path = f"{self.model_direc}{name}"
             metadata_path = f"{self.model_direc}{name}_metadata.json"
+            default_model_path = f"{self.model_direc}{name}"
+
+        model_path = f"{self.model_direc}{name}/{filename}" if filename is not None else default_model_path
 
         if not only_agent:
             with open(metadata_path) as f:
@@ -610,7 +613,7 @@ class JumpKingRL:
     #             continue
 
     #         try:
-    #             jk_callback = JumpKingCallback()
+    #             jk_callback = JumpKingCallback(model_folder)
     #             callbacks = CallbackList([jk_callback])
                 
     #             log_path = f"{self.model_direc}{folder_name}/ppo_screen_{current_screen}_log/"
@@ -674,7 +677,7 @@ class JumpKingRL:
     #             continue
 
     #         try:
-    #             jk_callback = JumpKingCallback()
+    #             jk_callback = JumpKingCallback(model_folder)
     #             callbacks = CallbackList([jk_callback])
                 
     #             log_path = f"{self.model_direc}{folder_name}/dqn_screen_{current_screen}_log/"
@@ -911,7 +914,7 @@ class JumpKingRL:
 
         try:
             freeze_callback = FreezePolicyCallback(freeze_updates=freeze_updates)
-            jk_callback = JumpKingCallback()
+            jk_callback = JumpKingCallback(self.model_folder)
             callbacks = CallbackList([freeze_callback, jk_callback])
 
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -996,14 +999,21 @@ class JumpKingRL:
         
         while True:
             print(f"\n--- Loading model for screen {current_screen} ---")
-            
-            model_path = f"{self.model_direc}/screen{current_screen}/_best"
-            if not os.path.exists(model_path + ".zip"):
+
+            screen_dir = f"{self.model_direc}/screen{current_screen}"
+            best_zip = f"{screen_dir}/_best.zip"
+            fallback_zip = f"{screen_dir}/ppo_screen_{current_screen}.zip"  # confirm underscore
+
+            if os.path.exists(best_zip):
+                filename = "_best"
+            elif os.path.exists(fallback_zip):
+                filename = f"ppo_screen_{current_screen}"  # confirm underscore
+            else:
                 print(f"No model found for screen {current_screen}, stopping.")
                 break
 
             time.sleep(0.3)
-            model = self.load_model(f"screen{current_screen}", screen=current_screen, only_agent=True)
+            model = self.load_model(f"screen{current_screen}", screen=current_screen, only_agent=True, filename=filename)
             
             model.env.envs[0].env.play = True
             model.policy.set_training_mode(False)
@@ -1052,17 +1062,19 @@ class JumpKingRL:
         for screen, count in sorted(fall_counts.items()):
             print(f"  Screen {screen}: {count}")
 
-JK = JumpKingRL()
+model_folder = "models"
+JK = JumpKingRL(model_folder)
 parser = RecordingParser()
 records = parser.load_recording()
+
 screen = 0
 name = f"screen{screen}"
 #JK.create_BC_screen(name, screen=screen, records=records, epochs=200)
 #env = JK.create_RL_screen(name, screen=screen, action_cutoff=200, n_steps=2048, n_epochs=5, ent_coef=0.25, target_kl=0.03, learning_rate=0.0001, gamma=0.9995, gae_lambda=0.95, episode_mode=EpisodeMode.SCREEN) #wind
-#env = JK.create_RL_screen(name, screen=screen, action_cutoff=40, n_steps=512, n_epochs=5, ent_coef=0.05, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN) #normal
+#env = JK.create_RL_screen(name, screen=screen, action_cutoff=1000, n_steps=512, n_epochs=5, ent_coef=0.05, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN) #normal
 #JK.train_model_one_screen(name, screen=screen, freeze_updates=0)
 
-#JK.play_game_per_screen(start_screen=0)
+JK.play_game_per_screen(start_screen=0)
 
 
 
@@ -1292,11 +1304,11 @@ name = f"screen{screen}"
 
 
 #UNCOMMENT TO ADD PLATFORM DATA
-# JK = JumpKingRL()
+# JK = JumpKingRL(model_folder)
 # max_episode_actions = 8
 # env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=max_episode_actions, dummyenv=True)
 # n_steps=64
-# callback = JumpKingCallback()
+# callback = JumpKingCallback(model_folder)
 # platform_parser = PlatformParser()
 # #create, load, train model
 # #model = JK.create_model("dummy", env, "PPO", verbose=1, n_steps=n_steps)
@@ -1371,8 +1383,8 @@ name = f"screen{screen}"
 # )
 
 #transferring BC model to PPO weights
-# JK = JumpKingRL()
-# callback = JumpKingCallback()
+# JK = JumpKingRL(model_folder)
+# callback = JumpKingCallback(model_folder)
 # env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=8)
 
 # model = JK.create_model("jk_bc_ppo_valuepretraining", env, "PPO", verbose=1,
@@ -1384,7 +1396,7 @@ name = f"screen{screen}"
 # #model = JK.load_model("jk_bc_ppo_valuepretraining")
 # #freezing callback
 # freeze_callback = FreezePolicyCallback(freeze_updates=20)
-# jk_callback = JumpKingCallback()
+# jk_callback = JumpKingCallback(model_folder)
 # callbacks = CallbackList([freeze_callback, jk_callback])
 # JK.train_model("jk_bc_ppo_valuepretraining", model, total_timesteps=100000, callback=callbacks)
 
@@ -1412,11 +1424,11 @@ name = f"screen{screen}"
 # print(f"Average reward: {total_reward/num_episodes:.2f}")
 
 #regular PPO
-# JK = JumpKingRL()
+# JK = JumpKingRL(model_folder)
 # max_episode_actions = 8
 # env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=max_episode_actions)
 # n_steps=64
-# callback = JumpKingCallback()
+# callback = JumpKingCallback(model_folder)
 # platform_parser = PlatformParser()
 # # #create, load, train model
 # #model = JK.create_model("jk_ppo_dummy", env, "PPO", verbose=1, n_steps=n_steps)
