@@ -479,5 +479,83 @@
     "std_success_time": 6.966734226554905,
     "mean_actions_to_success": 10.983412322274882,
     "std_actions_to_success": 2.9367375237273468
+  },
+  "37": {
+    "wins": 389,
+    "losses": 111,
+    "fall_losses": 111,
+    "action_timeout_losses": 0,
+    "num_episodes": 500,
+    "target_episodes": 500,
+    "win_percentage": 0.778,
+    "mean_success_time": 10.560009836231222,
+    "std_success_time": 3.8538072258543252,
+    "mean_actions_to_success": 12.629820051413882,
+    "std_actions_to_success": 3.5416134738933445
+  },
+  "38": {
+    "wins": 423,
+    "losses": 77,
+    "fall_losses": 77,
+    "action_timeout_losses": 0,
+    "num_episodes": 500,
+    "target_episodes": 500,
+    "win_percentage": 0.846,
+    "mean_success_time": 9.821123520533243,
+    "std_success_time": 4.0092035021816805,
+    "mean_actions_to_success": 10.501182033096926,
+    "std_actions_to_success": 4.790331249611392
+  },
+  "39": {
+    "wins": 500,
+    "losses": 0,
+    "fall_losses": 0,
+    "action_timeout_losses": 0,
+    "num_episodes": 500,
+    "target_episodes": 500,
+    "win_percentage": 1.0,
+    "mean_success_time": 7.027833206653595,
+    "std_success_time": 0.3163830384487299,
+    "mean_actions_to_success": 6.328,
+    "std_actions_to_success": 0.7439912943658578
+  },
+  "40": {
+    "wins": 466,
+    "losses": 34,
+    "fall_losses": 34,
+    "action_timeout_losses": 0,
+    "num_episodes": 500,
+    "target_episodes": 500,
+    "win_percentage": 0.932,
+    "mean_success_time": 6.424972012319278,
+    "std_success_time": 1.8828271800251952,
+    "mean_actions_to_success": 8.034334763948499,
+    "std_actions_to_success": 2.065305124051657
+  },
+  "41": {
+    "wins": 460,
+    "losses": 40,
+    "fall_losses": 40,
+    "action_timeout_losses": 0,
+    "num_episodes": 500,
+    "target_episodes": 500,
+    "win_percentage": 0.92,
+    "mean_success_time": 7.457263413201208,
+    "std_success_time": 1.456053908154676,
+    "mean_actions_to_success": 7.51304347826087,
+    "std_actions_to_success": 1.2993393152127708
+  },
+  "42": {
+    "wins": 491,
+    "losses": 9,
+    "fall_losses": 9,
+    "action_timeout_losses": 0,
+    "num_episodes": 500,
+    "target_episodes": 500,
+    "win_percentage": 0.982,
+    "mean_success_time": 6.915752360388606,
+    "std_success_time": 3.9628394097642055,
+    "mean_actions_to_success": 7.6130346232179225,
+    "std_actions_to_success": 1.583380894788888
   }
 }
