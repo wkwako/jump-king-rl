@@ -315,13 +315,14 @@ class Analysis:
 
         t1 = time.time()
         print(f"Screens {start_screen} through {end_screen} completed in {round((t1-t0)/60, 4)} minutes.")
-        
+
 #screen = 0
 #name = f"screen{screen}"
 model_folder = "models"
 analysis = Analysis(model_folder)
 
-analysis.train_range(start_screen=0, end_screen=0, num_episodes=500)
+exclude = {2, 3, 4, 5, 6, 7, 8, 10, 11, 13, 14, 15, 16, 17, 18, 20, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31}
+analysis.train_range(start_screen=1, end_screen=32, num_episodes=500, skip_screens=exclude)
 
 #analysis.combine_all()
 

@@ -1074,7 +1074,7 @@ name = f"screen{screen}"
 #env = JK.create_RL_screen(name, screen=screen, action_cutoff=1000, n_steps=512, n_epochs=5, ent_coef=0.05, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN) #normal
 #JK.train_model_one_screen(name, screen=screen, freeze_updates=0)
 
-JK.play_game_per_screen(start_screen=0)
+#JK.play_game_per_screen(start_screen=0)
 
 
 

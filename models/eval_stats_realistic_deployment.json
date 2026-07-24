@@ -13,17 +13,17 @@
     "std_actions_to_success": 0.0
   },
   "1": {
-    "wins": 427,
-    "losses": 73,
-    "fall_losses": 73,
-    "action_timeout_losses": 0,
-    "num_episodes": 500,
+    "wins": 421,
+    "losses": 98,
+    "fall_losses": 56,
+    "action_timeout_losses": 42,
+    "num_episodes": 519,
     "target_episodes": 500,
-    "win_percentage": 0.854,
-    "mean_success_time": 9.363812919522895,
-    "std_success_time": 3.531416902011379,
-    "mean_actions_to_success": 7.494145199063232,
-    "std_actions_to_success": 2.3739269199200854
+    "win_percentage": 0.8111753371868978,
+    "mean_success_time": 9.947061377378246,
+    "std_success_time": 5.194806333643285,
+    "mean_actions_to_success": 8.037313432835822,
+    "std_actions_to_success": 3.9531042439278345
   },
   "2": {
     "wins": 500,
@@ -117,17 +117,17 @@
     "std_actions_to_success": 4.954179146685577
   },
   "9": {
-    "wins": 420,
-    "losses": 86,
-    "fall_losses": 65,
-    "action_timeout_losses": 21,
-    "num_episodes": 506,
+    "wins": 404,
+    "losses": 104,
+    "fall_losses": 76,
+    "action_timeout_losses": 28,
+    "num_episodes": 508,
     "target_episodes": 500,
-    "win_percentage": 0.8300395256916996,
-    "mean_success_time": 12.634261295991243,
-    "std_success_time": 5.462561963336043,
-    "mean_actions_to_success": 17.157004830917874,
-    "std_actions_to_success": 6.086700996580033
+    "win_percentage": 0.7952755905511811,
+    "mean_success_time": 13.307852312771962,
+    "std_success_time": 6.758342388612,
+    "mean_actions_to_success": 17.944444444444443,
+    "std_actions_to_success": 7.192608332676367
   },
   "10": {
     "wins": 500,
@@ -156,17 +156,17 @@
     "std_actions_to_success": 1.739388668255342
   },
   "12": {
-    "wins": 446,
-    "losses": 54,
-    "fall_losses": 54,
-    "action_timeout_losses": 0,
+    "wins": 451,
+    "losses": 49,
+    "fall_losses": 28,
+    "action_timeout_losses": 21,
     "num_episodes": 500,
     "target_episodes": 500,
-    "win_percentage": 0.892,
-    "mean_success_time": 11.806807253927394,
-    "std_success_time": 7.839698415886827,
-    "mean_actions_to_success": 10.11883408071749,
-    "std_actions_to_success": 5.016534860674645
+    "win_percentage": 0.902,
+    "mean_success_time": 11.67171094740045,
+    "std_success_time": 8.851877868313993,
+    "mean_actions_to_success": 10.117516629711751,
+    "std_actions_to_success": 5.89062751205964
   },
   "13": {
     "wins": 500,
@@ -247,17 +247,17 @@
     "std_actions_to_success": 0.7551426891402206
   },
   "19": {
-    "wins": 466,
-    "losses": 34,
-    "fall_losses": 34,
-    "action_timeout_losses": 0,
+    "wins": 473,
+    "losses": 27,
+    "fall_losses": 24,
+    "action_timeout_losses": 3,
     "num_episodes": 500,
     "target_episodes": 500,
-    "win_percentage": 0.932,
-    "mean_success_time": 6.788250430459117,
-    "std_success_time": 2.5335477367836767,
-    "mean_actions_to_success": 8.969957081545065,
-    "std_actions_to_success": 2.324058093004437
+    "win_percentage": 0.946,
+    "mean_success_time": 6.852935657440734,
+    "std_success_time": 2.562197623310755,
+    "mean_actions_to_success": 9.10782241014799,
+    "std_actions_to_success": 2.4240589022578156
   },
   "20": {
     "wins": 500,
@@ -273,17 +273,17 @@
     "std_actions_to_success": 0.0
   },
   "21": {
-    "wins": 403,
-    "losses": 97,
-    "fall_losses": 96,
-    "action_timeout_losses": 1,
+    "wins": 388,
+    "losses": 112,
+    "fall_losses": 109,
+    "action_timeout_losses": 3,
     "num_episodes": 500,
     "target_episodes": 500,
-    "win_percentage": 0.806,
-    "mean_success_time": 11.152165588610817,
-    "std_success_time": 8.772976186389862,
-    "mean_actions_to_success": 12.305210918114144,
-    "std_actions_to_success": 9.760497481544867
+    "win_percentage": 0.776,
+    "mean_success_time": 10.495959545533681,
+    "std_success_time": 4.607534484250637,
+    "mean_actions_to_success": 11.853092783505154,
+    "std_actions_to_success": 4.625685587473458
   },
   "22": {
     "wins": 500,
@@ -416,17 +416,17 @@
     "std_actions_to_success": 2.970245902521016
   },
   "32": {
-    "wins": 439,
-    "losses": 61,
+    "wins": 437,
+    "losses": 63,
     "fall_losses": 61,
-    "action_timeout_losses": 0,
+    "action_timeout_losses": 2,
     "num_episodes": 500,
     "target_episodes": 500,
-    "win_percentage": 0.878,
-    "mean_success_time": 14.574591456893364,
-    "std_success_time": 3.435864170527549,
-    "mean_actions_to_success": 13.931662870159453,
-    "std_actions_to_success": 4.1742715674666755
+    "win_percentage": 0.874,
+    "mean_success_time": 14.41880566850134,
+    "std_success_time": 3.3927555326742356,
+    "mean_actions_to_success": 13.196796338672769,
+    "std_actions_to_success": 4.42290626226209
   },
   "33": {
     "wins": 458,
