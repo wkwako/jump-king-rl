@@ -1062,11 +1062,10 @@ class JumpKingRL:
         for screen, count in sorted(fall_counts.items()):
             print(f"  Screen {screen}: {count}")
 
-model_folder = "models"
+model_folder = "models_bc_only"
 JK = JumpKingRL(model_folder)
 parser = RecordingParser()
 records = parser.load_recording()
-
 screen = 0
 name = f"screen{screen}"
 #JK.create_BC_screen(name, screen=screen, records=records, epochs=200)
@@ -1074,10 +1073,19 @@ name = f"screen{screen}"
 #env = JK.create_RL_screen(name, screen=screen, action_cutoff=1000, n_steps=512, n_epochs=5, ent_coef=0.05, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN) #normal
 #JK.train_model_one_screen(name, screen=screen, freeze_updates=0)
 
-#JK.play_game_per_screen(start_screen=0)
+#JK.play_game_per_screen(start_screen=2)
 
-
-
+#model_folder = "models_bc_only"
+#JK = JumpKingRL(model_folder)
+# for screen in range(0,43):
+#     action_cutoff = 100
+#     if screen in static_variables.WIND_SCREENS:
+#         action_cutoff = 250
+#     name = f"screen{screen}"
+#     parser = RecordingParser()
+#     records = parser.load_recording()
+#     JK.create_BC_screen(name, screen=screen, records=records, epochs=200)
+#     env = JK.create_RL_screen(name, screen=screen, action_cutoff=action_cutoff, n_steps=1024, n_epochs=5, ent_coef=0.05, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN) #normal
 
 # MODEL_PATH = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/models/screen30_dummy/bc_screen_30.pth"
 # SCREEN = 30

@@ -318,11 +318,10 @@ class Analysis:
 
 #screen = 0
 #name = f"screen{screen}"
-model_folder = "models"
+model_folder = "models_bc_only"
 analysis = Analysis(model_folder)
 
-exclude = {2, 3, 4, 5, 6, 7, 8, 10, 11, 13, 14, 15, 16, 17, 18, 20, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31}
-analysis.train_range(start_screen=1, end_screen=32, num_episodes=500, skip_screens=exclude)
+analysis.train_range(start_screen=6, end_screen=11, num_episodes=500)
 
 #analysis.combine_all()
 
