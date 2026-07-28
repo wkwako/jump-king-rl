@@ -157,6 +157,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         else:
             self.action_map = self.init_action_map()
 
+        print (f"Using action map: {self.action_map}")
+
         self.action_space = spaces.Discrete(len(self.action_map))
 
         #build dynamic observation space if per-screen agent

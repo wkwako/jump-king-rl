@@ -98,11 +98,11 @@ class BehavioralCloning:
         return dqn_model
         
     def train(self, X, y, action_dim, model_path, 
-      epochs=100, batch_size=64, lr=1e-3, hidden_dim=256, use_class_weights=False):
+      epochs=100, batch_size=64, lr=1e-3, hidden_dim=256, use_class_weights=False, random_state=42):
         """Trains BC policy on dataset and saves weights."""
 
         X_train, X_val, y_train, y_val = train_test_split(
-            X, y, test_size=0.2, random_state=42
+            X, y, test_size=0.2, random_state=random_state
         )
 
         train_dataset = JumpKingDataset(X_train, y_train)
