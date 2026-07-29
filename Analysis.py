@@ -321,7 +321,7 @@ class Analysis:
 model_folder = "models_bc_only"
 analysis = Analysis(model_folder)
 
-analysis.train_range(start_screen=18, end_screen=24, num_episodes=500)
+analysis.train_range(start_screen=27, end_screen=31, num_episodes=500)
 
 #analysis.combine_all()
 
