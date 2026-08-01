@@ -318,10 +318,15 @@ class Analysis:
 
 #screen = 0
 #name = f"screen{screen}"
-model_folder = "models_bc_only"
-analysis = Analysis(model_folder)
+#model_folder = "models_bc_only"
+#analysis = Analysis(model_folder)
+#analysis.train_range(start_screen=43, end_screen=43, num_episodes=500)
 
-analysis.train_range(start_screen=30, end_screen=34, num_episodes=500)
+model_folder = "models"
+analysis = Analysis(model_folder)
+analysis.train_range(start_screen=8, end_screen=8, num_episodes=500)
+
+
 
 #analysis.combine_all()
 
