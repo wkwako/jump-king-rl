@@ -104,6 +104,19 @@
     "std_actions_to_success": 4.767852267042639
   },
   "8": {
+    "wins": 28,
+    "losses": 1,
+    "fall_losses": 1,
+    "action_timeout_losses": 0,
+    "num_episodes": 29,
+    "target_episodes": 500,
+    "win_percentage": 0.9655172413793104,
+    "mean_success_time": 10.315203816802413,
+    "std_success_time": 2.1032919253220133,
+    "mean_actions_to_success": 11.074074074074074,
+    "std_actions_to_success": 1.9597081008292638
+  },
+  "8a": {
     "wins": 495,
     "losses": 5,
     "fall_losses": 5,

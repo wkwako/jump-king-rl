@@ -316,16 +316,11 @@ class Analysis:
         t1 = time.time()
         print(f"Screens {start_screen} through {end_screen} completed in {round((t1-t0)/60, 4)} minutes.")
 
-#screen = 0
-#name = f"screen{screen}"
-#model_folder = "models_bc_only"
-#analysis = Analysis(model_folder)
-#analysis.train_range(start_screen=43, end_screen=43, num_episodes=500)
-
-model_folder = "models"
+screen = 0
+name = f"screen{screen}"
+model_folder = "models_bc_only"
 analysis = Analysis(model_folder)
-analysis.train_range(start_screen=8, end_screen=8, num_episodes=500)
-
+#analysis.train_range(start_screen=8, end_screen=8, num_episodes=500)
 
 
 #analysis.combine_all()

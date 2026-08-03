@@ -259,7 +259,7 @@ class JumpKingRL:
         }
         return metadata
 
-    def load_model(self, name, screen=None, model_prefix="ppo", env=None, only_agent=False, filename=None):
+    def load_model(self, name, screen=None, model_prefix="ppo", env=None, only_agent=False, filename=None, spacing=None):
         if screen is not None:
             metadata_path = f"{self.model_direc}{name}/{model_prefix}_screen_{screen}_metadata.json"
             default_model_path = f"{self.model_direc}{name}/{model_prefix}_screen_{screen}"
@@ -274,14 +274,13 @@ class JumpKingRL:
                 self.metadata = json.load(f)
 
         parser = RecordingParser()
-        action_map = parser.get_screen_action_map(screen) if screen is not None else None
+        action_map = parser.get_screen_action_map(screen) if (screen is not None and spacing is None) else None
 
         if env is None:
             if only_agent:
-                # load env config from metadata
                 with open(metadata_path) as f:
                     saved_metadata = json.load(f)
-                
+
                 env_config = saved_metadata.get("env_config", {})
                 env = JumpKingEnv(
                     episode_mode=env_config.get("episode_mode", EpisodeMode.SCREEN),
@@ -290,6 +289,7 @@ class JumpKingRL:
                     action_map=action_map,
                     current_screen=env_config.get("current_screen", screen),
                     action_cutoff=env_config.get("action_cutoff", 22),
+                    spacing=spacing,
                     dummyenv=False
                 )
             else:
@@ -299,6 +299,7 @@ class JumpKingRL:
                     per_screen=screen is not None,
                     action_map=action_map,
                     current_screen=screen if screen is not None else 0,
+                    spacing=spacing,
                     dummyenv=False
                 )
 
@@ -835,25 +836,30 @@ class JumpKingRL:
     def create_RL_screen(self, name, screen, n_steps=2048, episode_mode=EpisodeMode.SCREEN,
                          freeze_updates=5, ent_coef=0.02, learning_rate=0.0001, vf_coef=0.5,
                         n_epochs=10, clip_range=0.2, target_kl=0.02, action_cutoff=22,
-                        gamma=0.99, gae_lambda=0.95, use_bc=True):
+                        gamma=0.99, gae_lambda=0.95, use_bc=True, spacing=None):
         """Creates a PPO model for one screen with BC weight transfer and value pretraining.
         Saves to models/<name>/."""
         folder_path = self.model_direc + name
         os.makedirs(folder_path, exist_ok=True)
- 
-        bc_model_path = f"{self.model_direc}{name}/bc_screen_{screen}.pth"
-        if not os.path.exists(bc_model_path):
-            print(f"No BC model found at {bc_model_path}. Run create_BC_screen first.")
-            return
- 
-        if screen not in self.X_by_screen:
-            print(f"No X data for screen {screen} in memory. Run create_BC_screen first.")
-            return
+
+        if use_bc:
+            bc_model_path = f"{self.model_direc}{name}/bc_screen_{screen}.pth"
+            if not os.path.exists(bc_model_path):
+                print(f"No BC model found at {bc_model_path}. Run create_BC_screen first.")
+                return
+    
+            if screen not in self.X_by_screen:
+                print(f"No X data for screen {screen} in memory. Run create_BC_screen first.")
+                return
  
         parser = RecordingParser()
         bc = BehavioralCloning()
- 
-        action_map = parser.get_screen_action_map(screen)
+
+        if use_bc:
+            action_map = parser.get_screen_action_map(screen)
+
+        else:
+            action_map = None
  
         env = JumpKingEnv(
             episode_mode=episode_mode,
@@ -862,6 +868,7 @@ class JumpKingRL:
             action_map=action_map,
             current_screen=screen,
             action_cutoff=action_cutoff,
+            spacing=spacing,
         )
  
         model_name = f"{name}/ppo_screen_{screen}"
@@ -880,11 +887,10 @@ class JumpKingRL:
             target_kl=target_kl, #added this. default is none
             policy_kwargs={"net_arch": [256, 256]}
         )
- 
-        bc_state = torch.load(bc_model_path)
-        print(f"BC input layer shape: {bc_state['net.0.weight'].shape}")
 
         if use_bc:
+            bc_state = torch.load(bc_model_path)
+            print(f"BC input layer shape: {bc_state['net.0.weight'].shape}")
             bc.transfer_weights_to_ppo(model, bc_model_path)
 
         #trying wind screen pretraining
@@ -897,13 +903,13 @@ class JumpKingRL:
         print(f"Screen {screen} PPO model saved to {self.model_direc}{model_name}")
         return env
 
-    def train_model_one_screen(self, folder_name, screen, total_timesteps=500000, freeze_updates=0):
+    def train_model_one_screen(self, folder_name, screen, total_timesteps=500000, freeze_updates=0, spacing=None):
         model_path = f"{self.model_direc}{folder_name}/ppo_screen_{screen}"
         if not os.path.exists(model_path + ".zip"):
             print(f"No model found for screen {screen}, stopping.")
             return
 
-        model = self.load_model(folder_name, screen=screen, only_agent=True)
+        model = self.load_model(folder_name, screen=screen, only_agent=True, spacing=spacing)
         model.env.envs[0].env.expected_screen = screen
         model.env.envs[0].env.total_screen_actions = 0
 
@@ -1062,16 +1068,17 @@ class JumpKingRL:
         for screen, count in sorted(fall_counts.items()):
             print(f"  Screen {screen}: {count}")
 
-model_folder = "models_bc_only"
+model_folder = "models_rl_only"
 JK = JumpKingRL(model_folder)
 parser = RecordingParser()
 records = parser.load_recording()
 screen = 0
 name = f"screen{screen}"
+spacing = 0.05
 #JK.create_BC_screen(name, screen=screen, records=records, epochs=200)
 #env = JK.create_RL_screen(name, screen=screen, action_cutoff=200, n_steps=2048, n_epochs=5, ent_coef=0.25, target_kl=0.03, learning_rate=0.0001, gamma=0.9995, gae_lambda=0.95, episode_mode=EpisodeMode.SCREEN) #wind
-#env = JK.create_RL_screen(name, screen=screen, action_cutoff=1000, n_steps=512, n_epochs=5, ent_coef=0.05, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN) #normal
-#JK.train_model_one_screen(name, screen=screen, freeze_updates=0)
+#env = JK.create_RL_screen(name, screen=screen, action_cutoff=100, n_steps=2048, n_epochs=5, ent_coef=0.10, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN, use_bc=False, spacing=spacing) #normal
+JK.train_model_one_screen(name, screen=screen, freeze_updates=0, spacing=spacing)
 
 #JK.play_game_per_screen(start_screen=2)
 
@@ -1086,6 +1093,16 @@ name = f"screen{screen}"
 #     records = parser.load_recording()
 #     JK.create_BC_screen(name, screen=screen, records=records, epochs=200)
 #     env = JK.create_RL_screen(name, screen=screen, action_cutoff=action_cutoff, n_steps=1024, n_epochs=5, ent_coef=0.05, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN) #normal
+
+# screen=8
+# model_folder = "models_bc_only"
+# JK = JumpKingRL(model_folder)
+# action_cutoff = 100
+# name = f"screen{screen}"
+# parser = RecordingParser()
+# records = parser.load_recording()
+# env = JK.create_RL_screen(name, screen=screen, action_cutoff=action_cutoff, n_steps=1024, n_epochs=5, ent_coef=0.05, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN) #normal
+
 
 # MODEL_PATH = "C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/models/screen30_dummy/bc_screen_30.pth"
 # SCREEN = 30

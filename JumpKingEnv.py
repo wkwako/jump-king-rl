@@ -1046,6 +1046,9 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             action_map.append([float(round(t, 2)), 0, float(round(t, 2))])
 
         return action_map
+
+    def rl_action_map(self):
+        pass
     
     def load_game_attributes(self):
         """Unpacks current gamedata dict into instance variables."""
