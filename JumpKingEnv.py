@@ -255,7 +255,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         #ice rewards 2
         #reward += self.ice_v0_reward()  # fires if wait_for_v0 was set. not working bc v is always 0, not updating state enough
-        reward += self.ice_new_platform_reward()
+        reward += self.new_platform_reward()
 
         #wind-specific rewards and penalties
         #reward += self.wind_jump()
@@ -493,10 +493,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         
         return 0
 
-    def ice_new_platform_reward(self):
+    def new_platform_reward(self):
         """Reward for jumping to a new unvisited platform, fires on landing."""
-        if self.expected_screen not in static_variables.ICE_SCREENS:
-            return 0
         
         if not self.jumped:
             return 0
@@ -510,11 +508,12 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         if current_platform_id == -1:
             return 0
         
-        if current_platform_id not in self.visited_platforms:
+        if current_platform_id not in self.visited_platforms \
+            and (self.expected_screen in static_variables.ICE_SCREENS or self.expected_screen in static_variables.PLATFORM_REWARD_SCREENS) \
+            and self.expected_screen == self.current_screen:
             self.visited_platforms.add(current_platform_id)
             print(f"New platform reward: {self.new_platform_reward}")
             return self.new_platform_reward
-        
         
         return 0
 
