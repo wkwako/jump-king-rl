@@ -104,17 +104,17 @@
     "std_actions_to_success": 4.285260290541197
   },
   "8": {
-    "wins": 445,
-    "losses": 55,
-    "fall_losses": 55,
+    "wins": 490,
+    "losses": 10,
+    "fall_losses": 10,
     "action_timeout_losses": 0,
     "num_episodes": 500,
     "target_episodes": 500,
-    "win_percentage": 0.89,
-    "mean_success_time": 11.13219395969691,
-    "std_success_time": 3.8826117105891966,
-    "mean_actions_to_success": 11.435955056179775,
-    "std_actions_to_success": 3.2699232431348477
+    "win_percentage": 0.98,
+    "mean_success_time": 10.041477459790755,
+    "std_success_time": 1.7142229342727922,
+    "mean_actions_to_success": 10.43061224489796,
+    "std_actions_to_success": 1.4820954714028456
   },
   "9": {
     "wins": 420,

@@ -106,7 +106,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.jump_cutoff_penalty = -70
 
         self.ice_stability_reward = 20
-        self.new_platform_reward = 30
+        self.new_platform_reward_value = 30
 
         self.recent_walk_actions = []
         self.recent_jump_actions = []
@@ -423,7 +423,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         return self.state, {}
     
     def wait_for_stun(self):
-        if self.y - self.max_height_this_jump < -170:
+        if self.y - self.max_height_this_jump < -190:
             time.sleep(1)
 
     def check_ice_stuck_penalty(self):
@@ -512,8 +512,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             and (self.expected_screen in static_variables.ICE_SCREENS or self.expected_screen in static_variables.PLATFORM_REWARD_SCREENS) \
             and self.expected_screen == self.current_screen:
             self.visited_platforms.add(current_platform_id)
-            print(f"New platform reward: {self.new_platform_reward}")
-            return self.new_platform_reward
+            print(f"New platform reward: {self.new_platform_reward_value}")
+            return self.new_platform_reward_value
         
         return 0
 
@@ -625,6 +625,10 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             else:
                 reward += self.falling_screen_penalty
                 print (f"Falling screen penalty: {self.falling_screen_penalty}")
+
+            #revert height penalty so only fall penalty applies
+            reward += -self.new_height_reward()
+            print (f"Reverting height penalty: {-self.new_height_reward()}")
 
             self.losses += 1
             self.fall_losses += 1
