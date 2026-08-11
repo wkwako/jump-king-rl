@@ -1075,10 +1075,10 @@ records = parser.load_recording()
 screen = 16
 name = f"screen{screen}"
 spacing = 0.05
-#JK.create_BC_screen(name, screen=screen, records=records, epochs=100)
+JK.create_BC_screen(name, screen=screen, records=records, epochs=100)
 #env = JK.create_RL_screen(name, screen=screen, action_cutoff=200, n_steps=2048, n_epochs=5, ent_coef=0.25, target_kl=0.03, learning_rate=0.0001, gamma=0.9995, gae_lambda=0.95, episode_mode=EpisodeMode.SCREEN) #wind
 #env = JK.create_RL_screen(name, screen=screen, action_cutoff=100, n_steps=2048, n_epochs=5, ent_coef=0.05, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN, use_bc=False, spacing=spacing) #RL only
-#env = JK.create_RL_screen(name, screen=screen, action_cutoff=100, n_steps=2048, n_epochs=5, ent_coef=0.05, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN) #normal
+env = JK.create_RL_screen(name, screen=screen, action_cutoff=100, n_steps=2048, n_epochs=5, ent_coef=0.05, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN) #normal
 #JK.train_model_one_screen(name, screen=screen, freeze_updates=0, spacing=spacing)
 JK.train_model_one_screen(name, screen=screen, freeze_updates=0)
 
