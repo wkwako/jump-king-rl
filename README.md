@@ -9,7 +9,7 @@ Jump King is deterministic in theory, but its physics engine can't be perfectly 
 
 # Results
 
-The agent has completed 11 of the 43 screens in the base game. Most screens can be completed 95% of the time without falls. Chained together, these 11 screens are reliably completed in ~3 minutes. Behavioral cloning (BC) initialization from user-recorded inputs significantly reduces training time versus pure RL. Full comparative results (BC, RL, BC+RL, hardcoded baseline) are in progress and will be documented in the full technical writeup.
+Each agent is trained on a different screen of the game, and are then chained together to play through the entire game. Agents reliably beat all screens in the base game (43) in ~10 minutes. Behavioral cloning (BC) initialization from user-recorded inputs significantly reduces training time versus pure RL. Full comparative results (BC, RL, BC+RL, hardcoded baseline) are in progress and will be documented in the full technical writeup.
 
 # Architecture
 
