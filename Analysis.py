@@ -9,6 +9,7 @@ import statistics
 
 import static_variables
 import JumpKingRL
+import RecordingParser
 
 class Analysis:
     # columns to keep, in this order (order doesn't matter for pandas access,
@@ -316,12 +317,45 @@ class Analysis:
         t1 = time.time()
         print(f"Screens {start_screen} through {end_screen} completed in {round((t1-t0)/60, 4)} minutes.")
 
+    def plot_histogram(self, screen):
+        parser = RecordingParser.RecordingParser()
+        records = parser.load_recording()
+        records = parser.clean_actions(records)   # drops malformed rows (both-directions-held, implausible durations)
+        by_screen = parser.split_recording_by_screen(records)
+        actions = [a for state, a in by_screen[screen]]
+        left_counts, right_counts, space_counts = parser.tally_actions(actions, threshold=0)  # raw, unsnapped
+
+        capped_space_counts = {}
+        for duration, count in space_counts.items():
+            key = min(duration, 0.6)
+            capped_space_counts[key] = capped_space_counts.get(key, 0) + count
+
+        durations = sorted(capped_space_counts.keys())
+        counts = [capped_space_counts[d] for d in durations]
+
+        fig, ax = plt.subplots(figsize=(7, 3))
+        ax.bar(durations, counts, width=0.04, color="steelblue", edgecolor="black")
+
+        curated = static_variables.SCREEN_ACTION_MAPS[screen]["jumps"]  # [0.1, 0.15, 0.45, 0.5, 0.7]
+        curated[-1] = 0.6
+        for c in curated:
+            ax.axvline(c, color="firebrick", linestyle="--", linewidth=1.2)
+
+        ax.set_xlabel("Jump charge duration (s)")
+        ax.set_ylabel("Count in recorded playthroughs")
+        ax.set_title("Screen 17: recorded jump durations vs. curated action set")
+        plt.tight_layout()
+        plt.savefig("screen17_jump_durations.png", dpi=150)
+        plt.show()
+
 screen = 0
 name = f"screen{screen}"
-model_folder = "models_bc_only"
+model_folder = "models"
 analysis = Analysis(model_folder)
-#analysis.train_range(start_screen=8, end_screen=8, num_episodes=500)
+analysis.train_range(start_screen=8, end_screen=8, num_episodes=500)
 
+
+#analysis.plot_histogram(17)
 
 #analysis.combine_all()
 

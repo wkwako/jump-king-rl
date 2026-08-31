@@ -39,8 +39,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.state = None
         self.gamedata = None
         #self.gamedata_prev = None
-        self.new_screen_reward_val = 150 #was 150
-        self.falling_screen_penalty = -150 #was -50
+        self.new_screen_reward_val = 150
+        self.falling_screen_penalty = -150
         self.jumped = False
         self.jumped_prev = False
         self.sleep_time = 0.1
@@ -92,8 +92,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         self.wind_jump_reward = 50 #was 80
         self.wind_jump_penalty = -100 #was -80
-        self.wind_screen_reward = 500 #was 3000
-        self.wind_screen_penalty = -300 #was -300
+        self.wind_screen_reward = 150 #was 500
+        self.wind_screen_penalty = -150 #was -300
         self.wind_noop_reward = 0.5 #was 20
         self.wind_height_scale = 3 #was 5
         self.last_jump_time = time.time()
@@ -106,14 +106,15 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.jump_cutoff_penalty = -70
 
         self.ice_stability_reward = 20
-        self.new_platform_reward = 30
+        self.new_platform_reward_value = 30
+        self.proximity_rewards = False
 
         self.recent_walk_actions = []
         self.recent_jump_actions = []
         self.action_repeat_penalty = -10
         self.action_cutoff = action_cutoff #20-30 depending on screen
         self.action_cutoff_penalty = -200 #was -50
-        self.wind_action_cutoff_penalty = -1000
+        self.wind_action_cutoff_penalty = -200 #was -1000
         self.ice_action_reward = 15
         self.ice_stuck_penalty = -20
 
@@ -172,13 +173,6 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
                 high=np.array([np.inf] * 25, dtype=np.float32),
                 dtype=np.float32
             )
-
-        #ray observation space
-        # self.observation_space = spaces.Box(
-        #     low=np.array([-np.inf] * 42, dtype=np.float32),
-        #     high=np.array([np.inf] * 42, dtype=np.float32),
-        #     dtype=np.float32
-        # )
 
     def _get_safe_default_state(self):
         """Returns a safe default state when current screen is invalid."""
@@ -255,13 +249,11 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         #ice rewards 2
         #reward += self.ice_v0_reward()  # fires if wait_for_v0 was set. not working bc v is always 0, not updating state enough
-        reward += self.new_platform_reward()
+        #reward += self.new_platform_reward()
 
-        #wind-specific rewards and penalties
-        #reward += self.wind_jump()
-        #reward += self.wind_noop()
+        #wind-specific rewards and penalties. penalty for agent if noops for entire wind cycle
         reward += self.check_noop_cycle_penalty()
-        reward += self.check_wind_walk_penalty(action)
+        #reward += self.check_wind_walk_penalty(action)
 
         #reads gamedata
         self.gamedata = self.read_gamedata()
@@ -284,7 +276,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         #entered alternate map
         if self.current_screen > 42 or self.current_screen < 0:
             print(f"Entered alternate map (screen {self.current_screen}), treating as fall")
-            reward += self.new_screen_reward()  # fires fall penalty since current < expected
+            reward += self.falling_screen_penalty
+            print (f"Falling screen penalty: {self.falling_screen_penalty}")
             self.force_teleport = True
             self.state = self._get_safe_default_state()  # return last known good state
             self.losses += 1
@@ -293,6 +286,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             self.episode_t1 = time.time()
             self.episode_timer = self.episode_t1 - self.episode_t0
             terminated = True
+            print ("--- EPISODE END ---")
             return self.state, reward, terminated, False, {"success":self.success, "episode_timer":self.episode_timer, "actions": self.action_counter}
 
         self.state = self.build_state_per_screen() if self.per_screen else self.build_state()
@@ -423,7 +417,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         return self.state, {}
     
     def wait_for_stun(self):
-        if self.y - self.max_height_this_jump < -170:
+        if self.y - self.max_height_this_jump < -190:
             time.sleep(1)
 
     def check_ice_stuck_penalty(self):
@@ -512,8 +506,8 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             and (self.expected_screen in static_variables.ICE_SCREENS or self.expected_screen in static_variables.PLATFORM_REWARD_SCREENS) \
             and self.expected_screen == self.current_screen:
             self.visited_platforms.add(current_platform_id)
-            print(f"New platform reward: {self.new_platform_reward}")
-            return self.new_platform_reward
+            print(f"New platform reward: {self.new_platform_reward_value}")
+            return self.new_platform_reward_value
         
         return 0
 
@@ -601,7 +595,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         return reward
 
-    def new_screen_reward(self):
+    def new_screen_reward(self, dist_rewards=False):
         reward = 0
         if self.current_screen == self.expected_screen + 1:
             if self.expected_screen in static_variables.WIND_SCREENS:
@@ -617,7 +611,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             print (f"Speed bonus: {self.speed_reward / self.action_counter:.2f} ({self.action_counter} actions)")
 
         #fell. apply penalty
-        elif self.current_screen < self.expected_screen:
+        elif not self.current_screen == self.expected_screen:
             if self.expected_screen in static_variables.WIND_SCREENS:
                 reward += self.wind_screen_penalty
                 print (f"Wind screen penalty: {self.wind_screen_penalty}")
@@ -625,6 +619,16 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             else:
                 reward += self.falling_screen_penalty
                 print (f"Falling screen penalty: {self.falling_screen_penalty}")
+
+            if not dist_rewards:
+                #revert height penalty so only fall penalty applies
+                reward += -self.new_height_reward()
+                print (f"Reverting height penalty: {-self.new_height_reward()}")
+
+                if self.proximity_rewards:
+                    prox_reward = self.get_goal_proximity_reward()
+                    reward += -prox_reward
+                    print (f"Reverting proximity penalty: {-prox_reward}")
 
             self.losses += 1
             self.fall_losses += 1
@@ -673,6 +677,7 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             improvement = -300
         
         print (f"goal proximity reward: {improvement}")
+        self.proximity_rewards = True
         return improvement
 
         # reward reduction in distance, don't punish increase
@@ -827,15 +832,6 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             return -100.0
         return 0.0
 
-    def build_state_ray(self):
-        #ray state building
-        # self.platform_parser.parse_result = self.platform_parser.read_platform_data((self.x, self.y), self.current_screen)
-        # self.ray_caster.build_ray_collision_index(self.platform_parser.current_tiles, self.platform_parser.next_tiles)
-        # ray_state_data = self.ray_caster.build_ray_states(num_angles=36)
-        # pos_state = [self.x, self.y, self.current_screen, self.is_on_ice, self.is_in_snow, self.wind_velocity]
-        # self.state = np.array(pos_state + ray_state_data, dtype=np.float32)
-        pass
-
     def add_landing(self):
         # if not self.jumped:
         #     return
@@ -947,20 +943,13 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         dist = self.y - self.y_prev
         reward = dist / 5
 
-        # if self.jump_percentage == 1 and self.y > self.y_prev:
-        #     reward *= self.max_jump_bonus
-
-        #temporary for wind screens - no height penalty:
-        # if self.current_screen in static_variables.WIND_SCREENS and reward < 0:
-        #     reward = 0
-
         if self.expected_screen in static_variables.ICE_SCREENS:
             reward *= 3
             if dist > 0 and dist < 20:
                 reward = 0
 
-        if self.expected_screen in static_variables.WIND_SCREENS:
-            reward *= self.wind_height_scale
+        # if self.expected_screen in static_variables.WIND_SCREENS:
+        #     reward *= self.wind_height_scale
 
         if reward < -100:
             reward = -100

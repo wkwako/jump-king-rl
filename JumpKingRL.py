@@ -1068,17 +1068,19 @@ class JumpKingRL:
         for screen, count in sorted(fall_counts.items()):
             print(f"  Screen {screen}: {count}")
 
-model_folder = "models_rl_only"
+model_folder = "models"
 JK = JumpKingRL(model_folder)
 parser = RecordingParser()
 records = parser.load_recording()
-screen = 0
+screen = 16
 name = f"screen{screen}"
 spacing = 0.05
-#JK.create_BC_screen(name, screen=screen, records=records, epochs=200)
+#JK.create_BC_screen(name, screen=screen, records=records, epochs=100)
 #env = JK.create_RL_screen(name, screen=screen, action_cutoff=200, n_steps=2048, n_epochs=5, ent_coef=0.25, target_kl=0.03, learning_rate=0.0001, gamma=0.9995, gae_lambda=0.95, episode_mode=EpisodeMode.SCREEN) #wind
-#env = JK.create_RL_screen(name, screen=screen, action_cutoff=100, n_steps=2048, n_epochs=5, ent_coef=0.10, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN, use_bc=False, spacing=spacing) #normal
-JK.train_model_one_screen(name, screen=screen, freeze_updates=0, spacing=spacing)
+#env = JK.create_RL_screen(name, screen=screen, action_cutoff=100, n_steps=2048, n_epochs=5, ent_coef=0.05, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN, use_bc=False, spacing=spacing) #RL only
+#env = JK.create_RL_screen(name, screen=screen, action_cutoff=100, n_steps=2048, n_epochs=5, ent_coef=0.05, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN) #normal
+#JK.train_model_one_screen(name, screen=screen, freeze_updates=0, spacing=spacing)
+JK.train_model_one_screen(name, screen=screen, freeze_updates=0)
 
 #JK.play_game_per_screen(start_screen=2)
 
@@ -1391,103 +1393,3 @@ JK.train_model_one_screen(name, screen=screen, freeze_updates=0, spacing=spacing
 # action_counts = np.bincount(action_indices, minlength=len(env.action_map))
 # for i, count in enumerate(action_counts):
 #     print(f"Action {i} {env.action_map[i]}: {count}")
-
-# # generate dataset
-# X, y_labels = bc.generate_dataset(records, action_indices)
-# print(f"Dataset shape: {X.shape}")
-
-# training BC model - only need to run this again if new env or more data
-# model = bc.train(
-#     X, y_labels,
-#     action_dim=28,
-#     model_path="models/bc_policy_sectors_tanh.pth",
-#     epochs=100,
-#     batch_size=64,
-#     lr=1e-3,
-#     hidden_dim=256
-# )
-
-#transferring BC model to PPO weights
-# JK = JumpKingRL(model_folder)
-# callback = JumpKingCallback(model_folder)
-# env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=8)
-
-# model = JK.create_model("jk_bc_ppo_valuepretraining", env, "PPO", verbose=1,
-#                          n_steps=2048, ent_coef=0.005, learning_rate=0.00003,
-#                          policy_kwargs={"net_arch": [256, 256]})
-
-# bc.transfer_weights_to_ppo(model, "models/bc_policy_sectors_tanh.pth")
-# JK.pretrain_value_function(model, X)
-# #model = JK.load_model("jk_bc_ppo_valuepretraining")
-# #freezing callback
-# freeze_callback = FreezePolicyCallback(freeze_updates=20)
-# jk_callback = JumpKingCallback(model_folder)
-# callbacks = CallbackList([freeze_callback, jk_callback])
-# JK.train_model("jk_bc_ppo_valuepretraining", model, total_timesteps=100000, callback=callbacks)
-
-# BC model testing, no RL
-#bc.load_model("models/bc_policy.pth")
-#print (bc.model)
-# env = JumpKingEnv(episode_mode=EpisodeMode.ACTION, max_episode_actions=100)
-# obs, _ = env.reset()
-# print("Running BC policy...")
-# total_reward = 0
-# num_episodes = 5
-# for episode in range(num_episodes):
-#     obs, _ = env.reset()
-#     episode_reward = 0
-#     done = False
-#     while not done:
-#         # generate fresh state from current game data
-#         state = bc.generate_state(env.gamedata)
-#         action_idx = bc.predict(state, temperature=1.5)
-#         obs, reward, terminated, truncated, info = env.step(action_idx)
-#         episode_reward += reward
-#         done = terminated or truncated
-#     print(f"Episode {episode+1}: reward={episode_reward:.2f}, screen={env.current_screen}")
-#     total_reward += episode_reward
-# print(f"Average reward: {total_reward/num_episodes:.2f}")
-
-#regular PPO
-# JK = JumpKingRL(model_folder)
-# max_episode_actions = 8
-# env = JumpKingEnv(episode_mode=EpisodeMode.ACTION_HEIGHT, max_episode_actions=max_episode_actions)
-# n_steps=64
-# callback = JumpKingCallback(model_folder)
-# platform_parser = PlatformParser()
-# # #create, load, train model
-# #model = JK.create_model("jk_ppo_dummy", env, "PPO", verbose=1, n_steps=n_steps)
-# model = JK.load_model("jk_ppo_dummy")
-# JK.train_model("jk_ppo_dummy", model, total_timesteps=10000, callback=callback) #default is 2k
-
-# #sector information debugging
-# gamedata = env.get_gamedata_old()
-# platform_parser.parse_result = platform_parser.read_platform_data((gamedata["x"], gamedata["y"]), gamedata["current_screen"])
-# pos_state_data = list(platform_parser.parse_result[0])
-# sector_state_data = platform_parser.process_registry(gamedata["current_screen"], (gamedata["x"], gamedata["y"]))
-# can_bounce_right, can_bounce_left = platform_parser.set_rebound_state((gamedata["x"], gamedata["y"]), gamedata["current_screen"])
-# pos_state = [gamedata["x"], gamedata["y"], gamedata["current_screen"], env.is_on_ice, env.is_in_snow, env.wind_velocity, can_bounce_left, can_bounce_right]
-# state = np.array(pos_state + pos_state_data + sector_state_data, dtype=np.float32)
-
-# print(f"x={gamedata['x']:.1f}, y={gamedata['y']:.1f}, screen={gamedata['current_screen']}")
-# print(f"left_wall={pos_state_data[0]}, right_wall={pos_state_data[1]}, ceiling={pos_state_data[2]}")
-# print(f"is_on_ice={pos_state[3]}, is_in_snow={pos_state[4]}, wind_velocity={pos_state[5]}")
-# print(f"can_bounce_left={pos_state[-2]}, can_bounce_right={pos_state[-1]}")
-# print(f"sectors: {sector_state_data}")
-
-
-# #ray info debugging
-# env.gamedata = env.read_gamedata()
-# env.load_game_attributes()
-# platform_parser = PlatformParser()
-# ray_caster = Ray()
-# platform_parser.parse_result = platform_parser.read_platform_data((env.x, env.y), env.current_screen)
-# ray_caster.build_ray_collision_index(platform_parser.current_tiles, platform_parser.next_tiles)
-# ray_data = ray_caster.build_ray_states(num_angles=36)
-# print(f"x={env.x:.1f}, y={env.y:.1f}, screen={env.current_screen}")
-# print(f"ray data ({len(ray_data)} values):")
-# for i, dist in enumerate(ray_data):
-#     angle = i * (360 / 36)
-#     print(f"  {angle:6.1f}°: {dist:.1f}px")
-
-
