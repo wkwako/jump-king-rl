@@ -7,8 +7,6 @@ from sklearn.model_selection import train_test_split
 from stable_baselines3.common.callbacks import CallbackList
 
 from PlatformParser import PlatformParser
-from Ray import Ray
-
 
 class JumpKingDataset(Dataset):
     def __init__(self, states, actions):
@@ -42,7 +40,6 @@ class BehavioralCloning:
         self.action_map = []
         self.records = []
         self.platform_parser = PlatformParser()
-        self.ray_caster = Ray(max_distance=600, step_size=8)
 
     def load_model(self, model_path, input_dim=42, output_dim=28, hidden_dim=256):
         """Loads a saved BC policy."""

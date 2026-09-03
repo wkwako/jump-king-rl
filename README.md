@@ -1,3 +1,22 @@
+# Repo Organization
+
+JumpKingRL.py - The entry point to the project. Contains a class-based management system for creating, modifying, and deleting BC, RL, and BC+RL models.
+
+JumpKingEnv.py - Contains the Gymnasium environment, including the step() and reset() functions,. Also holds reward logic, action space generation, and episode termination logic.
+
+BehavioralCloning.py - A PyTorch MLP that pulls human playthrough data and trains BC agents.
+
+GameStateReceiver.py - Contains logic for the TCP socket communication between the C# mod and Python. Also contains performs teleportation logic.
+
+GeneratePlatformIDs.py - Generates platform IDs for state representation use on wind screens. 
+
+PlatformParser.py - Ingests raw tile data and determines platform position for use in state representation.
+
+RecordingParser.py - Ingests human playthrough data, and creates states and action spaces for BC model construction. 
+
+static_variables.py - Holds unchanging variables like position information for the teleporter and action space information per screen.
+
+Analysis.py  - Functions used for analyzing the code, such as concatenating model data across sessions, and plotting/data analysis functions.
 
 # Introduction
 

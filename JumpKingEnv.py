@@ -18,7 +18,6 @@ from gymnasium.error import DependencyNotInstalled
 
 from PlatformParser import PlatformParser
 from RecordingParser import RecordingParser
-from Ray import Ray
 import static_variables
 from GameStateReceiver import GameStateReceiver
 import GeneratePlatformIDs
@@ -56,7 +55,6 @@ class JumpKingEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         self.exploration_reward = 0.1
         self.gamedata_start_of_episode = None
         self.platform_parser = PlatformParser()
-        self.ray_caster = Ray(max_distance=400, step_size=8)
         self.recording_parser = RecordingParser()
         self.total_screen_actions = 0
         self.expected_screen = None

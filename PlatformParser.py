@@ -4,8 +4,6 @@ import time
 import numpy as np
 import math
 
-from Ray import Ray
-
 class PlatformParser:
     def __init__(self):
         self.platform_path = "C:/Program Files (x86)/Steam/steamapps/workshop/content/1061090/3699885336/platformdata.txt"
@@ -17,7 +15,6 @@ class PlatformParser:
         self.current_platforms = None
         self.registry_threshold = 5
         self.tile_map = self.load_tile_map()
-        self.ray_caster = Ray()
 
     def load_tile_map(self):
         """Loads the full tile map from platformdata.txt, keyed by screen number."""
@@ -529,27 +526,6 @@ class PlatformParser:
                 blocked += 1
         
         return (blocked / steps) > threshold
-    
-
-    def detect_rebound_wall(self, player_position, direction='right', detection_range=100):
-        """Casts a 45 degree ray in given direction.
-        Returns (bounce_x, bounce_y) if wall hit within detection_range, else None."""
-        player_x, player_y = player_position
-        angle = 45 if direction == 'right' else 315
-
-        self.ray_caster.build_ray_collision_index(
-            self.current_tiles, self.next_tiles
-        )
-        dist = self.ray_caster.ray(angle)
-
-        if dist >= detection_range:
-            return None
-
-        angle_rad = math.radians(angle)
-        bounce_x = player_x + math.sin(angle_rad) * dist
-        bounce_y = player_y + math.cos(angle_rad) * dist  # negative because up = positive
-
-        return (bounce_x, bounce_y)
 
     def simulate_platform_detection(self, player_position, rebound_position, current_screen):
         """From rebound point, checks if any platforms are reachable in bounce direction.
