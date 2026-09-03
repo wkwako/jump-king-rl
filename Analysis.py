@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 import json
 import time
 import datetime
@@ -51,55 +52,52 @@ class Analysis:
 
     def combine_csvs(self, screen_num, write=True):
         """Concatenates every session's progress.csv for one screen, in
-        chronological order (session folders are named YYYYMMDD_HHMMSS, which
-        sorts correctly as plain strings). Applies a running offset to the
-        columns in CUMULATIVE_COLUMNS so they don't reset to 0 at each
-        session boundary. Writes the result to screen{N}/training.csv.
+        chronological order. Applies a running offset to CUMULATIVE_COLUMNS
+        so they don't reset at session boundaries. Skips empty session files.
+        Writes the result to screen{N}/training.csv.
         """
         log_dir = self._log_dir(screen_num)
         if not os.path.isdir(log_dir):
             print(f"No log directory for screen {screen_num}: {log_dir}")
             return None
-
+ 
         session_dirs = sorted(
             d for d in os.listdir(log_dir)
             if os.path.isdir(os.path.join(log_dir, d))
         )
-
+ 
         offsets = {c: 0.0 for c in self.CUMULATIVE_COLUMNS}
         frames = []
-
+ 
         for session in session_dirs:
             csv_path = os.path.join(log_dir, session, "progress.csv")
-            if not os.path.exists(csv_path):
+            if not os.path.exists(csv_path) or os.path.getsize(csv_path) == 0:
                 continue
-
+ 
             df = pd.read_csv(csv_path)
             cols_present = [c for c in self.KEEP_COLUMNS if c in df.columns]
             df = df[cols_present].copy()
-
+ 
             for col in self.CUMULATIVE_COLUMNS:
                 if col in df.columns:
                     df[col] = df[col] + offsets[col]
-                    # update offset for the next session using the last
-                    # non-null value in this (already-offset) column
                     non_null = df[col].dropna()
                     if len(non_null) > 0:
                         offsets[col] = non_null.iloc[-1]
-
+ 
             frames.append(df)
-
+ 
         if not frames:
-            print(f"No progress.csv files found for screen {screen_num}")
+            print(f"No usable progress.csv files found for screen {screen_num}")
             return None
-
+ 
         combined = pd.concat(frames, ignore_index=True)
-
+ 
         if write:
             out_path = self._training_csv_path(screen_num)
             combined.to_csv(out_path, index=False)
             print(f"Wrote {out_path} ({len(combined)} rows from {len(frames)} session(s))")
-
+ 
         return combined
 
     def combine_all(self, write=True):
@@ -134,7 +132,7 @@ class Analysis:
 
         plt.figure(figsize=(10, 5))
         plt.plot(x, df[column])
-        plt.xlabel("Total timesteps (cumulative across sessions)")
+        plt.xlabel("Total timesteps")
         plt.ylabel(column)
         plt.title(f"Screen {screen_num}: {column} over training")
         plt.grid(alpha=0.3)
@@ -348,12 +346,283 @@ class Analysis:
         plt.savefig("screen17_jump_durations.png", dpi=150)
         plt.show()
 
-screen = 0
-name = f"screen{screen}"
-model_folder = "models"
-analysis = Analysis(model_folder)
-analysis.train_range(start_screen=8, end_screen=8, num_episodes=500)
+    def plot_agent_comparison(self,
+        screen_num,
+        model_base="C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/",
+        left_folder="models",
+        right_folder="models_rl_only",
+        left_label="BC+RL",
+        right_label="Pure RL",
+        reward_col="rollout/ep_rew_mean",
+        length_col="rollout/ep_len_mean",
+        x_col="time/total_timesteps",
+        save_path=None,
+        show=True,
+    ):
+        """Plots a 2x2 comparison of two agents on the same screen.
+    
+        Layout: columns are agents (left_folder vs right_folder), rows are
+        metrics (ep_rew_mean on top, ep_len_mean on bottom):
+    
+                        {left_label}      {right_label}
+            ep_rew_mean  [top-left]        [top-right]
+            ep_len_mean  [bottom-left]     [bottom-right]
+    
+        Y-axes are SHARED WITHIN EACH ROW so the across-column (agent-vs-agent)
+        comparison sits on a common scale. Reward is deliberately NOT shared with
+        length (different quantities). Note the two agents may use different reward
+        functions (pure RL has proximity/platform shaping BC+RL lacks), so the
+        reward row compares convergence SHAPE, not absolute height — say so in the
+        caption. The length row is measured identically for both agents and is the
+        honest efficiency comparison.
+    
+        Expects each folder to contain screen{N}/training.csv (the combined,
+        offset CSV that Analysis.combine_csvs writes) — not a raw per-session
+        progress.csv, or the x-axis will reset at session boundaries.
+        """
+        def load(folder):
+            path = os.path.join(model_base, folder, f"screen{screen_num}", "training.csv")
+            if not os.path.exists(path):
+                print(f"Missing: {path}")
+                return None
+            return pd.read_csv(path)
+    
+        left = load(left_folder)
+        right = load(right_folder)
+    
+        if left is None and right is None:
+            print("Neither training.csv found — nothing to plot.")
+            return
+    
+        # sharey='row' puts both agents on the same scale per metric so the
+        # left-vs-right comparison is visually honest
+        fig, axes = plt.subplots(2, 2, figsize=(13, 8), sharex=False, sharey="row")
+    
+        # columns: (label, dataframe); rows: (metric column, y-axis label)
+        cols = [(left_label, left), (right_label, right)]
+        rows = [(reward_col, "Mean episode reward"),
+                (length_col, "Mean episode length (actions)")]
+    
+        for r, (metric, ylabel) in enumerate(rows):
+            for c, (label, df) in enumerate(cols):
+                ax = axes[r][c]
+    
+                if df is None:
+                    ax.text(0.5, 0.5, f"No data\n({label})", ha="center", va="center",
+                            transform=ax.transAxes, color="gray")
+                    ax.set_xticks([])
+                    ax.set_yticks([])
+                    continue
+    
+                if metric not in df.columns:
+                    ax.text(0.5, 0.5, f"'{metric}'\nnot in CSV", ha="center", va="center",
+                            transform=ax.transAxes, color="firebrick")
+                    continue
+    
+                x = df[x_col] if x_col in df.columns else df.index
+                # marker='o' so short/sparse runs read as discrete logged points
+                # rather than implying a resolution the data doesn't have
+                ax.plot(x, df[metric], marker="o", markersize=3, linewidth=1.3)
+                ax.grid(alpha=0.3)
+    
+                # metric label only on the leftmost column
+                if c == 0:
+                    ax.set_ylabel(ylabel)
+                # agent title only on the top row
+                if r == 0:
+                    ax.set_title(label, fontsize=12, fontweight="bold")
+                # compact tick labels ("50k" not "50000") and cap the number of
+                # ticks so wide-range axes (e.g. pure RL out to 350k) don't collide
+                ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=5, integer=True))
+                ax.xaxis.set_major_formatter(
+                    mticker.FuncFormatter(
+                        lambda v, _: "0" if v == 0 else f"{v/1000:g}k"
+                    )
+                )
+    
+                # x label only on the bottom row
+                if r == len(rows) - 1:
+                    ax.set_xlabel("Total timesteps")
+    
+        fig.suptitle(f"Screen {screen_num}: {left_label} vs {right_label}",
+                    fontsize=14, y=0.98)
+        fig.tight_layout(rect=[0, 0, 1, 0.96])
+    
+        if save_path:
+            fig.savefig(save_path, dpi=150, bbox_inches="tight")
+            print(f"Saved {save_path}")
+    
+        if show:
+            plt.show()
+        else:
+            plt.close(fig)
+    
+        return fig
 
+    def plot_screen_curves(self,
+        screen_num,
+        model_type,
+        model_base="C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/",
+        folder="models",
+        reward_col="rollout/ep_rew_mean",
+        length_col="rollout/ep_len_mean",
+        x_col="time/total_timesteps",
+        normalize_reward=False,
+        save_path=None,
+        show=True,
+    ):
+        """Plots one screen's training curves as two side-by-side panels:
+        ep_rew_mean (left) and ep_len_mean (right), both vs. total timesteps.
+    
+        Reads folder/screen{N}/training.csv (the combined, offset CSV that
+        Analysis.combine_csvs writes) — not a raw per-session progress.csv.
+    
+        normalize_reward: if True, min-max scales the reward curve to [0, 1]
+            via (r - min) / (max - min). Leave False for a single screen (you
+            want the true magnitude). Set True only when you're overlaying
+            MULTIPLE screens and want to compare convergence SHAPE rather than
+            absolute reward height — different screens plateau at different
+            magnitudes, so raw overlay would compare apples to oranges. Length
+            is never normalized (it's already a comparable unit: actions).
+        """
+        path = os.path.join(model_base, folder, f"screen{screen_num}", "training.csv")
+        if not os.path.exists(path):
+            print(f"Missing: {path}")
+            return None
+    
+        df = pd.read_csv(path)
+        x = df[x_col] if x_col in df.columns else df.index
+    
+        fig, (ax_rew, ax_len) = plt.subplots(1, 2, figsize=(13, 5))
+    
+        # --- reward panel ---
+        if reward_col in df.columns:
+            y = df[reward_col]
+            ylabel = "Mean episode reward"
+            if normalize_reward:
+                lo, hi = y.min(), y.max()
+                if hi > lo:  # avoid divide-by-zero on a flat curve
+                    y = (y - lo) / (hi - lo)
+                    ylabel = "Mean episode reward (min-max normalized)"
+                else:
+                    print(f"  Reward curve is flat for screen {screen_num}; "
+                        f"skipping normalization.")
+            ax_rew.plot(x, y, marker="o", markersize=3, linewidth=1.3)
+            ax_rew.set_ylabel(ylabel)
+        else:
+            ax_rew.text(0.5, 0.5, f"'{reward_col}'\nnot in CSV", ha="center",
+                        va="center", transform=ax_rew.transAxes, color="firebrick")
+        ax_rew.set_xlabel("Total timesteps")
+        ax_rew.set_title("Episode reward")
+        ax_rew.grid(alpha=0.3)
+    
+        # --- length panel ---
+        if length_col in df.columns:
+            ax_len.plot(x, df[length_col], marker="o", markersize=3, linewidth=1.3)
+            ax_len.set_ylabel("Mean episode length (actions)")
+        else:
+            ax_len.text(0.5, 0.5, f"'{length_col}'\nnot in CSV", ha="center",
+                        va="center", transform=ax_len.transAxes, color="firebrick")
+        ax_len.set_xlabel("Total timesteps")
+        ax_len.set_title("Episode length")
+        ax_len.grid(alpha=0.3)
+    
+        fig.suptitle(f"Screen {screen_num}: {model_type}", fontsize=14)
+        fig.tight_layout(rect=[0, 0, 1, 0.95])
+    
+        if save_path:
+            fig.savefig(save_path, dpi=150, bbox_inches="tight")
+            print(f"Saved {save_path}")
+    
+        if show:
+            plt.show()
+        else:
+            plt.close(fig)
+    
+        return fig
+    
+    def plot_screens_overlaid(self,
+        screen_nums,
+        model_base="C:/Users/wkwak/Documents/CodingWork/Environments/workStuffPython/JumpKingRL/",
+        folder="models",
+        reward_col="rollout/ep_rew_mean",
+        length_col="rollout/ep_len_mean",
+        x_col="time/total_timesteps",
+        normalize_reward=True,
+        save_path=None,
+        show=True,
+    ):
+        """Overlays several screens' curves on two shared panels — the figure
+        that actually lets you compare BC+RL screens TO EACH OTHER.
+    
+        ep_rew_mean (left) and ep_len_mean (right), one line per screen, all on
+        a common axis. reward defaults to min-max normalized here because screens
+        converge to different reward magnitudes and you want to compare shape;
+        set normalize_reward=False to see true magnitudes.
+        """
+        fig, (ax_rew, ax_len) = plt.subplots(1, 2, figsize=(13, 5))
+    
+        for screen_num in screen_nums:
+            path = os.path.join(model_base, folder, f"screen{screen_num}", "training.csv")
+            if not os.path.exists(path):
+                print(f"Missing: {path} — skipping screen {screen_num}")
+                continue
+            df = pd.read_csv(path)
+            x = df[x_col] if x_col in df.columns else df.index
+    
+            if reward_col in df.columns:
+                y = df[reward_col]
+                if normalize_reward:
+                    lo, hi = y.min(), y.max()
+                    if hi > lo:
+                        y = (y - lo) / (hi - lo)
+                ax_rew.plot(x, y, marker="o", markersize=2, linewidth=1.1,
+                            label=f"Screen {screen_num}")
+    
+            if length_col in df.columns:
+                ax_len.plot(x, df[length_col], marker="o", markersize=2, linewidth=1.1,
+                            label=f"Screen {screen_num}")
+    
+        ax_rew.set_xlabel("Total timesteps")
+        ax_rew.set_ylabel("Mean episode reward"
+                        + (" (min-max normalized)" if normalize_reward else ""))
+        ax_rew.set_title("Episode reward")
+        ax_rew.grid(alpha=0.3)
+        ax_rew.legend(fontsize=9)
+    
+        ax_len.set_xlabel("Total timesteps")
+        ax_len.set_ylabel("Mean episode length (actions)")
+        ax_len.set_title("Episode length")
+        ax_len.grid(alpha=0.3)
+        ax_len.legend(fontsize=9)
+    
+        fig.suptitle(f"{folder}: screens {', '.join(map(str, screen_nums))}", fontsize=14)
+        fig.tight_layout(rect=[0, 0, 1, 0.95])
+    
+        if save_path:
+            fig.savefig(save_path, dpi=150, bbox_inches="tight")
+            print(f"Saved {save_path}")
+    
+        if show:
+            plt.show()
+        else:
+            plt.close(fig)
+    
+        return fig
+
+#screen = 0
+#name = f"screen{screen}"
+
+model_folder = "models_rl_only"
+analysis = Analysis(model_folder)
+
+analysis.train_range(start_screen=0, end_screen=0, num_episodes=500, skip_screens={})
+
+#analysis.plot_screens_overlaid([0,1,2,3,4,5])
+
+#analysis.plot_screen_curves(screen_num=10, model_type="BC+RL", save_path=r"C:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\JumpKingRL\images\10_curves.png")
+
+#analysis.plot_agent_comparison(screen_num=1, save_path=r"C:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\JumpKingRL\images\1_comparison.png")
 
 #analysis.plot_histogram(17)
 

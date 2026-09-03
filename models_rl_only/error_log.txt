@@ -1,0 +1,66 @@
+
+[2026-08-31 12:06:36.305910] Screen 0 eval failed: Traceback (most recent call last):
+  File "C:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\JumpKingRL\Analysis.py", line 308, in train_range
+    stats = self.train_no_learning(name, screen, num_episodes)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\JumpKingRL\Analysis.py", line 172, in train_no_learning
+    model = jk.load_model(folder_name, screen=screen, only_agent=True)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\JumpKingRL\JumpKingRL.py", line 309, in load_model
+    model = model_class.load(
+            ^^^^^^^^^^^^^^^^^
+  File "c:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\jump_king_env\Lib\site-packages\stable_baselines3\common\base_class.py", line 760, in load
+    raise e
+  File "c:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\jump_king_env\Lib\site-packages\stable_baselines3\common\base_class.py", line 744, in load
+    model.set_parameters(params, exact_match=True, device=device)
+  File "c:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\jump_king_env\Lib\site-packages\stable_baselines3\common\base_class.py", line 633, in set_parameters
+    attr.load_state_dict(params[name], strict=exact_match)
+  File "c:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\jump_king_env\Lib\site-packages\torch\nn\modules\module.py", line 2639, in load_state_dict
+    raise RuntimeError(
+RuntimeError: Error(s) in loading state_dict for ActorCriticPolicy:
+	size mismatch for action_net.weight: copying a param with shape torch.Size([28, 256]) from checkpoint, the shape in current model is torch.Size([4, 256]).
+	size mismatch for action_net.bias: copying a param with shape torch.Size([28]) from checkpoint, the shape in current model is torch.Size([4]).
+
+[2026-08-31 12:07:12.819470] Screen 0 eval failed: Traceback (most recent call last):
+  File "C:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\JumpKingRL\Analysis.py", line 308, in train_range
+    stats = self.train_no_learning(name, screen, num_episodes)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\JumpKingRL\Analysis.py", line 172, in train_no_learning
+    model = jk.load_model(folder_name, screen=screen, only_agent=True)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\JumpKingRL\JumpKingRL.py", line 309, in load_model
+    model = model_class.load(
+            ^^^^^^^^^^^^^^^^^
+  File "c:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\jump_king_env\Lib\site-packages\stable_baselines3\common\base_class.py", line 760, in load
+    raise e
+  File "c:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\jump_king_env\Lib\site-packages\stable_baselines3\common\base_class.py", line 744, in load
+    model.set_parameters(params, exact_match=True, device=device)
+  File "c:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\jump_king_env\Lib\site-packages\stable_baselines3\common\base_class.py", line 633, in set_parameters
+    attr.load_state_dict(params[name], strict=exact_match)
+  File "c:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\jump_king_env\Lib\site-packages\torch\nn\modules\module.py", line 2639, in load_state_dict
+    raise RuntimeError(
+RuntimeError: Error(s) in loading state_dict for ActorCriticPolicy:
+	size mismatch for action_net.weight: copying a param with shape torch.Size([28, 256]) from checkpoint, the shape in current model is torch.Size([4, 256]).
+	size mismatch for action_net.bias: copying a param with shape torch.Size([28]) from checkpoint, the shape in current model is torch.Size([4]).
+
+[2026-09-03 01:46:31.400705] Screen 0 eval failed: Traceback (most recent call last):
+  File "C:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\JumpKingRL\Analysis.py", line 306, in train_range
+    stats = self.train_no_learning(name, screen, num_episodes)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\JumpKingRL\Analysis.py", line 170, in train_no_learning
+    model = jk.load_model(folder_name, screen=screen, only_agent=True)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\JumpKingRL\JumpKingRL.py", line 309, in load_model
+    model = model_class.load(
+            ^^^^^^^^^^^^^^^^^
+  File "c:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\jump_king_env\Lib\site-packages\stable_baselines3\common\base_class.py", line 760, in load
+    raise e
+  File "c:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\jump_king_env\Lib\site-packages\stable_baselines3\common\base_class.py", line 744, in load
+    model.set_parameters(params, exact_match=True, device=device)
+  File "c:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\jump_king_env\Lib\site-packages\stable_baselines3\common\base_class.py", line 633, in set_parameters
+    attr.load_state_dict(params[name], strict=exact_match)
+  File "c:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\jump_king_env\Lib\site-packages\torch\nn\modules\module.py", line 2639, in load_state_dict
+    raise RuntimeError(
+RuntimeError: Error(s) in loading state_dict for ActorCriticPolicy:
+	size mismatch for action_net.weight: copying a param with shape torch.Size([28, 256]) from checkpoint, the shape in current model is torch.Size([4, 256]).
+	size mismatch for action_net.bias: copying a param with shape torch.Size([28]) from checkpoint, the shape in current model is torch.Size([4]).

@@ -1072,7 +1072,7 @@ model_folder = "models"
 JK = JumpKingRL(model_folder)
 parser = RecordingParser()
 records = parser.load_recording()
-screen = 16
+screen = 1
 name = f"screen{screen}"
 spacing = 0.05
 #JK.create_BC_screen(name, screen=screen, records=records, epochs=100)
@@ -1080,9 +1080,9 @@ spacing = 0.05
 #env = JK.create_RL_screen(name, screen=screen, action_cutoff=100, n_steps=2048, n_epochs=5, ent_coef=0.05, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN, use_bc=False, spacing=spacing) #RL only
 #env = JK.create_RL_screen(name, screen=screen, action_cutoff=100, n_steps=2048, n_epochs=5, ent_coef=0.05, target_kl=0.02, learning_rate=0.0001, episode_mode=EpisodeMode.SCREEN) #normal
 #JK.train_model_one_screen(name, screen=screen, freeze_updates=0, spacing=spacing)
-JK.train_model_one_screen(name, screen=screen, freeze_updates=0)
+#JK.train_model_one_screen(name, screen=screen, freeze_updates=0)
 
-#JK.play_game_per_screen(start_screen=2)
+#JK.play_game_per_screen(start_screen=0)
 
 #model_folder = "models_bc_only"
 #JK = JumpKingRL(model_folder)

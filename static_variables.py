@@ -24,7 +24,7 @@ XY_STATE_SCREENS = [40, 41, 42, 22, 15]
 
 ONEHOT_SCREENS = []
 
-NONDETERMINISTIC_SCREENS = [1, 9, 11, 19, 21, 32, 33, 38]
+NONDETERMINISTIC_SCREENS = [9, 11, 19, 21, 32, 33, 38]
 
 SCREEN_START_POSITIONS = {
     #Redcrown Woods
@@ -96,7 +96,7 @@ SCREEN_ACTION_MAPS = {
     },
     1: {
         "walks": [0.1, 0.2],
-        "jumps": [0.3, 0.45, 0.7],
+        "jumps": [0.3, 0.50, 0.7],
     },
     2: {
         "walks": [0.1, 0.2],
