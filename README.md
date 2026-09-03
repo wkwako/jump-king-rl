@@ -18,7 +18,7 @@ I created a reinforcement learning (RL) agent to play and complete Jump King. I 
 Jump King is deterministic in theory, but its physics engine can't be perfectly simulated from outside the game without a full recreation, making planning intractable. It's a game that looks like it should be plannable, but isn't. This makes it an interesting testbed for comparing learned approaches like RL, BC, and hybrid methods.
 
 *Trained BC+RL agent playing Jump King, screens 8-9*
-![Agent playing Jump King](images/agent_demo2.gif)
+![Agent playing Jump King](images/agent_demo.gif)
 
 ### Previous Work
 
