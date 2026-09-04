@@ -320,10 +320,6 @@ I created a reinforcement learning agent to play and complete Jump King, from cr
 
 # References
 1. Nexile. 2019. Jump King. Microsoft Windows.
-2. Schulman, J.; Wolski, F.; Dhariwal, P.; Radford, A.; and
-Klimov, O. 2017. Proximal Policy Optimization Algorithms.
-arXiv:1707.06347.
-3. Code Bullet. 2022a. Jump-King. GitHub repository. Ac-
-cessed: 2026-07-22.
-4. Code Bullet. 2022b. AI Learns to Play JUMP KING.
-YouTube. Accessed: 2026-07-22.
+2. Schulman, J.; Wolski, F.; Dhariwal, P.; Radford, A.; and Klimov, O. 2017. Proximal Policy Optimization Algorithms. arXiv:1707.06347.
+3. Code Bullet. 2022a. Jump-King. GitHub repository. Accessed: 2026-07-22.
+4. Code Bullet. 2022b. AI Learns to Play JUMP KING. YouTube. Accessed: 2026-07-22.
