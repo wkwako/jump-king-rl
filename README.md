@@ -118,7 +118,7 @@ As part of the C# mod described above, I collect live game data for use in BC tr
 
 The BC NN is a 3-layer MLP with a hidden dimension of 256, an 80/20 train/test split, Adam optimization, and 100 epochs of training. Last, I transfer the learned BC weights into PPO by copying the two hidden layers and the output layer into PPO's policy network (the shared MLP extractor and the action head).
 
-#### RL-Specific Parameters
+### RL-Specific Parameters
 
 For most screens, the following RL hyperparameters were used: 
 
@@ -131,7 +131,7 @@ For most screens, the following RL hyperparameters were used:
 
 Other screens occasionally used different hyperparameters. For example, on wind screens (25-31), I used an ent_coef of 0.25 due to no-op class domination. 
 
-#### Evaluation
+### Evaluation
 
 To measure performance, I run each trained agent for 500 episodes on a given screen and record the outcome of each. An episode counts as a success if the agent progresses to the next screen, and a failure if it falls to the previous screen or hits the action timeout (100 actions for non-wind screens, 250 for wind screens). Completion rate is then successes/500.
 
@@ -157,7 +157,7 @@ I choose a sampling of screens across the base game that represent a diverse set
 
 For both pure BC and pure RL models, the same action space is used to minimize differences across models and provide cleaner comparisons. In addition, I trained pure RL models on a smaller subset of screens due to the length of time it takes to train them. 
 
-#### Completion Rate
+### Completion Rate
 
 Below, a table for the completion rate percentages compared between BC+RL, BC, and RL models is displayed. Completion rate is calculated as the percentage of the time the agent progressed to the next screen (successes/500). 
 
@@ -178,7 +178,7 @@ Below, a table for the completion rate percentages compared between BC+RL, BC, a
 | 38 | 84.6 | 57.6 | not evaluated |
 | 41 | 92.0 | 50.2 | not evaluated |
 
-#### Completion Time
+### Completion Time
 
 Next, I display a table comparing completion times between each model. Completion time is calculated as the average time it takes to progress to the next screen. There are two important notes to make. First, completion time is only reset on successes, not on failures. Without this modification, only times on successful episodes would be factored into average completion time, which biases the data in the agent's favor and makes its metrics appear better than its actual performance. Second, due to hardware and OS-level timing sensitivities, only data out to one decimal place is shown, as this is the most certain I can be.
 
@@ -199,7 +199,7 @@ Next, I display a table comparing completion times between each model. Completio
 | 38 | 9.8 ± 4.0 | 11.7 ± 6.9 | not evaluated |
 | 41 | 7.5 ± 1.5 | 10.4 ± 7.8 | not evaluated |
 
-#### Completion Actions
+### Completion Actions
 
 Below, a table for the number of actions it took on average to complete each screen is displayed. Similar to the completion time metric, the action counter is only reset on success, not on failure. 
 
@@ -220,7 +220,7 @@ Below, a table for the number of actions it took on average to complete each scr
 | 38 | 10.50 ± 4.79 | 11.02 ± 6.07 | not evaluated |
 | 41 | 7.51 ± 1.30 | 8.52 ± 3.97 | not evaluated |
 
-#### Timesteps to Converge
+### Timesteps to Converge
 
 Last, I display a table for the number of timesteps it took for each screen to converge.
 
@@ -241,7 +241,7 @@ Last, I display a table for the number of timesteps it took for each screen to c
 | 38 | 38912 | not evaluated |
 | 41 | 1792 | not evaluated |
 
-#### Reward and Episode Length Comparison Between Models
+### Reward and Episode Length Comparison Between Models
 
 Next, I compare episode reward and length between BC+RL models and RL models trained on selected screens. Below, I display a subplot comparing average reward per episode and average number of steps per episode against total timesteps, plotted for BC+RL and RL models on screen 1.
 
@@ -255,7 +255,7 @@ Next, I display a similar set of subplots for screen 3.
 
 The differences are even more stark here. The BC+RL model converges after ~8k time steps, and the pure RL model continues to rise after 300k time steps. Ep_len_mean never increases for BC+RL, and RL sees a spike in actions, then a precipitous drop and a leveling off. This graph starts low as episodes end almost immediately with RL falling to a previous screen. At ~110k timesteps, episode length stabilizes while average reward continues to increase.
 
-#### BC+RL Screen Comparison
+### BC+RL Screen Comparison
 
 Next, I compare how screen difficulty affects BC+RL model learning. I select an easy, medium, and hard screen and plot ep_rew_mean against time steps for each. Difficulty was determined by action space diversity, required jump precision, and more informally, how difficult each screen was for me across playthroughs. I selected the following screens:
 - Screen 10 - Easy: has an action space of 10 and very wide jump windows.
@@ -274,7 +274,7 @@ Screen 10's average reward starts high, near 185, and climbs to roughly 217, wit
 
 # Discussion
 
-#### Findings from Data
+### Findings from Data
 
 Findings from data include data-driven key takeaways. There are several:
 1. **BC + RL wins broadly.** BC+RL models outperform nearly every BC-only or RL-only model. Notable exceptions include screens 0, 1, and 3, where the BC+RL models had a slightly higher completion time and actions-to-completion metric compared to RL-only models. Screen 8 has marginally worse metrics compared to BC-only stats. Note, however, that for all four screens, the differences are within one standard deviation.
@@ -285,7 +285,7 @@ Findings from data include data-driven key takeaways. There are several:
 6. **BC starts with a much higher average reward compared to RL-only models.** On screen 1, BC+RL's average reward starts at -20, versus pure RL's -100. And on screen 3, BC+RL starts at 130 -- near its final convergence reward of 250 -- while pure RL starts at -150.
 7. **BC fails catastrophically with bad data.** For example, for screen 1, both BC+RL and RL had completion percentages of 100%, while pure BC had a completion rate of 0.6%. In addition, pure BC's average completion time is 722.0 ± 858.61, with an average action count of 921.6 ± 1079.3. BC occasionally stumbles into a success after ~920 actions, but successes are rare, not the norm.
 
-#### Core Findings
+### Core Findings
 
 Core findings are things I discovered about the problem, including their resolution when the fix was obvious and had no real design space.
 
@@ -294,7 +294,7 @@ Core findings are things I discovered about the problem, including their resolut
 3. **Episode termination logic implicitly functions as part of the reward signal.** A criterion that seems intuitively correct (terminate episode on height change) can prevent the agent from learning the downstream consequences of its actions, causing the agent to optimize for local maxima and failing to discover the global maximum. Thus, episodes were instead terminated on screen success or failure. Early models terminated episode on height gain, but this caused the agent to frequently get stuck near walls, unable to execute action sequences required for non-vertical progression.
 4. **Standard cross-entropy loss fails on screens with severely imbalanced action distributions.** On wind screens, for example, no-ops constitute 95% of the action space. Jumps are necessary to complete each wind screen, but standard loss functions cause no-ops to dominate the learning space. I introduced a class-weighted loss function that inversely weights actions by frequency, which keeps rare actions learnable. 
 
-#### Design Considerations
+### Design Considerations
 
 Design considerations include open solution spaces, where I picked one of several defensible paths.
 
