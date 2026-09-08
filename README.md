@@ -272,6 +272,16 @@ Note that screen 37 was trained using n_steps=512 instead of the typical n_steps
 
 Screen 10's average reward starts high, near 185, and climbs to roughly 217, with brief dips along the way; its episode length falls from about 11.4 actions to 10.6 as training proceeds. Average reward for screen 39 starts lower but rises more precipitously compared to screen 10. Episode length increases as total time steps do as well, as the agent learns to progress farther along without falling. Last, average reward per episode for screen 37 starts the lowest of all three screens at nearly zero, but rises the fastest. Average episode length increases for the first several thousand time steps, but does not continue increasing like episode reward does.
 
+### BC+RL Seed Robustness
+
+To test whether BC+RL's success on a given screen depends on a lucky seed, I trained five agents on screen 16, each with a different random seed. Screen 16 was chosen because it demands above-average precision, as its jump window is among the tighter ones in the game, but isn't as punishing as screen 37. This makes it a meaningful stress test without being an outlier. I used a mean-episode-reward threshold of 160 as the convergence bar, since the full game was completed with a screen 16 agent whose convergence reward was 160. Reaching that bar is what I treat as "playthrough-ready."
+
+I plot raw mean episode reward against timesteps for all five seeds below, with the deployment threshold marked.
+
+![Five seeds on screen 16, raw mean episode reward; all cross the deployment threshold of 160](images/16_seeds_raw.png)
+
+All five seeds follow the same learning trajectory and cross the deployment threshold, reaching it at 36045 +/- 12424 timesteps (n=5). Seed 16a was trained substantially longer (to ~61k timesteps) because it served as the agent in the full-game playthrough, while seeds 16b–16e were stopped once they crossed the threshold, which is why their curves terminate earlier. The seeds converge to somewhat different absolute reward values, but all clear the bar that determines playthrough readiness, indicating that BC+RL's ability to solve this precision-critical screen is robust to seed choice rather than an artifact of a single fortunate run.
+
 # Discussion
 
 ### Findings from Data

@@ -679,4 +679,4 @@ spacing = 0.05
 #JK.train_model_one_screen(name, screen=screen, freeze_updates=0, spacing=spacing)
 #JK.train_model_one_screen(name, screen=screen, freeze_updates=0)
 
-JK.play_game_per_screen(start_screen=0)
+#JK.play_game_per_screen(start_screen=0)

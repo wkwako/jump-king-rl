@@ -610,15 +610,343 @@ class Analysis:
     
         return fig
 
+    def _seed_csv_path(self, seed_id):
+        """training.csv for one seed, using the same layout as the rest of
+        the class. seed_id is whatever the folder is named, e.g. '16a'."""
+        return os.path.join(self.model_dir, f"screen{seed_id}", "training.csv")
+ 
+    def seed_agreement_stats(
+        self,
+        seed_ids,
+        x_col="time/total_timesteps",
+        reward_col="rollout/ep_rew_mean",
+        smooth_window=1,
+        cutoff=None,
+        verbose=True,
+    ):
+        """Single defensible 'all N seeds agree' statistic at a common timestep
+        cutoff derived FROM THE DATA, not hard-coded.
+ 
+        Why: when seeds stop under different rules (one deployment seed trained
+        far longer than the rest), per-seed min-max normalization forces every
+        curve to 1.0 at its own peak and manufactures agreement. Instead we:
+          1. find each seed's last recorded timestep,
+          2. take the MIN of those as the cutoff (every seed provably reached it),
+          3. read each seed's reward at/just before that cutoff,
+          4. report mean +/- std across seeds, raw and shared-scale normalized.
+ 
+        cutoff=None derives the cutoff automatically (recommended). Pass an int
+        only if you have a principled reason and know every seed reached it.
+ 
+        Returns a dict of results.
+        """
+        seeds = []
+        for sid in seed_ids:
+            path = self._seed_csv_path(sid)
+            if not os.path.exists(path):
+                print(f"Missing: {path} — skipping seed {sid}")
+                continue
+            df = pd.read_csv(path)
+            if x_col not in df.columns or reward_col not in df.columns:
+                print(f"{path} missing '{x_col}' or '{reward_col}' — skipping")
+                continue
+            df = df[[x_col, reward_col]].dropna().sort_values(x_col)
+            x = df[x_col].to_numpy(dtype=float)
+            y = df[reward_col].to_numpy(dtype=float)
+            if smooth_window and smooth_window > 1:
+                y = pd.Series(y).rolling(smooth_window, min_periods=1).mean().to_numpy()
+            if len(x) == 0:
+                print(f"{path} has no usable rows — skipping")
+                continue
+            seeds.append({"id": sid, "x": x, "y": y, "last_x": float(x[-1])})
+ 
+        if len(seeds) < 2:
+            print("Need at least 2 seeds with usable data.")
+            return None
+ 
+        derived_cutoff = min(s["last_x"] for s in seeds)
+        if cutoff is None:
+            cutoff = derived_cutoff
+        elif cutoff > derived_cutoff:
+            print(f"WARNING: requested cutoff {cutoff:.0f} exceeds the shortest "
+                  f"seed's last timestep {derived_cutoff:.0f}; falling back.")
+            cutoff = derived_cutoff
+ 
+        def reward_at(x, y, c):
+            mask = x <= c
+            return float(y[mask][-1]) if mask.any() else float("nan")
+ 
+        for s in seeds:
+            s["reward_at_cutoff"] = reward_at(s["x"], s["y"], cutoff)
+ 
+        import numpy as np
+        raw = np.array([s["reward_at_cutoff"] for s in seeds], dtype=float)
+ 
+        # shared-scale normalization: one lo/hi for ALL seeds (over data up to
+        # the cutoff), so we don't manufacture agreement the way per-seed does.
+        all_y_upto = np.concatenate([s["y"][s["x"] <= cutoff] for s in seeds])
+        lo, hi = float(all_y_upto.min()), float(all_y_upto.max())
+        norm = (raw - lo) / (hi - lo) if hi > lo else np.zeros_like(raw)
+ 
+        ids = [s["id"] for s in seeds]
+        result = {
+            "cutoff": cutoff,
+            "derived_cutoff": derived_cutoff,
+            "seed_ids": ids,
+            "last_x_per_seed": {s["id"]: s["last_x"] for s in seeds},
+            "raw_per_seed": dict(zip(ids, raw.tolist())),
+            "norm_per_seed": dict(zip(ids, norm.tolist())),
+            "raw_mean": float(np.mean(raw)),
+            "raw_std": float(np.std(raw, ddof=1)),
+            "raw_min": float(np.min(raw)),
+            "raw_max": float(np.max(raw)),
+            "raw_cv": float(np.std(raw, ddof=1) / np.mean(raw)) if np.mean(raw) != 0 else 0.0,
+            "norm_mean": float(np.mean(norm)),
+            "norm_std": float(np.std(norm, ddof=1)),
+            "shared_lo": lo,
+            "shared_hi": hi,
+            "n_seeds": len(seeds),
+        }
+ 
+        if verbose:
+            print(f"\n=== Seed agreement @ common cutoff {cutoff:.0f} timesteps "
+                  f"(n={result['n_seeds']}) ===")
+            print("Per-seed final timestep (shows the stopping-rule spread):")
+            for s in seeds:
+                mark = "  <- cutoff here" if s["last_x"] == derived_cutoff else ""
+                print(f"  {str(s['id']):>6}: last step {s['last_x']:>9.0f}{mark}")
+            print("\nPer-seed reward at cutoff:")
+            for sid, r, n in zip(ids, raw, norm):
+                print(f"  {str(sid):>6}: raw {r:8.2f}   shared-norm {n:5.3f}")
+            print(f"\nRAW   mean +/- std : {result['raw_mean']:.2f} +/- {result['raw_std']:.2f}"
+                  f"   (min {result['raw_min']:.2f}, max {result['raw_max']:.2f}, "
+                  f"CV {result['raw_cv']*100:.1f}%)")
+            print(f"NORM  mean +/- std : {result['norm_mean']:.3f} +/- {result['norm_std']:.3f}"
+                  f"   (shared scale [{lo:.2f}, {hi:.2f}])")
+            print("\nSuggested sentence:")
+            print(f"  All {result['n_seeds']} seeds reached the deployment threshold on "
+                  f"screen 16; at a common {cutoff:.0f}-timestep cutoff their mean "
+                  f"episode reward was {result['raw_mean']:.1f} +/- "
+                  f"{result['raw_std']:.1f} (n={result['n_seeds']}).")
+ 
+        return result
+ 
+    def timesteps_to_threshold(
+        self,
+        seed_ids,
+        threshold,
+        x_col="time/total_timesteps",
+        reward_col="rollout/ep_rew_mean",
+        smooth_window=1,
+        require_sustained=True,
+        verbose=True,
+    ):
+        """Timesteps each seed takes to first reach `threshold` mean episode
+        reward — the stopping-rule-independent statistic for the screen-16 seed
+        result. Reports mean +/- std of timesteps-to-threshold across seeds.
+ 
+        threshold: raw ep_rew_mean bar you consider "playthrough-ready" (~160).
+        require_sustained: if True, the crossing only counts if the reward stays
+        >= threshold for the rest of the recorded curve (guards against a lone
+        noisy spike counting as convergence). If a seed crosses only transiently,
+        its first-crossing step is still reported but flagged.
+ 
+        Returns a dict with per-seed crossing timesteps and the aggregate.
+        """
+        import numpy as np
+ 
+        rows = []
+        for sid in seed_ids:
+            path = self._seed_csv_path(sid)
+            if not os.path.exists(path):
+                print(f"Missing: {path} — skipping seed {sid}")
+                continue
+            df = pd.read_csv(path)
+            if x_col not in df.columns or reward_col not in df.columns:
+                print(f"{path} missing columns — skipping")
+                continue
+            df = df[[x_col, reward_col]].dropna().sort_values(x_col)
+            x = df[x_col].to_numpy(dtype=float)
+            y = df[reward_col].to_numpy(dtype=float)
+            if smooth_window and smooth_window > 1:
+                y = pd.Series(y).rolling(smooth_window, min_periods=1).mean().to_numpy()
+ 
+            at_or_above = y >= threshold
+            if not at_or_above.any():
+                rows.append({"id": sid, "cross_step": None, "sustained": False,
+                             "max_reward": float(y.max())})
+                continue
+ 
+            first_idx = int(np.argmax(at_or_above))  # first True
+            # sustained = stays >= threshold from first crossing to end
+            sustained = bool(at_or_above[first_idx:].all())
+            if require_sustained and not sustained:
+                # first index from which it stays above for the remainder
+                sustained_idx = None
+                for i in range(len(y)):
+                    if at_or_above[i:].all():
+                        sustained_idx = i
+                        break
+                cross_step = float(x[sustained_idx]) if sustained_idx is not None else float(x[first_idx])
+                sustained = sustained_idx is not None
+            else:
+                cross_step = float(x[first_idx])
+ 
+            rows.append({"id": sid, "cross_step": cross_step, "sustained": sustained,
+                         "max_reward": float(y.max())})
+ 
+        crossed = [r for r in rows if r["cross_step"] is not None]
+        steps = np.array([r["cross_step"] for r in crossed], dtype=float)
+ 
+        result = {
+            "threshold": threshold,
+            "per_seed": {r["id"]: r["cross_step"] for r in rows},
+            "sustained": {r["id"]: r["sustained"] for r in rows},
+            "n_crossed": len(crossed),
+            "n_total": len(rows),
+            "mean_steps": float(np.mean(steps)) if len(steps) else float("nan"),
+            "std_steps": float(np.std(steps, ddof=1)) if len(steps) > 1 else 0.0,
+            "min_steps": float(np.min(steps)) if len(steps) else float("nan"),
+            "max_steps": float(np.max(steps)) if len(steps) else float("nan"),
+        }
+ 
+        if verbose:
+            print(f"\n=== Timesteps to threshold (reward >= {threshold}) ===")
+            for r in rows:
+                if r["cross_step"] is None:
+                    print(f"  {str(r['id']):>6}: NEVER reached "
+                          f"(max {r['max_reward']:.1f})")
+                else:
+                    flag = "" if r["sustained"] else "  (transient — did not stay above)"
+                    print(f"  {str(r['id']):>6}: {r['cross_step']:>8.0f} steps{flag}")
+            print(f"\n{result['n_crossed']}/{result['n_total']} seeds reached threshold.")
+            if result["n_crossed"]:
+                print(f"Timesteps-to-threshold: {result['mean_steps']:.0f} +/- "
+                      f"{result['std_steps']:.0f}  "
+                      f"(min {result['min_steps']:.0f}, max {result['max_steps']:.0f})")
+                print("\nSuggested sentence:")
+                print(f"  All {result['n_crossed']} seeds on screen 16 reached the "
+                      f"deployment threshold ({threshold} mean episode reward), at "
+                      f"{result['mean_steps']:.0f} +/- {result['std_steps']:.0f} "
+                      f"timesteps (n={result['n_crossed']}).")
+ 
+        return result
+ 
+    def plot_seeds_with_cutoff(
+        self,
+        seed_ids,
+        x_col="time/total_timesteps",
+        reward_col="rollout/ep_rew_mean",
+        smooth_window=1,
+        normalize="none",     # "none" (raw, recommended), "shared", or "per_seed"
+        cutoff=None,
+        threshold=None,       # draw a horizontal line at this RAW reward (only when normalize="none")
+        show_cutoff_line=True,
+        title=None,
+        save_path=None,
+        show=True,
+    ):
+        """Redraws the seed overlay so the figure and the reported claim tell the
+        same story.
+ 
+        For the screen-16 seed result the honest picture is RAW reward
+        (normalize="none") with a horizontal threshold line: every seed traces
+        the same rise and crosses the deployment bar, which is the actual claim.
+        Pass threshold=160 (or your bar) to draw it.
+ 
+        normalize:
+          "none"     - raw ep_rew_mean (recommended here; pair with threshold=)
+          "shared"   - one lo/hi over all seeds (shape comparison, hides magnitude)
+          "per_seed" - each curve to its own 1.0 (manufactures agreement; avoid)
+ 
+        show_cutoff_line: the common-cutoff vertical line is only meaningful if
+        you're reporting a reward-at-cutoff number. For the threshold framing you
+        can turn it off so the eye goes to the threshold crossing instead.
+        """
+        import numpy as np
+ 
+        loaded = []
+        for sid in seed_ids:
+            path = self._seed_csv_path(sid)
+            if not os.path.exists(path):
+                print(f"Missing: {path} — skipping seed {sid}")
+                continue
+            df = pd.read_csv(path)[[x_col, reward_col]].dropna().sort_values(x_col)
+            x = df[x_col].to_numpy(dtype=float)
+            y = df[reward_col].to_numpy(dtype=float)
+            if smooth_window and smooth_window > 1:
+                y = pd.Series(y).rolling(smooth_window, min_periods=1).mean().to_numpy()
+            loaded.append((sid, x, y))
+ 
+        if not loaded:
+            print("No seeds loaded.")
+            return None
+ 
+        derived_cutoff = min(x[-1] for _, x, _ in loaded)
+        if cutoff is None:
+            cutoff = derived_cutoff
+ 
+        if normalize == "shared":
+            all_y = np.concatenate([y[x <= cutoff] for _, x, y in loaded])
+            lo, hi = float(all_y.min()), float(all_y.max())
+ 
+        fig, ax = plt.subplots(figsize=(8, 5))
+        for sid, x, y in loaded:
+            yy = y.copy()
+            if normalize == "shared" and hi > lo:
+                yy = (yy - lo) / (hi - lo)
+            elif normalize == "per_seed":
+                ylo, yhi = y.min(), y.max()
+                if yhi > ylo:
+                    yy = (y - ylo) / (yhi - ylo)
+            ax.plot(x, yy, marker="o", markersize=2, linewidth=1.1, label=f"Screen {sid}")
+ 
+        if show_cutoff_line:
+            ax.axvline(cutoff, color="0.4", linestyle="--", linewidth=1)
+            ax.text(cutoff, ax.get_ylim()[1], f" common cutoff\n {cutoff:.0f}",
+                    va="top", ha="left", fontsize=8, color="0.3")
+ 
+        # horizontal deployment-threshold line (raw scale only)
+        if threshold is not None and normalize == "none":
+            ax.axhline(threshold, color="crimson", linestyle=":", linewidth=1.3)
+            ax.text(ax.get_xlim()[1], threshold, f"deployment threshold ({threshold:g}) ",
+                    va="bottom", ha="right", fontsize=8, color="crimson")
+ 
+        ax.set_xlabel("Total timesteps")
+        ylabel = "Mean episode reward"
+        if normalize == "shared":
+            ylabel += " (shared-scale normalized)"
+        elif normalize == "per_seed":
+            ylabel += " (per-seed normalized)"
+        ax.set_ylabel(ylabel)
+        ax.set_title(title or f"Seeds: {', '.join(map(str, seed_ids))}")
+        ax.grid(alpha=0.3)
+        ax.legend(fontsize=9)
+        fig.tight_layout()
+ 
+        if save_path:
+            fig.savefig(save_path, dpi=150, bbox_inches="tight")
+            print(f"Saved {save_path}")
+        if show:
+            plt.show()
+        else:
+            plt.close(fig)
+        return fig
+
 #screen = 0
 #name = f"screen{screen}"
 
-model_folder = "models_rl_only"
+model_folder = "models"
 analysis = Analysis(model_folder)
 
-analysis.train_range(start_screen=0, end_screen=0, num_episodes=500, skip_screens={})
+#analysis.train_range(start_screen=0, end_screen=0, num_episodes=500, skip_screens={})
 
-#analysis.plot_screens_overlaid([0,1,2,3,4,5])
+analysis = Analysis("models/screen16_seeds")
+analysis.seed_agreement_stats(["16a", "16b", "16c", "16d", "16e"])
+analysis.timesteps_to_threshold(["16a","16b","16c","16d","16e"], threshold=160)
+analysis.plot_seeds_with_cutoff(["16a","16b","16c","16d","16e"],normalize="none", threshold=160, show_cutoff_line=False, title="Screen 16: five seeds", save_path="images/16_seeds_raw.png")
+
+#analysis.plot_screens_overlaid([0, 1, 2, 3, 4])
 
 #analysis.plot_screen_curves(screen_num=10, model_type="BC+RL", save_path=r"C:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\JumpKingRL\images\10_curves.png")
 
