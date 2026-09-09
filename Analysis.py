@@ -941,14 +941,14 @@ analysis = Analysis(model_folder)
 
 #analysis.train_range(start_screen=0, end_screen=0, num_episodes=500, skip_screens={})
 
-analysis = Analysis("models/screen16_seeds")
-analysis.seed_agreement_stats(["16a", "16b", "16c", "16d", "16e"])
-analysis.timesteps_to_threshold(["16a","16b","16c","16d","16e"], threshold=160)
-analysis.plot_seeds_with_cutoff(["16a","16b","16c","16d","16e"],normalize="none", threshold=160, show_cutoff_line=False, title="Screen 16: five seeds", save_path="images/16_seeds_raw.png")
-
+#analysis = Analysis("models/screen16_seeds")
+#analysis.seed_agreement_stats(["16a", "16b", "16c", "16d", "16e"])
+#analysis.timesteps_to_threshold(["16a","16b","16c","16d","16e"], threshold=160)
+#analysis.plot_seeds_with_cutoff(["16a","16b","16c","16d","16e"],normalize="none", threshold=160, show_cutoff_line=False, title="Screen 16: five seeds", save_path="images/16_seeds_raw.png")
+ 
 #analysis.plot_screens_overlaid([0, 1, 2, 3, 4])
 
-#analysis.plot_screen_curves(screen_num=10, model_type="BC+RL", save_path=r"C:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\JumpKingRL\images\10_curves.png")
+analysis.plot_screen_curves(screen_num=10, model_type="BC+RL", save_path=r"C:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\JumpKingRL\images\10_curves.png")
 
 #analysis.plot_agent_comparison(screen_num=1, save_path=r"C:\Users\wkwak\Documents\CodingWork\Environments\workStuffPython\JumpKingRL\images\1_comparison.png")
 
