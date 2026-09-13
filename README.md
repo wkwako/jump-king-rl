@@ -30,7 +30,7 @@ Jump King is a vertical 2D platformer where the goal is to progress upwards by m
 
 ### RL Background
 
-Reinforcement learning (RL) is a subfield of machine learning in which an agent learns to solve a problem through trial and error. At each timestep $t$, the agent observes a state $s_t$, selects an action $a_t$, and receives a reward $r_t$. The mapping from states to actions is called a policy, denoted $\pi$. A sequence of states and actions from an initial state to a terminal state is called an episode. Over many episodes, the agent learns to adjust $\pi$ to maximize expected reward. A key property of the policies considered is that they are memoryless. That is, $\pi(a|t)$ only depends on the current state, with no explicit memory of previous states or actions within the episode. In other words, the agent decides each move looking only at the current situation, not at how it got there. I use proximal policy optimization (PPO) (Schulman, 2017), a general-purpose RL algorithm requiring minimal domain-specific tuning, which is applicable to both discrete and continuous action spaces. It is also compatible with weight initialization from a separately trained network, which is the property that makes the behavioral cloning step below possible.
+Reinforcement learning (RL) is a subfield of machine learning in which an agent learns to solve a problem through trial and error. At each timestep $t$, the agent observes a state $s_t$, selects an action $a_t$, and receives a reward $r_t$. The mapping from states to actions is called a policy, denoted $\pi$. A sequence of states and actions from an initial state to a terminal state is called an episode. Over many episodes, the agent learns to adjust $\pi$ to maximize expected reward. A key property of the policies considered is that they are memoryless. That is, $\pi(a|s)$ only depends on the current state, with no explicit memory of previous states or actions within the episode. In other words, the agent decides each move looking only at the current situation, not at how it got there. I use proximal policy optimization (PPO) (Schulman, 2017), a general-purpose RL algorithm requiring minimal domain-specific tuning, which is applicable to both discrete and continuous action spaces. It is also compatible with weight initialization from a separately trained network, which is the property that makes the behavioral cloning step below possible.
  
 Behavioral cloning (BC) is a form of imitation learning. Instead of discovering good actions through trial and error, the agent learns by copying examples of a human playing, where each state is mapped to the action a human took. Each moment of recorded play pairs a state (a machine-readable description of the environment) with an action the human took, and the agent learns to reproduce those choices. On its own, BC struggles if it encounters a situation the human never demonstrated. But as a starting point to RL, it is invaluable, as it spares the agent from having to stumble onto reasonable actions by chance. This gives the agent a head start before RL refines its behavior. Concretely, I can train the BC network first and then continue training it with RL, since PPO's compatibility with parameter sharing and weight initialization lets me copy the trained BC weights directly into PPO's policy network, so RL begins from competent behavior rather than from scratch.
 
@@ -182,7 +182,7 @@ BC+RL converged on every screen, with the lowest completion percentage being on 
 
 ### Completion Time
 
-Next, I display a table comparing completion times between each model. Completion time is calculated as the average time it takes to progress to the next screen. There are two important notes to make. First, completion time is only reset on successes, not on failures. Without this modification, only times on successful episodes would be factored into average completion time, which biases the data in the agent's favor and makes its metrics appear better than its actual performance. Second, due to hardware and OS-level timing sensitivities, only data out to one decimal place is shown, as this is the most certain I can be.
+Next, I display a table comparing completion times between each model. Completion time is calculated as the average time it takes to progress to the next screen. There are two important notes to make. First, completion time is only reset on successes, not on failures. Without this modification, only times on successful episodes would be factored into average completion time, which biases the data in the agent's favor and makes its metrics appear better than its actual performance. It measures expected cost per successful transition including failed attempts, which is why it's not comparable to a success-conditional average. Second, due to hardware and OS-level timing sensitivities, only data out to one decimal place is shown, as this is the most certain I can be.
 
 | Screen | BC+RL | BC | RL |
 |---|---|---|---|
@@ -222,9 +222,9 @@ Below, a table for the number of actions it took on average to complete each scr
 | 38 | 10.50 ± 4.79 | 11.02 ± 6.07 | not evaluated |
 | 41 | 7.51 ± 1.30 | 8.52 ± 3.97 | not evaluated |
 
-### Timesteps to Converge
+### Timesteps Trained
 
-Last, I display a table for the number of timesteps it took for each screen to converge.
+Last, I display a table for the number of timesteps each model was trained for.
 
 | Screen | BC+RL | RL |
 |---|---|---|
