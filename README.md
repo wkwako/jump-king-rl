@@ -1,27 +1,3 @@
-# Repo Organization
- 
-At a high level: the C# mod runs inside Jump King and streams live game state to Python over a TCP socket. The Gymnasium environment converts that state into a representation the agent can use, selects an action via a BC, RL, or BC+RL model, and sends the corresponding input back to the game. `JumpKingRL` manages model creation, training, and switching across screens.
- 
-**Entry point**
-- `JumpKingRL.py` - The entry point to the project. A class-based management system for creating, modifying, and deleting BC, RL, and BC+RL models, and for running per-screen training.
-
-**Core loop**
-- `JumpKingEnv.py` - The Gymnasium environment, including the `step()` and `reset()` functions. Also holds reward logic, action space generation, and episode termination logic.
-- `GameStateReceiver.py` - Handles the TCP socket communication between the C# mod and Python, exposing the latest game state to the environment. Also sends teleport commands to the mod.
-- C# mod (`JumpKingMod.cs` and supporting files) - Runs inside Jump King, extracts live game state (position, velocity, screen, wind timer, and more) via reflection, and streams it to Python over TCP. Supporting files: `ActionKeylogger.cs` (records human inputs for BC), `PlatformScanner.cs` and `SlopeScanner.cs` (scrape tile/platform geometry), `TeleporterBehavior.cs` (executes teleport commands), and `WindCycleRecorder.cs` (records the wind cycle).
-
-**State and data processing**
-- `PlatformParser.py` - Ingests raw tile data and determines platform positions for use in state representation.
-- `GeneratePlatformIDs.py` - Generates platform IDs for state representation on wind screens.
-- `RecordingParser.py` - Ingests human playthrough data and produces the states and action spaces used to construct BC models.
-
-**Learning**
-- `BehavioralCloning.py` - A PyTorch MLP that trains BC agents from human playthrough data, plus the weight-transfer step that initializes PPO from a trained BC network.
-
-**Configuration and analysis**
-- `static_variables.py` - Holds unchanging values such as teleporter start positions and per-screen action space definitions.
-- `Analysis.py` - Analysis utilities: concatenating training data across sessions, evaluating trained models over many episodes, and plotting/data-analysis functions.
-
 # Introduction
 
 ### Game Description
@@ -335,3 +311,27 @@ I created a reinforcement learning agent to play and complete Jump King, from cr
 2. Schulman, J.; Wolski, F.; Dhariwal, P.; Radford, A.; and Klimov, O. 2017. Proximal Policy Optimization Algorithms. arXiv:1707.06347.
 3. Code Bullet. 2022a. Jump-King. GitHub repository. Accessed: 2026-07-22.
 4. Code Bullet. 2022b. AI Learns to Play JUMP KING. YouTube. Accessed: 2026-07-22.
+
+# Repo Organization
+ 
+At a high level: the C# mod runs inside Jump King and streams live game state to Python over a TCP socket. The Gymnasium environment converts that state into a representation the agent can use, selects an action via a BC, RL, or BC+RL model, and sends the corresponding input back to the game. `JumpKingRL` manages model creation, training, and switching across screens.
+ 
+**Entry point**
+- `JumpKingRL.py` - The entry point to the project. A class-based management system for creating, modifying, and deleting BC, RL, and BC+RL models, and for running per-screen training.
+
+**Core loop**
+- `JumpKingEnv.py` - The Gymnasium environment, including the `step()` and `reset()` functions. Also holds reward logic, action space generation, and episode termination logic.
+- `GameStateReceiver.py` - Handles the TCP socket communication between the C# mod and Python, exposing the latest game state to the environment. Also sends teleport commands to the mod.
+- C# mod (`JumpKingMod.cs` and supporting files) - Runs inside Jump King, extracts live game state (position, velocity, screen, wind timer, and more) via reflection, and streams it to Python over TCP. Supporting files: `ActionKeylogger.cs` (records human inputs for BC), `PlatformScanner.cs` and `SlopeScanner.cs` (scrape tile/platform geometry), `TeleporterBehavior.cs` (executes teleport commands), and `WindCycleRecorder.cs` (records the wind cycle).
+
+**State and data processing**
+- `PlatformParser.py` - Ingests raw tile data and determines platform positions for use in state representation.
+- `GeneratePlatformIDs.py` - Generates platform IDs for state representation on wind screens.
+- `RecordingParser.py` - Ingests human playthrough data and produces the states and action spaces used to construct BC models.
+
+**Learning**
+- `BehavioralCloning.py` - A PyTorch MLP that trains BC agents from human playthrough data, plus the weight-transfer step that initializes PPO from a trained BC network.
+
+**Configuration and analysis**
+- `static_variables.py` - Holds unchanging values such as teleporter start positions and per-screen action space definitions.
+- `Analysis.py` - Analysis utilities: concatenating training data across sessions, evaluating trained models over many episodes, and plotting/data-analysis functions.
